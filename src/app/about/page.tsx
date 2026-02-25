@@ -9,9 +9,11 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 };
 
+const CONTACT_EMAIL = "privacy@isthisvalid.com";
+
 export default function AboutPage() {
   return (
-    <PolicyLayout title="About IsThisValid.com" lastUpdated="February 2026">
+    <PolicyLayout title="About IsThisValid.com" lastUpdated="February 25, 2026">
       <PolicySection title="What is IsThisValid.com?">
         <p>
           IsThisValid.com is a free verification hub. Whether you&apos;ve
@@ -149,10 +151,10 @@ export default function AboutPage() {
         <p>
           Questions, feedback, or bug reports? Reach us at{" "}
           <a
-            href="mailto:hello@isthisvalid.com"
+            href={`mailto:${CONTACT_EMAIL}`}
             className="text-orange-400 hover:underline"
           >
-            hello@isthisvalid.com
+            {CONTACT_EMAIL}
           </a>
           .
         </p>
