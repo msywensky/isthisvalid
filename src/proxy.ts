@@ -29,7 +29,7 @@ const CORS_HEADERS_ALLOWED = {
   "Access-Control-Max-Age": "86400",
 } as const;
 
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // Only intercept API routes — all other routes pass through untouched.
