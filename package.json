@@ -16,6 +16,7 @@
     "@anthropic-ai/sdk": "^0.78.0",
     "@upstash/ratelimit": "^2.0.8",
     "@upstash/redis": "^1.36.2",
+    "@vercel/analytics": "^1.6.1",
     "disposable-email-domains": "^1.0.62",
     "next": "16.1.6",
     "react": "19.2.3",

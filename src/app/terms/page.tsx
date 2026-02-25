@@ -7,8 +7,8 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 };
 
-const LAST_UPDATED = "February 24, 2026";
-const CONTACT_EMAIL = "hello@isthisvalid.com";
+const LAST_UPDATED = "February 25, 2026";
+const CONTACT_EMAIL = "privacy@isthisvalid.com";
 
 export default function TermsPage() {
   return (
@@ -193,7 +193,30 @@ export default function TermsPage() {
         </ul>
       </PolicySection>
 
-      <PolicySection title="7. Disclaimer of Warranties">
+      <PolicySection title="7. Affiliate Links Disclosure">
+        <p>
+          Some pages on IsThisValid.com display affiliate links to third-party
+          products or services. If you click an affiliate link and make a
+          purchase, we may earn a commission at no additional cost to you.
+          Affiliate links are shown contextually after certain tool results and
+          are always labeled as such.
+        </p>
+        <p>
+          Affiliate links are provided for convenience and do not constitute an
+          editorial recommendation. We do not share any personal data or
+          submitted information with affiliate partners. For questions about
+          affiliate links, contact us at{" "}
+          <a
+            href={`mailto:${CONTACT_EMAIL}`}
+            className="text-orange-400 hover:underline"
+          >
+            {CONTACT_EMAIL}
+          </a>
+          .
+        </p>
+      </PolicySection>
+
+      <PolicySection title="8. Disclaimer of Warranties">
         <p>
           THE SERVICE IS PROVIDED &ldquo;AS IS&rdquo; AND &ldquo;AS
           AVAILABLE&rdquo; WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,

@@ -8,6 +8,6 @@
  * NordVPN:     Impact Radius dashboard → your unique tracking link
  */
 export const AFFILIATE_LINKS = {
-  zerobounce: "https://www.zerobounce.net/?ref=PLACEHOLDER",
+  zerobounce: "https://aff.zerobounce.net/L0PEP0",
   nordvpn: "https://go.nordvpn.net/aff_c?offer_id=15&aff_id=PLACEHOLDER",
 } as const;

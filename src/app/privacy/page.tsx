@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 };
 
-const LAST_UPDATED = "February 24, 2026";
+const LAST_UPDATED = "February 25, 2026";
 const CONTACT_EMAIL = "privacy@isthisvalid.com";
 
 export default function PrivacyPage() {
@@ -286,7 +286,31 @@ export default function PrivacyPage() {
         </p>
       </PolicySection>
 
-      <PolicySection title="8. Changes to This Policy">
+      <PolicySection title="8. Affiliate Links Disclosure">
+        <p>
+          <strong className="text-white">Affiliate links.</strong> Some pages on
+          IsThisValid.com display affiliate links to third-party products or
+          services, such as email validation and online security tools. If you
+          click an affiliate link and make a purchase, we may earn a commission
+          at no additional cost to you. Affiliate links are shown contextually
+          after certain tool results and are always labeled as such.
+        </p>
+        <p>
+          We do not share any personal data or submitted information with
+          affiliate partners. Affiliate links are provided for convenience and
+          do not constitute an editorial recommendation. For questions about
+          affiliate links, contact us at{" "}
+          <a
+            href={`mailto:${CONTACT_EMAIL}`}
+            className="text-orange-400 hover:underline"
+          >
+            {CONTACT_EMAIL}
+          </a>
+          .
+        </p>
+      </PolicySection>
+
+      <PolicySection title="9. Changes to This Policy">
         <p>
           We may update this Privacy Policy from time to time. The &ldquo;Last
           updated&rdquo; date at the top of this page will reflect any changes.
