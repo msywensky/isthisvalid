@@ -1,5 +1,7 @@
 # IsThisValid.com — Architecture Guide
 
+**Last updated: February 25, 2026**
+
 ## High-Level Flow
 
 ### Email Validation (`POST /api/validate`)
@@ -159,19 +161,21 @@ src/
 │   ├── robots.ts                    # /robots.txt via Next.js Metadata API
 │   └── sitemap.ts                   # /sitemap.xml — all routes
 ├── components/
-│   ├── AdSenseBanner.tsx            # AdSense <ins> placeholder / affiliate fallback
+│   ├── AdSenseBanner.tsx            # AdSense <ins> placeholder
+│   ├── AffiliateNudge.tsx           # Contextual affiliate link card (shown only on risky/unsafe results)
 │   ├── CheckShell.tsx               # Shared top-nav (logo + back link) + hero wrapper for all /check/* pages
 │   ├── CookieConsent.tsx            # GDPR cookie-consent banner (localStorage, no dep)
 │   ├── EmailForm.tsx                # Controlled input + loading/submit state
 │   ├── FAQ.tsx                      # Accordion FAQ section; imports data from lib/faq-data
 │   ├── PolicyLayout.tsx             # Shared wrapper + PolicySection for legal pages
-│   ├── ResultCard.tsx               # Score ring, check breakdown, cheeky message (email)
+│   ├── ResultCard.tsx               # Score ring, check breakdown, cheeky message (email) + ZeroBounce affiliate nudge
 │   ├── SiteFooter.tsx               # Persistent footer: About / Privacy / Terms nav links
 │   ├── SiteLogo.tsx                 # Split-diamond SVG wordmark (size="md" hero / size="sm" nav)
 │   ├── TextFAQ.tsx                  # FAQ accordion for the text/SMS tool
-│   ├── TextResultCard.tsx           # Classification badge, risk score, flags, explanation (text)
-│   └── UrlResultCard.tsx            # Score ring, check grid, flags list (URL)
+│   ├── TextResultCard.tsx           # Classification badge, risk score, flags, explanation (text) + NordVPN affiliate nudge
+│   └── UrlResultCard.tsx            # Score ring, check grid, flags list (URL) + NordVPN affiliate nudge
 └── lib/
+    ├── affiliate-links.ts           # Affiliate partner URLs (ZeroBounce, NordVPN) — swap PLACEHOLDERs when approved
     ├── email-validator.ts           # Core logic: validateEmailLocal, applyMxResult, mergeEmailableResult
     ├── url-validator.ts             # Core logic: validateUrlLocal, applyHeadResult, applySafeBrowsingResult
     ├── text-debunker.ts             # Types + Zod schema for TextDebunkResult
@@ -191,9 +195,19 @@ __tests__/
 | `ANTHROPIC_API_KEY`            | Yes      | Anthropic API key — powers the Text / SMS scam detector (Claude claude-sonnet-4-20250514) |
 | `UPSTASH_REDIS_REST_URL`       | Yes      | Upstash Redis URL — rate limiting (20 req/min) + result cache (24 h TTL)                  |
 | `UPSTASH_REDIS_REST_TOKEN`     | Yes      | Upstash Redis token — required alongside the URL above                                    |
-| `GOOGLE_SAFE_BROWSING_API_KEY` | No       | Google Safe Browsing v4 key — enables malware/phishing lookup on URL tool                 |
+| `GOOGLE_SAFE_BROWSING_API_KEY` | No       | Google Safe Browsing v5 key — enables malware/phishing lookup on URL tool                 |
 | `EMAILABLE_API_KEY`            | No       | Emailable API key — enables SMTP-level mailbox checks on email tool                       |
 | `NEXT_PUBLIC_ADSENSE_ID`       | No       | Google AdSense publisher ID (`ca-pub-...`) — leave blank until approved                   |
+
+## Affiliate Links
+
+Contextual affiliate recommendations are shown to users after risky/unsafe results:
+
+- **Email validator** → ZeroBounce (shown for risky/invalid results)
+- **URL checker** → NordVPN (shown for suspicious/dangerous scores)
+- **Text/SMS detector** → NordVPN (shown for unsafe results)
+
+Affiliate links are always labelled with a visible "Affiliate" disclosure badge. No personal data is shared with affiliate partners. URLs are stored in [src/lib/affiliate-links.ts](src/lib/affiliate-links.ts) — replace `PLACEHOLDER` values once accounts are approved.
 
 ## URL Validation Pipeline
 
@@ -227,12 +241,12 @@ POST /api/validate-url
   │     ├── resolves=true  → +5 bonus (capped at 100)
   │     └── resolves=false → score capped at 70
   │
-  ├─► Google Safe Browsing v4 Lookup API (optional, only if GOOGLE_SAFE_BROWSING_API_KEY set)
-  │     └── POST threatMatches:find — checks MALWARE / SOCIAL_ENGINEERING / UNWANTED_SOFTWARE / POTENTIALLY_HARMFUL_APPLICATION
+  ├─► Google Safe Browsing v5 Lookup API (optional, only if GOOGLE_SAFE_BROWSING_API_KEY set)
+  │     └── GET urls:search — checks against malware, phishing, and unwanted software databases
   │     │
   │     ├── API success → applySafeBrowsingResult()
-  │     │     ├── isFlagged=true  → score capped at 5, safe=false
-  │     │     └── isFlagged=false → safeBrowsing=true, source="safe-browsing"
+  │     │     ├── threats found → score capped at 5, safe=false
+  │     │     └── no threats → safeBrowsing=true, source="safe-browsing"
   │     │
   │     └── API failure (timeout / error) → graceful degradation
   │           ├── score hard-capped at 75 (never "Safe" when check is incomplete)
@@ -240,8 +254,8 @@ POST /api/validate-url
   │           └── UrlResultCard shows a ⚠ yellow warning banner to the user
   │
   └─► applySafeBrowsingResult() — merges Safe Browsing into score
-        ├── isFlagged=true  → score capped at 5, safe=false
-        └── isFlagged=false → safeBrowsing=true, source="safe-browsing"
+        ├── threats found → score capped at 5, safe=false
+        └── no threats → safeBrowsing=true, source="safe-browsing"
 ```
 
 ### URL Scoring (0–100)
@@ -310,6 +324,10 @@ colour — deliberately distinct from Emailable's corporate blue/teal palette.
 | Score ring — valid   | `#84cc16` (SVG fill) | lime-400   |
 | Score ring — warn    | `#eab308` (SVG fill) | yellow-400 |
 | Score ring — invalid | `#fb7185` (SVG fill) | rose-400   |
+
+## Analytics
+
+Vercel Analytics is enabled via `@vercel/analytics` package and the `<Analytics />` component in root layout. Tracking is automatic based on your Vercel account configuration.
 
 ## Running Locally
 
@@ -384,7 +402,7 @@ All three API routes are protected by Upstash Redis rate limiting:
 
 ## Expansion Roadmap
 
-See [ROADMAP.md](./ROADMAP.md) — kept out of version control.
+See ROADMAP.md (local file, gitignored for privacy planning).
 
 ## Cost Monitoring
 
