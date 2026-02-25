@@ -1,65 +1,160 @@
-import Image from "next/image";
+import Link from "next/link";
+import SiteLogo from "@/components/SiteLogo";
 
-export default function Home() {
+const tools = [
+  {
+    href: "/check/email",
+    icon: "📧",
+    name: "Email",
+    tagline: "Is this address real?",
+    description:
+      "Validate syntax, check TLD, flag disposable providers, and verify mailbox delivery.",
+    accentHover: "hover:border-orange-500/60",
+    accentText: "group-hover:text-orange-400",
+    accentBadge: null,
+    cta: "Validate email",
+  },
+  {
+    href: "/check/url",
+    icon: "🔗",
+    name: "URL",
+    tagline: "Safe to click?",
+    description:
+      "Spot phishing links, malware domains, and suspicious redirects before you click.",
+    accentHover: "hover:border-sky-500/60",
+    accentText: "group-hover:text-sky-400",
+    accentBadge: null,
+    cta: "Check URL",
+  },
+  {
+    href: "/check/text",
+    icon: "💬",
+    name: "Text / SMS",
+    tagline: "Scam or legit?",
+    description:
+      "Paste a suspicious message — AI flags smishing, impersonation, and urgency tricks.",
+    accentHover: "hover:border-violet-500/60",
+    accentText: "group-hover:text-violet-400",
+    accentBadge: null,
+    cta: "Analyse text",
+  },
+  {
+    href: "/check/image",
+    icon: "🖼️",
+    name: "Image",
+    tagline: "Real or faked?",
+    description:
+      "AI vision checks for deepfakes, manipulated screenshots, and out-of-context photos.",
+    accentHover: "hover:border-emerald-500/60",
+    accentText: "group-hover:text-emerald-400",
+    accentBadge: "Soon",
+    cta: "Coming soon",
+  },
+];
+
+export default function HubPage() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <main
+      id="main-content"
+      className="flex flex-col items-center min-h-screen px-4 py-16 gap-14"
+    >
+      {/* Hero */}
+      <section className="text-center space-y-4 max-w-2xl">
+        <div className="flex justify-center mb-2">
+          <SiteLogo />
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        <div className="inline-flex items-center gap-2 text-orange-400 text-sm font-medium tracking-wider uppercase">
+          <span aria-hidden="true">🔍</span> Free verification tools
         </div>
-      </main>
-    </div>
+        <h1 className="text-5xl sm:text-6xl font-extrabold tracking-tight text-white">
+          Is this <span className="text-orange-400">real</span>?
+        </h1>
+        <p className="text-zinc-400 text-base sm:text-lg max-w-lg mx-auto leading-relaxed">
+          Pick something suspicious. We&apos;ll tell you if it&rsquo;s genuine,
+          sketchy, or straight-up fake. No signup. No nonsense.
+        </p>
+      </section>
+
+      {/* Tool grid */}
+      <section
+        className="w-full max-w-2xl grid grid-cols-1 sm:grid-cols-2 gap-4"
+        aria-label="Available tools"
+      >
+        {tools.map((tool) => {
+          const isSoon = tool.accentBadge === "Soon";
+          const cardBody = (
+            <>
+              {tool.accentBadge && (
+                <span className="absolute top-4 right-4 px-2 py-0.5 rounded-full text-[10px] font-bold tracking-widest bg-zinc-800 text-zinc-500 border border-zinc-700 uppercase">
+                  {tool.accentBadge}
+                </span>
+              )}
+              <div className="flex items-center gap-3">
+                <span className="text-2xl" aria-hidden="true">
+                  {tool.icon}
+                </span>
+                <span
+                  className={`text-base font-semibold text-zinc-200 transition-colors duration-200 ${tool.accentText}`}
+                >
+                  {tool.name}
+                </span>
+              </div>
+              <p className="text-zinc-300 font-medium text-sm">
+                {tool.tagline}
+              </p>
+              <p className="text-zinc-500 text-sm leading-relaxed flex-1">
+                {tool.description}
+              </p>
+              <span className="mt-1 text-sm font-medium text-zinc-400 group-hover:text-zinc-200 transition-colors duration-150 flex items-center gap-1">
+                {tool.cta}
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="group-hover:translate-x-0.5 transition-transform duration-150"
+                  aria-hidden="true"
+                >
+                  <path d="m9 18 6-6-6-6" />
+                </svg>
+              </span>
+            </>
+          );
+
+          const baseClasses = `group relative flex flex-col gap-3 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-6 transition-all duration-200 ${tool.accentHover}`;
+
+          return isSoon ? (
+            // Not a link — not live yet; aria-disabled signals this to assistive tech
+            <div
+              key={tool.href}
+              aria-disabled="true"
+              aria-label={`${tool.name} — coming soon`}
+              className={`${baseClasses} opacity-50 cursor-not-allowed`}
+            >
+              {cardBody}
+            </div>
+          ) : (
+            <Link
+              key={tool.href}
+              href={tool.href}
+              className={`${baseClasses} hover:bg-zinc-900 focus:outline-none focus:ring-2 focus:ring-orange-500/50`}
+            >
+              {cardBody}
+            </Link>
+          );
+        })}
+      </section>
+
+      {/* Trust line */}
+      <p className="text-zinc-500 text-xs text-center max-w-sm">
+        Free to use &middot; No account required &middot; Nothing is stored
+      </p>
+    </main>
   );
 }
