@@ -1,13 +1,13 @@
 /**
  * Affiliate partner URLs.
  *
- * Once your affiliate accounts are approved, replace the PLACEHOLDER values
- * with your actual tracking IDs/URLs from each program's dashboard.
+ * Set via environment variables:
+ * - NEXT_PUBLIC_ZEROBOUNCE_AFFILIATE_URL
+ * - NEXT_PUBLIC_NORDVPN_AFFILIATE_URL
  *
- * ZeroBounce:  https://app.zerobounce.net/affiliate (replace ref= value)
- * NordVPN:     Impact Radius dashboard → your unique tracking link
+ * These are public-facing URLs (can be in NEXT_PUBLIC_*) used in client/server code.
  */
 export const AFFILIATE_LINKS = {
-  zerobounce: "https://aff.zerobounce.net/L0PEP0",
-  nordvpn: "https://go.nordvpn.net/aff_c?offer_id=15&aff_id=PLACEHOLDER",
+  zerobounce: process.env.NEXT_PUBLIC_ZEROBOUNCE_AFFILIATE_URL || "https://aff.zerobounce.net/PLACEHOLDER",
+  nordvpn: process.env.NEXT_PUBLIC_NORDVPN_AFFILIATE_URL || "https://go.nordvpn.net/aff_c?offer_id=15&aff_id=PLACEHOLDER",
 } as const;
