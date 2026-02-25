@@ -190,16 +190,16 @@ __tests__/
 
 ## Environment Variables
 
-| Variable                       | Required | Description                                                                               |
-| ------------------------------ | -------- | ----------------------------------------------------------------------------------------- |
-| `ANTHROPIC_API_KEY`            | Yes      | Anthropic API key — powers the Text / SMS scam detector (Claude claude-sonnet-4-20250514) |
-| `UPSTASH_REDIS_REST_URL`       | Yes      | Upstash Redis URL — rate limiting (20 req/min) + result cache (24 h TTL)                  |
-| `UPSTASH_REDIS_REST_TOKEN`     | Yes      | Upstash Redis token — required alongside the URL above                                    |
-| `GOOGLE_SAFE_BROWSING_API_KEY` | No       | Google Safe Browsing v5 key — enables malware/phishing lookup on URL tool                 |
-| `EMAILABLE_API_KEY`            | No       | Emailable API key — enables SMTP-level mailbox checks on email tool                       |
-| `NEXT_PUBLIC_ADSENSE_ID`       | No       | Google AdSense publisher ID (`ca-pub-...`) — leave blank until approved                   |
-| `NEXT_PUBLIC_ZEROBOUNCE_AFFILIATE_URL` | No | ZeroBounce affiliate tracking URL — shown on email tool risky results                  |
-| `NEXT_PUBLIC_NORDVPN_AFFILIATE_URL` | No | NordVPN affiliate tracking URL — shown on URL/text tool unsafe results                  |
+| Variable                               | Required | Description                                                                               |
+| -------------------------------------- | -------- | ----------------------------------------------------------------------------------------- |
+| `ANTHROPIC_API_KEY`                    | Yes      | Anthropic API key — powers the Text / SMS scam detector (Claude claude-sonnet-4-20250514) |
+| `UPSTASH_REDIS_REST_URL`               | Yes      | Upstash Redis URL — rate limiting (20 req/min) + result cache (24 h TTL)                  |
+| `UPSTASH_REDIS_REST_TOKEN`             | Yes      | Upstash Redis token — required alongside the URL above                                    |
+| `GOOGLE_SAFE_BROWSING_API_KEY`         | No       | Google Safe Browsing v5 key — enables malware/phishing lookup on URL tool                 |
+| `EMAILABLE_API_KEY`                    | No       | Emailable API key — enables SMTP-level mailbox checks on email tool                       |
+| `NEXT_PUBLIC_ADSENSE_ID`               | No       | Google AdSense publisher ID (`ca-pub-...`) — leave blank until approved                   |
+| `NEXT_PUBLIC_ZEROBOUNCE_AFFILIATE_URL` | No       | ZeroBounce affiliate tracking URL — shown on email tool risky results                     |
+| `NEXT_PUBLIC_NORDVPN_AFFILIATE_URL`    | No       | NordVPN affiliate tracking URL — shown on URL/text tool unsafe results                    |
 
 ## Affiliate Links
 
@@ -210,6 +210,7 @@ Contextual affiliate recommendations are shown to users after risky/unsafe resul
 - **Text/SMS detector** → NordVPN (shown for unsafe results)
 
 Affiliate links are always labelled with a visible "Affiliate" disclosure badge. No personal data is shared with affiliate partners. Tracking URLs are configured via environment variables:
+
 - `NEXT_PUBLIC_ZEROBOUNCE_AFFILIATE_URL` — ZeroBounce tracking link
 - `NEXT_PUBLIC_NORDVPN_AFFILIATE_URL` — NordVPN tracking link
 
