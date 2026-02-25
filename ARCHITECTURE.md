@@ -175,7 +175,7 @@ src/
 │   ├── TextResultCard.tsx           # Classification badge, risk score, flags, explanation (text) + NordVPN affiliate nudge
 │   └── UrlResultCard.tsx            # Score ring, check grid, flags list (URL) + NordVPN affiliate nudge
 └── lib/
-    ├── affiliate-links.ts           # Affiliate partner URLs (ZeroBounce, NordVPN) — swap PLACEHOLDERs when approved
+    ├── affiliate-links.ts           # Affiliate partner URLs — reads from NEXT_PUBLIC_* env vars
     ├── email-validator.ts           # Core logic: validateEmailLocal, applyMxResult, mergeEmailableResult
     ├── url-validator.ts             # Core logic: validateUrlLocal, applyHeadResult, applySafeBrowsingResult
     ├── text-debunker.ts             # Types + Zod schema for TextDebunkResult
@@ -198,6 +198,8 @@ __tests__/
 | `GOOGLE_SAFE_BROWSING_API_KEY` | No       | Google Safe Browsing v5 key — enables malware/phishing lookup on URL tool                 |
 | `EMAILABLE_API_KEY`            | No       | Emailable API key — enables SMTP-level mailbox checks on email tool                       |
 | `NEXT_PUBLIC_ADSENSE_ID`       | No       | Google AdSense publisher ID (`ca-pub-...`) — leave blank until approved                   |
+| `NEXT_PUBLIC_ZEROBOUNCE_AFFILIATE_URL` | No | ZeroBounce affiliate tracking URL — shown on email tool risky results                  |
+| `NEXT_PUBLIC_NORDVPN_AFFILIATE_URL` | No | NordVPN affiliate tracking URL — shown on URL/text tool unsafe results                  |
 
 ## Affiliate Links
 
@@ -207,7 +209,11 @@ Contextual affiliate recommendations are shown to users after risky/unsafe resul
 - **URL checker** → NordVPN (shown for suspicious/dangerous scores)
 - **Text/SMS detector** → NordVPN (shown for unsafe results)
 
-Affiliate links are always labelled with a visible "Affiliate" disclosure badge. No personal data is shared with affiliate partners. URLs are stored in [src/lib/affiliate-links.ts](src/lib/affiliate-links.ts) — replace `PLACEHOLDER` values once accounts are approved.
+Affiliate links are always labelled with a visible "Affiliate" disclosure badge. No personal data is shared with affiliate partners. Tracking URLs are configured via environment variables:
+- `NEXT_PUBLIC_ZEROBOUNCE_AFFILIATE_URL` — ZeroBounce tracking link
+- `NEXT_PUBLIC_NORDVPN_AFFILIATE_URL` — NordVPN tracking link
+
+Set these in `.env.local` (local dev) or Vercel environment variables (production) once affiliate accounts are approved.
 
 ## URL Validation Pipeline
 
