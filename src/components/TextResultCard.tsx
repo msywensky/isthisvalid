@@ -1,6 +1,8 @@
 "use client";
 
 import type { TextDebunkResult, TextClassification } from "@/lib/text-debunker";
+import AffiliateNudge from "@/components/AffiliateNudge";
+import { AFFILIATE_LINKS } from "@/lib/affiliate-links";
 
 type Props = { result: TextDebunkResult };
 
@@ -194,6 +196,22 @@ export default function TextResultCard({ result }: Props) {
           Claude Sonnet · AI Analysis
         </span>
       </div>
+
+      {/* Affiliate nudge — only shown when the message is not safe */}
+      {!result.safe && (
+        <AffiliateNudge
+          href={AFFILIATE_LINKS.nordvpn}
+          eyebrow={
+            result.classification === "scam" ||
+            result.classification === "smishing"
+              ? "You may have been targeted"
+              : "Stay safer online"
+          }
+          headline="NordVPN shields your connection from scammers"
+          body="Scammers exploit unsecured connections. NordVPN encrypts your traffic and blocks known phishing domains before they load."
+          cta="Try NordVPN →"
+        />
+      )}
     </div>
   );
 }

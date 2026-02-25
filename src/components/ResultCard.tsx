@@ -1,4 +1,6 @@
 import type { EmailValidationResult } from "@/lib/email-validator";
+import AffiliateNudge from "@/components/AffiliateNudge";
+import { AFFILIATE_LINKS } from "@/lib/affiliate-links";
 
 interface Props {
   result: EmailValidationResult;
@@ -110,6 +112,17 @@ export default function ResultCard({ result }: Props) {
             : "local checks"}
         </span>
       </p>
+
+      {/* Affiliate nudge — only shown for risky or invalid results */}
+      {(sentiment === "warn" || sentiment === "invalid") && (
+        <AffiliateNudge
+          href={AFFILIATE_LINKS.zerobounce}
+          eyebrow="Got a whole list to check?"
+          headline="Verify bulk emails with ZeroBounce"
+          body="ZeroBounce catches bad addresses, disposable providers, and spam traps at scale — before they damage your sender reputation."
+          cta="Try ZeroBounce free →"
+        />
+      )}
     </div>
   );
 }

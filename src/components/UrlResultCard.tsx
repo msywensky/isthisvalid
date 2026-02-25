@@ -1,6 +1,8 @@
 "use client";
 
 import { UrlValidationResult } from "@/lib/url-validator";
+import AffiliateNudge from "@/components/AffiliateNudge";
+import { AFFILIATE_LINKS } from "@/lib/affiliate-links";
 
 interface Props {
   result: UrlValidationResult;
@@ -184,6 +186,17 @@ export function UrlResultCard({ result }: Props) {
             ))}
           </div>
         </div>
+      )}
+
+      {/* Affiliate nudge — only shown for suspicious or dangerous URLs */}
+      {result.score < 80 && (
+        <AffiliateNudge
+          href={AFFILIATE_LINKS.nordvpn}
+          eyebrow="Stay safer online"
+          headline="Block threats before they reach you"
+          body="NordVPN encrypts your traffic and blocks malicious sites automatically — no link-checking required."
+          cta="Try NordVPN →"
+        />
       )}
     </div>
   );
