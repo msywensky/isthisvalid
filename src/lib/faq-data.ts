@@ -14,7 +14,7 @@ export const FAQ_DATA: { q: string; a: string }[] = [
   },
   {
     q: "What's a disposable email address?",
-    a: "A throwaway inbox you spin up in seconds — think Mailinator, Guerrilla Mail, or YOPmail. They're great for avoiding spam yourself, but terrible when someone uses one to sign up for your product and then ghosts you. We flag 3,500+ of these providers.",
+    a: "A throwaway inbox you spin up in seconds — think Mailinator, Guerrilla Mail, or YOPmail. They're great for avoiding spam yourself, but terrible when someone uses one to sign up for your product and then ghosts you. We flag 57,000+ of these providers.",
   },
   {
     q: "What does the score (0–100) mean?",

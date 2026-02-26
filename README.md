@@ -12,7 +12,7 @@ A free, no-signup verification hub for checking emails, scanning URLs for threat
 
 - RFC 5322 syntax validation
 - TLD verification
-- Disposable email detection (3,500+ domains)
+- Disposable email detection (57,000+ domains)
 - Role-based email filtering (admin@, noreply@, etc.)
 - MX record lookup
 - Optional SMTP mailbox verification (pluggable provider: ZeroBounce preferred, Emailable fallback)

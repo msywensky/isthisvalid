@@ -32,7 +32,7 @@ export default function AboutPage() {
           <li>
             <strong className="text-white">Email Validator</strong> — checks
             whether an email address passes RFC 5322 syntax rules, belongs to a
-            known disposable-email provider (3,500+ domains), has valid DNS MX
+            known disposable-email provider (57,000+ domains), has valid DNS MX
             records, and (optionally) whether the mailbox actually exists.
             Results are scored 0–100.{" "}
             <Link
