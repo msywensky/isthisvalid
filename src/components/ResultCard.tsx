@@ -107,9 +107,11 @@ export default function ResultCard({ result }: Props) {
       <p className="text-xs text-zinc-500 text-right">
         Validated via{" "}
         <span className="text-zinc-400 font-medium">
-          {result.source === "emailable"
-            ? "Emailable API + local checks"
-            : "local checks"}
+          {result.source === "zerobounce"
+            ? "ZeroBounce + local checks"
+            : result.source === "emailable"
+              ? "Emailable API + local checks"
+              : "local checks"}
         </span>
       </p>
 
