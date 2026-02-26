@@ -199,11 +199,8 @@ export function mergeSmtpResult(
 ): EmailValidationResult {
   const checks: ValidationChecks = {
     ...local.checks,
-    apiDeliverable: smtp.deliverable === true
-      ? true
-      : smtp.undeliverable
-        ? false
-        : null,
+    apiDeliverable:
+      smtp.deliverable === true ? true : smtp.undeliverable ? false : null,
     notDisposable: local.checks.notDisposable && !smtp.disposable,
   };
 
@@ -212,8 +209,7 @@ export function mergeSmtpResult(
     local.checks.syntax &&
     checks.notDisposable &&
     local.checks.hasMx !== false &&
-    (smtp.deliverable === true ||
-      (!smtp.undeliverable && local.valid));
+    (smtp.deliverable === true || (!smtp.undeliverable && local.valid));
 
   return {
     ...local,
