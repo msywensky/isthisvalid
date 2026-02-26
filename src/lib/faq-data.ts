@@ -9,8 +9,8 @@ export const FAQ_DATA: { q: string; a: string }[] = [
     a: "Because 'totally@valid.email' passes any regex and still bounces harder than a cheque written in crayon. We layer syntax, TLD verification, disposable-domain detection, and optional live mailbox checking on top — so you get an actual signal, not false confidence.",
   },
   {
-    q: "Is my email stored or shared?",
-    a: "Almost nothing. The address itself is never logged or stored. If we verify it against a third-party SMTP provider (like ZeroBounce), the result is cached for 7 days using a one-way SHA-256 hash of your address as the key — so we can skip the paid API call if the same address is checked again. The hash can't be reversed to recover your email. We don't sell data, add you to any list, or share anything with third parties beyond the SMTP check itself.",
+    q: "Is the email address stored or shared?",
+    a: "The address itself is never stored or shared. If we verify it against a third-party SMTP provider (like ZeroBounce), the result is cached for 7 days using a one-way SHA-256 hash of your address as the key — so we can avoid redundant API calls. The hash can't be reversed to recover your email. We don't sell data, add you to any list, or share anything with third parties beyond the SMTP check itself.",
   },
   {
     q: "What's a disposable email address?",
@@ -34,7 +34,7 @@ export const FAQ_DATA: { q: string; a: string }[] = [
   },
   {
     q: "Can I use this via an API?",
-    a: "Not yet officially, but the POST /api/validate endpoint is open. Bulk checking and an API key system are on the roadmap. For now, go wild responsibly.",
+    a: "Not yet. Bulk checking and an API key system are on the roadmap. For now, go wild responsibly.",
   },
   {
     q: "Can this tool get it wrong?",
