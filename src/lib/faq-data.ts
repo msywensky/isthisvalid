@@ -10,7 +10,7 @@ export const FAQ_DATA: { q: string; a: string }[] = [
   },
   {
     q: "Is my email stored or shared?",
-    a: "Nope. The address you enter is processed in memory, a result is returned, and it's gone. We don't log it, store it, sell it, or add it to any list. There's no database in this stack.",
+    a: "Almost nothing. The address itself is never logged or stored. If we verify it against a third-party SMTP provider (like ZeroBounce), the result is cached for 7 days using a one-way SHA-256 hash of your address as the key — so we can skip the paid API call if the same address is checked again. The hash can't be reversed to recover your email. We don't sell data, add you to any list, or share anything with third parties beyond the SMTP check itself.",
   },
   {
     q: "What's a disposable email address?",
