@@ -95,9 +95,16 @@ export async function POST(req: NextRequest) {
   // Returns local+MX result if neither key is configured.
   const provider = getSmtpProvider();
   if (!provider) {
+    console.warn(
+      "[validate] No SMTP provider configured. ZeroBounce key:",
+      !!process.env.ZEROBOUNCE_API_KEY,
+      "Emailable key:",
+      !!process.env.EMAILABLE_API_KEY,
+    );
     return NextResponse.json(resultWithMx, { headers: securityHeaders() });
   }
 
+  console.log(`[validate] Using ${provider.name} provider`);
   try {
     const smtpResult = await provider.verify(email);
     const merged = mergeSmtpResult(resultWithMx, smtpResult);
