@@ -120,7 +120,7 @@ export default function EmailCheckPage() {
           </li>
           <li>
             <strong className="text-zinc-200">API verification</strong>{" "}
-            (optional) — Emailable checks if the mailbox actually exists.
+            (optional) — ZeroBounce validates if the mailbox actually exists.
           </li>
         </ol>
       </section>
