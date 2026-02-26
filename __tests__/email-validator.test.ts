@@ -1,8 +1,10 @@
 import {
   validateEmailLocal,
   mergeEmailableResult,
+  mergeSmtpResult,
   applyMxResult,
 } from "@/lib/email-validator";
+import { DISPOSABLE_DOMAINS } from "@/lib/disposable-domains";
 
 describe("validateEmailLocal", () => {
   // ── Valid emails ─────────────────────────────────────────────────────────
@@ -199,5 +201,187 @@ describe("applyMxResult", () => {
     const r = applyMxResult(disposable, false);
     expect(r.valid).toBe(false);
     expect(r.score).toBeLessThanOrEqual(15);
+  });
+});
+
+// ── mergeSmtpResult ───────────────────────────────────────────────────────────
+describe("mergeSmtpResult", () => {
+  const baseLocal = validateEmailLocal("user@example.com");
+  const baseWithMx = applyMxResult(baseLocal, true);
+
+  it("marks deliverable=true and sets score to 100", () => {
+    const merged = mergeSmtpResult(baseWithMx, {
+      deliverable: true,
+      undeliverable: false,
+      disposable: false,
+      source: "zerobounce",
+    });
+    expect(merged.checks.apiDeliverable).toBe(true);
+    expect(merged.valid).toBe(true);
+    expect(merged.score).toBe(100);
+    expect(merged.source).toBe("zerobounce");
+  });
+
+  it("marks undeliverable=true, caps score, and sets valid=false", () => {
+    const merged = mergeSmtpResult(baseWithMx, {
+      deliverable: null,
+      undeliverable: true,
+      disposable: false,
+      source: "zerobounce",
+    });
+    expect(merged.checks.apiDeliverable).toBe(false);
+    expect(merged.valid).toBe(false);
+    expect(merged.score).toBeLessThanOrEqual(20);
+  });
+
+  it("propagates disposable=true even if local missed it", () => {
+    const merged = mergeSmtpResult(baseWithMx, {
+      deliverable: true,
+      undeliverable: false,
+      disposable: true,
+      source: "zerobounce",
+    });
+    expect(merged.checks.notDisposable).toBe(false);
+  });
+
+  it("sets apiDeliverable=null when deliverability is unknown", () => {
+    const merged = mergeSmtpResult(baseWithMx, {
+      deliverable: null,
+      undeliverable: false,
+      disposable: false,
+      source: "zerobounce",
+    });
+    expect(merged.checks.apiDeliverable).toBeNull();
+  });
+
+  it("carries source from the SmtpVerifyResult (emailable)", () => {
+    const merged = mergeSmtpResult(baseWithMx, {
+      deliverable: true,
+      undeliverable: false,
+      disposable: false,
+      source: "emailable",
+    });
+    expect(merged.source).toBe("emailable");
+  });
+
+  it("preserves hasMx from the local+MX result", () => {
+    const merged = mergeSmtpResult(baseWithMx, {
+      deliverable: true,
+      undeliverable: false,
+      disposable: false,
+      source: "zerobounce",
+    });
+    expect(merged.checks.hasMx).toBe(true);
+  });
+});
+
+// ── Expanded role-prefix list ─────────────────────────────────────────────────
+describe("validateEmailLocal — expanded role prefixes", () => {
+  const domain = "company.com";
+
+  // Mail infrastructure (added in expansion)
+  it.each(["bounce", "smtp", "imap", "pop", "pop3", "dns", "www", "sysadmin", "mailerdaemon"])(
+    "detects '%s' as a role address",
+    (prefix) => {
+      const r = validateEmailLocal(`${prefix}@${domain}`);
+      expect(r.checks.notRole).toBe(false);
+      expect(r.checks.syntax).toBe(true);
+    },
+  );
+
+  // No-reply variants (added in expansion)
+  it.each(["no_reply", "donot-reply"])(
+    "detects '%s' as a role address",
+    (prefix) => {
+      const r = validateEmailLocal(`${prefix}@${domain}`);
+      expect(r.checks.notRole).toBe(false);
+    },
+  );
+
+  // Support / customer service
+  it.each(["helpdesk", "customerservice", "customercare", "enquiries"])(
+    "detects '%s' as a role address",
+    (prefix) => {
+      const r = validateEmailLocal(`${prefix}@${domain}`);
+      expect(r.checks.notRole).toBe(false);
+    },
+  );
+
+  // Business functions
+  it.each(["accounting", "payroll", "invoices", "procurement", "gdpr", "compliance", "humanresources"])(
+    "detects '%s' as a role address",
+    (prefix) => {
+      const r = validateEmailLocal(`${prefix}@${domain}`);
+      expect(r.checks.notRole).toBe(false);
+    },
+  );
+
+  // E-commerce
+  it.each(["shop", "store", "reservations", "bookings", "returns", "refunds"])(
+    "detects '%s' as a role address",
+    (prefix) => {
+      const r = validateEmailLocal(`${prefix}@${domain}`);
+      expect(r.checks.notRole).toBe(false);
+    },
+  );
+
+  // Communications
+  it.each(["newsletter", "newsletters", "press", "media", "alerts", "unsubscribe", "list"])(
+    "detects '%s' as a role address",
+    (prefix) => {
+      const r = validateEmailLocal(`${prefix}@${domain}`);
+      expect(r.checks.notRole).toBe(false);
+    },
+  );
+
+  // Executive titles (rarely personal inboxes)
+  it.each(["ceo", "cfo", "cto", "coo", "founders"])(
+    "detects '%s' as a role address",
+    (prefix) => {
+      const r = validateEmailLocal(`${prefix}@${domain}`);
+      expect(r.checks.notRole).toBe(false);
+    },
+  );
+
+  // Sanity — legitimate user names that look like they could be role-ish
+  it.each(["shopkeeper", "newsdesk", "ceoremy", "alertsme"])(
+    "does not flag partial-match '%s' as a role address",
+    (prefix) => {
+      const r = validateEmailLocal(`${prefix}@${domain}`);
+      expect(r.checks.notRole).toBe(true);
+    },
+  );
+});
+
+// ── Disposable domain coverage ────────────────────────────────────────────────
+describe("DISPOSABLE_DOMAINS (merged mailchecker + disposable-email-domains)", () => {
+  it("contains more than 50 000 entries after the mailchecker merge", () => {
+    expect(DISPOSABLE_DOMAINS.size).toBeGreaterThan(50_000);
+  });
+
+  it("still includes classic domains from the original package", () => {
+    expect(DISPOSABLE_DOMAINS.has("mailinator.com")).toBe(true);
+    expect(DISPOSABLE_DOMAINS.has("yopmail.com")).toBe(true);
+    expect(DISPOSABLE_DOMAINS.has("10minutemail.com")).toBe(true);
+    expect(DISPOSABLE_DOMAINS.has("guerrillamail.com")).toBe(true);
+    expect(DISPOSABLE_DOMAINS.has("sharklasers.com")).toBe(true);
+  });
+
+  it("does not flag legitimate domains as disposable", () => {
+    expect(DISPOSABLE_DOMAINS.has("gmail.com")).toBe(false);
+    expect(DISPOSABLE_DOMAINS.has("outlook.com")).toBe(false);
+    expect(DISPOSABLE_DOMAINS.has("yahoo.com")).toBe(false);
+    expect(DISPOSABLE_DOMAINS.has("icloud.com")).toBe(false);
+    expect(DISPOSABLE_DOMAINS.has("protonmail.com")).toBe(false);
+  });
+
+  it("validateEmailLocal flags known mailchecker-only domains", () => {
+    // These domains exist in the mailchecker list
+    const domains = ["guerrillamail.com", "sharklasers.com"];
+    for (const d of domains) {
+      const r = validateEmailLocal(`test@${d}`);
+      expect(r.checks.notDisposable).toBe(false);
+      expect(r.valid).toBe(false);
+    }
   });
 });

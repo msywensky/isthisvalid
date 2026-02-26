@@ -17,8 +17,8 @@ Browser  →  POST /api/validate { email }
   ├─► validateEmailLocal() — free, <1 ms
   │     ├── RFC 5322 regex syntax check
   │     ├── TLD presence + length
-  │     ├── Disposable-domain Set lookup (3 500+ domains)
-  │     └── Role-prefix Set lookup (admin@, noreply@, …)
+  │     ├── Disposable-domain Set lookup (~57 000+ domains)
+  │     └── Role-prefix Set lookup (110+ prefixes: admin@, noreply@, shop@, ceo@, …)
   │
   ├─► Early exit if syntax invalid
   │
@@ -29,16 +29,22 @@ Browser  →  POST /api/validate { email }
   │
   ├─► applyMxResult() — attaches hasMx to result, adjusts score
   │
-  ├─► Early exit if no EMAILABLE_API_KEY set
+  ├─► Redis SMTP cache lookup — sha256(email), 7-day TTL
+  │     ├── HIT  → return cached result immediately (skip provider)
+  │     └── MISS → continue
   │
-  └─► Emailable API — SMTP verification (~500 ms)
-        ├── success → mergeEmailableResult()
+  ├─► Early exit if no SMTP provider configured
+  │     (requires ZEROBOUNCE_API_KEY or EMAILABLE_API_KEY)
+  │
+  └─► SMTP provider — ZeroBounce (preferred) or Emailable (fallback), ~500 ms
+        ├── success → mergeSmtpResult() + write to Redis cache (fire-and-forget)
         ├── API error → graceful fallback to local+MX result
         └── JSON response → EmailValidationResult
               ├── valid: boolean
               ├── score: 0–100
-              ├── checks: { syntax, validTld, notDisposable, notRole, apiDeliverable }
+              ├── checks: { syntax, validTld, notDisposable, notRole, hasMx, apiDeliverable }
               ├── message: human-readable verdict
+              ├── source: "zerobounce" | "emailable" | "local"
               └── suggestion: typo correction (optional)
 ```
 
@@ -178,7 +184,8 @@ src/
 ├── proxy.ts                         # CORS enforcement / middleware (Next.js 16 convention)
 └── lib/
     ├── affiliate-links.ts           # Affiliate partner URLs — reads from NEXT_PUBLIC_* env vars
-    ├── email-validator.ts           # Core logic: validateEmailLocal, applyMxResult, mergeSmtpResult, mergeEmailableResult (compat wrapper)
+    ├── email-validator.ts           # Core logic: validateEmailLocal, applyMxResult, mergeSmtpResult, mergeEmailableResult (compat wrapper); 110+ role prefixes
+    ├── smtp-cache.ts                # Redis SMTP result cache: getCachedSmtpResult / setCachedSmtpResult; sha256 key, 7-day TTL, local-only results excluded
     ├── smtp-provider.ts             # Pluggable SMTP provider abstraction: SmtpProvider interface, EmailableProvider, ZeroBounceProvider, getSmtpProvider() factory
     ├── faq-data.ts                  # FAQ Q&A for email tool — consumed by FAQ.tsx + FAQPage JSON-LD
     ├── url-validator.ts             # Core logic: validateUrlLocal, applyHeadResult, applySafeBrowsingResult
@@ -186,11 +193,12 @@ src/
     ├── text-debunker.ts             # Types + Zod schema for TextDebunkResult
     ├── text-faq-data.ts             # FAQ Q&A for text tool — consumed by TextFAQ.tsx + FAQPage JSON-LD
     ├── llm-client.ts                # Thin Anthropic SDK wrapper: callClaude(systemPrompt, userMsg)
-    ├── disposable-domains.ts        # 3 500+ disposable domains via disposable-email-domains package
-    └── rate-limit.ts                # Upstash Redis: checkRateLimit (20/min), checkDailyTextLimit (20/day)
+    ├── disposable-domains.ts        # ~57 000+ disposable domains — disposable-email-domains (~3 500) merged with mailchecker (~55 860); combined Set
+    └── rate-limit.ts                # Upstash Redis: checkRateLimit (20/min), checkDailyTextLimit (20/day); getRedis() shared client
 __tests__/
 ├── debunk-text-route.test.ts        # Jest unit tests: POST /api/debunk/text route (35 tests)
-├── email-validator.test.ts          # Jest unit tests: validateEmailLocal, applyMxResult, mergeSmtpResult, mergeEmailableResult (27 tests)
+├── email-validator.test.ts          # Jest unit tests: validateEmailLocal, applyMxResult, mergeSmtpResult, mergeEmailableResult, role prefixes, DISPOSABLE_DOMAINS (83 tests)
+├── smtp-cache.test.ts               # Jest unit tests: getCachedSmtpResult, setCachedSmtpResult — Redis mocked (15 tests)
 └── url-validator.test.ts            # Jest unit tests: validateUrlLocal, applyHeadResult, applySafeBrowsingResult (21 tests)
 ```
 
@@ -303,22 +311,27 @@ POST /api/validate
   ├─► validateEmailLocal() — free, <1 ms
   │     ├── RFC 5322 regex syntax
   │     ├── TLD presence + length
-  │     ├── Disposable-domain lookup (3 500+ domains from npm package)
-  │     └── Role-prefix lookup
+  │     ├── Disposable-domain lookup (~57 000+ domains — mailchecker + disposable-email-domains)
+  │     └── Role-prefix lookup (110+ prefixes)
   │
   ├─► Early exit if syntax fails (no DNS or API call)
   │
   ├─► resolveMx() — DNS lookup, ~50 ms, free
   │     ├── true  → domain has MX records
-  │     ├── false → no MX records (early exit, skip Emailable)
+  │     ├── false → no MX records (early exit, skip provider)
   │     └── null  → DNS timeout / transient error (continue)
   │
   ├─► applyMxResult() — attaches hasMx to result, adjusts score
   │
-  ├─► Early exit if hasMx = false OR EMAILABLE_API_KEY not set
+  ├─► Redis SMTP cache lookup — sha256(email), 7-day TTL
+  │     ├── HIT  → return cached result immediately (skip provider)
+  │     └── MISS → continue
   │
-  └─► Emailable API — SMTP verification, ~500 ms
-        ├── mergeEmailableResult() — merges API response with local+MX result
+  ├─► Early exit if hasMx = false OR no SMTP provider configured
+  │
+  └─► SMTP provider — ZeroBounce (preferred) or Emailable (fallback), ~500 ms
+        ├── mergeSmtpResult() — merges API response with local+MX result
+        ├── write result to Redis cache (fire-and-forget)
         └── Graceful fallback to local+MX result on API error
 ```
 
@@ -414,8 +427,9 @@ All three API routes are protected by Upstash Redis rate limiting:
 
 - **Per-IP sliding window** — 20 requests/min shared across `/api/validate` and `/api/validate-url`
 - **Per-IP daily cap** — 20 requests/day on `/api/debunk/text` (LLM cost control)
-- **Result cache** — SHA-256 of the normalised message used as cache key; 24 h TTL on Upstash. Viral scam texts hit cache on the second request, skipping Claude entirely.
-- All limiters are **no-ops when `UPSTASH_REDIS_REST_URL` is absent** (safe for local dev).
+- **Text result cache** — SHA-256 of the normalised message used as cache key; 24 h TTL on Upstash. Viral scam texts hit cache on the second request, skipping Claude entirely.
+- **SMTP result cache** — SHA-256 of the lowercased email used as cache key; 7-day TTL on Upstash (`itv:smtp:<hash>`). Repeat checks of the same address skip ZeroBounce/Emailable entirely. Only SMTP-provider results are cached — local-only results are not stored. Implemented in `src/lib/smtp-cache.ts`.
+- All limiters and caches are **no-ops when `UPSTASH_REDIS_REST_URL` is absent** (safe for local dev).
 
 ## Expansion Roadmap
 
@@ -423,15 +437,17 @@ See ROADMAP.md (local file, gitignored for privacy planning).
 
 ## Cost Monitoring
 
-| Service                    | Free Tier          | Cost at Scale |
-| -------------------------- | ------------------ | ------------- |
-| Vercel Hosting             | 100GB bandwidth/mo | ~$20/mo Pro   |
-| Emailable                  | 250 checks/mo      | $0.005/check  |
-| Google Safe Browsing       | 10k req/day        | Free          |
-| Upstash Redis (rate limit) | 10k req/day        | $0.20/100k    |
+| Service                    | Free Tier                          | Cost at Scale        |
+| -------------------------- | ---------------------------------- | -------------------- |
+| Vercel Hosting             | 100 GB bandwidth/mo                | ~$20/mo Pro          |
+| ZeroBounce                 | 100 checks/mo recurring (free)     | $0.008/check (paid)  |
+| Emailable                  | 250 checks/mo one-time (fallback)  | $0.005/check (paid)  |
+| Google Safe Browsing       | 10 k req/day                       | Free                 |
+| Upstash Redis              | 10 k req/day                       | $0.20/100 k          |
 
-**Estimated cost at 10k validations/day with Emailable**: ~$15/mo
-**Without Emailable (local only)**: Effectively free on Vercel hobby plan
+**Estimated ZeroBounce cost at 10k unique validations/day (no caching)**: ~$80/day
+**With Redis SMTP caching + role/disposable pre-filters (~75% reduction)**: ~$20/day at scale
+**Without any SMTP provider (local only)**: Effectively free on Vercel hobby plan
 
 ## SEO Checklist
 
