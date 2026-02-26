@@ -1,6 +1,6 @@
 # IsThisValid.com — Architecture Guide
 
-**Last updated: February 25, 2026**
+**Last updated: February 26, 2026**
 
 ## High-Level Flow
 
@@ -173,19 +173,24 @@ src/
 │   ├── SiteLogo.tsx                 # Split-diamond SVG wordmark (size="md" hero / size="sm" nav)
 │   ├── TextFAQ.tsx                  # FAQ accordion for the text/SMS tool
 │   ├── TextResultCard.tsx           # Classification badge, risk score, flags, explanation (text) + NordVPN affiliate nudge
+│   ├── UrlFAQ.tsx                   # FAQ accordion for the URL checker tool
 │   └── UrlResultCard.tsx            # Score ring, check grid, flags list (URL) + NordVPN affiliate nudge
+├── proxy.ts                         # CORS enforcement / middleware (Next.js 16 convention)
 └── lib/
     ├── affiliate-links.ts           # Affiliate partner URLs — reads from NEXT_PUBLIC_* env vars
     ├── email-validator.ts           # Core logic: validateEmailLocal, applyMxResult, mergeEmailableResult
+    ├── faq-data.ts                  # FAQ Q&A for email tool — consumed by FAQ.tsx + FAQPage JSON-LD
     ├── url-validator.ts             # Core logic: validateUrlLocal, applyHeadResult, applySafeBrowsingResult
+    ├── url-faq-data.ts              # FAQ Q&A for URL tool — consumed by UrlFAQ.tsx + FAQPage JSON-LD
     ├── text-debunker.ts             # Types + Zod schema for TextDebunkResult
+    ├── text-faq-data.ts             # FAQ Q&A for text tool — consumed by TextFAQ.tsx + FAQPage JSON-LD
     ├── llm-client.ts                # Thin Anthropic SDK wrapper: callClaude(systemPrompt, userMsg)
     ├── disposable-domains.ts        # 3 500+ disposable domains via disposable-email-domains package
-    ├── rate-limit.ts                # Upstash Redis: checkRateLimit (20/min), checkDailyTextLimit (20/day)
-    └── faq-data.ts                  # Shared FAQ Q&A — consumed by FAQ.tsx + FAQPage JSON-LD
+    └── rate-limit.ts                # Upstash Redis: checkRateLimit (20/min), checkDailyTextLimit (20/day)
 __tests__/
-├── email-validator.test.ts          # Jest unit tests: validateEmailLocal, applyMxResult, mergeEmailableResult
-└── url-validator.test.ts            # Jest unit tests: validateUrlLocal, applyHeadResult, applySafeBrowsingResult
+├── debunk-text-route.test.ts        # Jest unit tests: POST /api/debunk/text route (35 tests)
+├── email-validator.test.ts          # Jest unit tests: validateEmailLocal, applyMxResult, mergeEmailableResult (27 tests)
+└── url-validator.test.ts            # Jest unit tests: validateUrlLocal, applyHeadResult, applySafeBrowsingResult (21 tests)
 ```
 
 ## Environment Variables
@@ -379,8 +384,8 @@ AdSense has hard requirements and soft recommendations. Track progress here.
 
 - [ ] **4–8 weeks live with real traffic** before applying — most common omission
 - [ ] **Blog / written content** — a few articles dramatically improve approval rates
-- [ ] **`og-image.png`** — 1200×630 open-graph image (see SEO checklist)
-- [ ] **Core Web Vitals** — run Lighthouse; aim for green on all three
+- [x] **`og-image.png`** — 1200×630 open-graph image updated to multi-tool branding
+- [x] **Core Web Vitals** — Lighthouse run Feb 26 2026; Perf 85–88, A11y 90–96, SEO 100
 
 ### Cookie consent integration note
 
@@ -436,8 +441,8 @@ See ROADMAP.md (local file, gitignored for privacy planning).
 - [x] Mobile-responsive (Tailwind flex/grid, `sm:` breakpoints)
 - [x] Privacy Policy, Terms, About pages (required for AdSense + trust signals)
 - [x] Persistent footer policy links on every page via `SiteFooter`
-- [ ] Core Web Vitals — run Lighthouse after launch
-- [ ] `og-image.png` (1200×630) — create with Figma or [vercel/og](https://vercel.com/docs/functions/og-image-generation)
+- [x] Core Web Vitals — Lighthouse (mobile): Perf 85–88 / A11y 90–96 / Best Practices 92 / SEO 100
+- [x] `og-image.png` (1200×630) — multi-tool branding
 
 ## UI Architecture
 
