@@ -242,7 +242,7 @@ describe("mergeEmailableResult", () => {
     });
     expect(merged.checks.apiDeliverable).toBe(false);
     expect(merged.valid).toBe(false);
-    expect(merged.score).toBeLessThanOrEqual(20);
+    expect(merged.score).toBeLessThanOrEqual(10);
   });
 
   it("flags disposable if API says so even if local missed it", () => {
@@ -337,7 +337,7 @@ describe("mergeSmtpResult", () => {
     });
     expect(merged.checks.apiDeliverable).toBe(false);
     expect(merged.valid).toBe(false);
-    expect(merged.score).toBeLessThanOrEqual(20);
+    expect(merged.score).toBeLessThanOrEqual(10);
   });
 
   it("propagates disposable=true even if local missed it", () => {
@@ -664,7 +664,12 @@ describe("buildMessage — all message branches", () => {
   it("returns ghost address message when apiDeliverable=false", () => {
     const r = mergeSmtpResult(
       applyMxResult(validateEmailLocal("user@example.com"), true),
-      { deliverable: null, undeliverable: true, disposable: false, source: "zerobounce" },
+      {
+        deliverable: null,
+        undeliverable: true,
+        disposable: false,
+        source: "zerobounce",
+      },
     );
     expect(r.message).toMatch(/ghost address/i);
   });
@@ -672,7 +677,12 @@ describe("buildMessage — all message branches", () => {
   it("returns live mailbox message when apiDeliverable=true", () => {
     const r = mergeSmtpResult(
       applyMxResult(validateEmailLocal("user@example.com"), true),
-      { deliverable: true, undeliverable: false, disposable: false, source: "zerobounce" },
+      {
+        deliverable: true,
+        undeliverable: false,
+        disposable: false,
+        source: "zerobounce",
+      },
     );
     expect(r.message).toMatch(/mailbox is live/i);
   });
@@ -706,23 +716,33 @@ describe("validateEmailLocal — case normalization", () => {
 // ── Hyphenated role prefixes ──────────────────────────────────────────────────
 describe("validateEmailLocal — hyphenated role prefixes", () => {
   it("detects no-reply@ as a role address", () => {
-    expect(validateEmailLocal("no-reply@company.com").checks.notRole).toBe(false);
+    expect(validateEmailLocal("no-reply@company.com").checks.notRole).toBe(
+      false,
+    );
   });
 
   it("detects do-not-reply@ as a role address", () => {
-    expect(validateEmailLocal("do-not-reply@company.com").checks.notRole).toBe(false);
+    expect(validateEmailLocal("do-not-reply@company.com").checks.notRole).toBe(
+      false,
+    );
   });
 
   it("detects mailer-daemon@ as a role address", () => {
-    expect(validateEmailLocal("mailer-daemon@company.com").checks.notRole).toBe(false);
+    expect(validateEmailLocal("mailer-daemon@company.com").checks.notRole).toBe(
+      false,
+    );
   });
 
   it("detects human-resources@ as a role address", () => {
-    expect(validateEmailLocal("human-resources@company.com").checks.notRole).toBe(false);
+    expect(
+      validateEmailLocal("human-resources@company.com").checks.notRole,
+    ).toBe(false);
   });
 
   it("detects customer-service@ as a role address", () => {
-    expect(validateEmailLocal("customer-service@company.com").checks.notRole).toBe(false);
+    expect(
+      validateEmailLocal("customer-service@company.com").checks.notRole,
+    ).toBe(false);
   });
 });
 
@@ -789,5 +809,139 @@ describe("mergeSmtpResult — edge cases", () => {
       source: "zerobounce",
     });
     expect(merged.suggestion).toBe("user@gmail.com");
+  });
+});
+
+// ── Bug regression: four bugs found and fixed ─────────────────────────────────
+// Each test documents the failure mode before the fix and asserts the correct
+// post-fix behaviour so any future regression surfaces immediately.
+
+describe("Bug regression: mergeSmtpResult typo score cap (Bug 1)", () => {
+  // Before fix: computeScore() was called bare, discarding the ≤65 cap that
+  // validateEmailLocal applied. After SMTP confirmed deliverability, a typo
+  // domain like gmail.con could surface with score=100 — a green result.
+  it("preserves ≤65 cap after SMTP merge when apiDeliverable=null", () => {
+    const local = applyMxResult(validateEmailLocal("user@gmail.con"), null);
+    const merged = mergeSmtpResult(local, {
+      deliverable: null,
+      undeliverable: false,
+      disposable: false,
+      source: "zerobounce",
+    });
+    expect(merged.score).toBeLessThanOrEqual(65);
+  });
+
+  it("lifts cap when SMTP explicitly confirms deliverability (domain is real)", () => {
+    // apiDeliverable=true means the provider verified the mailbox exists;
+    // trust it and lift the speculative typo cap.
+    const local = applyMxResult(validateEmailLocal("user@gmail.con"), true);
+    const merged = mergeSmtpResult(local, {
+      deliverable: true,
+      undeliverable: false,
+      disposable: false,
+      source: "zerobounce",
+    });
+    expect(merged.score).toBeGreaterThan(65);
+  });
+});
+
+describe("Bug regression: mergeSmtpResult typo message drop (Bug 2)", () => {
+  // Before fix: buildMessage() had no knowledge of local.suggestion, so the
+  // typo hint message was silently replaced by the generic deliverability
+  // message even though suggestion was still present in the result object.
+  it("retains typo hint message after SMTP merge when apiDeliverable=null", () => {
+    const local = applyMxResult(validateEmailLocal("user@gmail.con"), null);
+    const merged = mergeSmtpResult(local, {
+      deliverable: null,
+      undeliverable: false,
+      disposable: false,
+      source: "zerobounce",
+    });
+    expect(merged.message).toMatch(/typo/i);
+    expect(merged.message).toContain("user@gmail.com");
+  });
+
+  it("suggestion field and message agree (no split-brain state)", () => {
+    const local = applyMxResult(validateEmailLocal("user@gmail.con"), null);
+    const merged = mergeSmtpResult(local, {
+      deliverable: null,
+      undeliverable: false,
+      disposable: false,
+      source: "zerobounce",
+    });
+    // message must reference the same address as suggestion
+    expect(merged.suggestion).toBeDefined();
+    expect(merged.message).toContain(merged.suggestion!);
+  });
+
+  it("shows live-mailbox message (not typo hint) when SMTP confirms deliverable", () => {
+    const local = applyMxResult(validateEmailLocal("user@gmail.con"), true);
+    const merged = mergeSmtpResult(local, {
+      deliverable: true,
+      undeliverable: false,
+      disposable: false,
+      source: "zerobounce",
+    });
+    expect(merged.message).toMatch(/mailbox is live/i);
+  });
+});
+
+describe("Bug regression: mergeSmtpResult valid misses validTld (Bug 3)", () => {
+  // Before fix: when smtp.deliverable=true short-circuited, the branch never
+  // consulted local.checks.validTld, allowing an email that failed the TLD
+  // check locally to emerge as valid=true after SMTP claimed deliverability.
+  it("invalid TLD remains invalid=false even when smtp.deliverable=true", () => {
+    // Craft a local result where validTld=false and valid=false, then simulate
+    // an optimistic SMTP response.
+    const badTldLocal = validateEmailLocal("user@nodot"); // fails regex → syntaxOk=false
+    // Force a plausible scenario: syntax=true but tld=false by overriding checks
+    const fakeLocal: EmailValidationResult = {
+      ...badTldLocal,
+      checks: { ...badTldLocal.checks, syntax: true, validTld: false },
+      valid: false, // tldOk=false keeps local.valid false
+    };
+    const withMx = applyMxResult(fakeLocal, true);
+    const merged = mergeSmtpResult(withMx, {
+      deliverable: true,
+      undeliverable: false,
+      disposable: false,
+      source: "zerobounce",
+    });
+    expect(merged.valid).toBe(false);
+  });
+});
+
+describe("Bug regression: apiDeliverable=false cap weaker than hasMx=false (Bug 4)", () => {
+  // Before fix: apiDeliverable=false capped at ≤20, hasMx=false capped at ≤15.
+  // A confirmed-undeliverable mailbox is a stronger negative signal than a
+  // missing MX record (which could be transient), so its cap should be lower.
+  it("confirmed-undeliverable caps score at ≤10 (below the no-MX cap of ≤15)", () => {
+    const local = applyMxResult(validateEmailLocal("user@example.com"), true); // 95
+    const merged = mergeSmtpResult(local, {
+      deliverable: null,
+      undeliverable: true,
+      disposable: false,
+      source: "zerobounce",
+    });
+    // Must be below the hasMx=false cap of 15
+    expect(merged.score).toBeLessThanOrEqual(10);
+  });
+
+  it("no-MX caps at ≤15, so confirmed-undeliverable is always a lower score", () => {
+    const noMxScore = applyMxResult(
+      validateEmailLocal("user@example.com"),
+      false,
+    ).score;
+    const undeliverableLocal = applyMxResult(
+      validateEmailLocal("user@example.com"),
+      true,
+    );
+    const undeliverableScore = mergeSmtpResult(undeliverableLocal, {
+      deliverable: null,
+      undeliverable: true,
+      disposable: false,
+      source: "zerobounce",
+    }).score;
+    expect(undeliverableScore).toBeLessThanOrEqual(noMxScore);
   });
 });

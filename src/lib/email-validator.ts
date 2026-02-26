@@ -308,9 +308,10 @@ function computeScore(checks: ValidationChecks): number {
   // hasMx: confirmed MX = small bonus; no MX = heavy penalty
   if (checks.hasMx === true) score = Math.min(score + 5, 100);
   if (checks.hasMx === false) score = Math.min(score, 15);
-  // apiDeliverable overrides everything
+  // apiDeliverable overrides everything.
+  // Confirmed undeliverable is a stronger signal than no MX (cap ≤10 < ≤15).
   if (checks.apiDeliverable === true) score = Math.min(score + 10, 100);
-  if (checks.apiDeliverable === false) score = Math.min(score, 20);
+  if (checks.apiDeliverable === false) score = Math.min(score, 10);
   return Math.min(score, 100);
 }
 
@@ -383,18 +384,35 @@ export function mergeSmtpResult(
   };
 
   const score = computeScore(checks);
+
+  // Bug fix: validTld must be checked independently — when smtp.deliverable is
+  // true the short-circuit previously bypassed local.valid (which includes tldOk).
   const valid =
     local.checks.syntax &&
+    local.checks.validTld &&
     checks.notDisposable &&
     local.checks.hasMx !== false &&
     (smtp.deliverable === true || (!smtp.undeliverable && local.valid));
 
+  // Bug fix: preserve typo cap + message through the SMTP merge.
+  // Mirror applyMxResult logic: lift cap only when the provider explicitly
+  // confirms deliverability (apiDeliverable=true means the domain genuinely
+  // exists); otherwise keep the score in the risky ≤65 zone.
+  const finalScore =
+    local.suggestion && checks.apiDeliverable !== true
+      ? Math.min(score, 65)
+      : score;
+  const message =
+    local.suggestion && valid && checks.apiDeliverable !== true
+      ? `Heads up — that domain looks like a typo. Did you mean ${local.suggestion}?`
+      : buildMessage(valid, checks, local.email);
+
   return {
     ...local,
     valid,
-    score,
+    score: finalScore,
     checks,
-    message: buildMessage(valid, checks, local.email),
+    message,
     source: smtp.source,
   };
 }
