@@ -11,7 +11,7 @@ export default function SiteFooter() {
     <footer className="mt-auto border-t border-zinc-800 pt-6 pb-8 px-4 text-center space-y-3">
       {/* Policy nav — AdSense crawlers scan for these links on every page */}
       <nav aria-label="Footer navigation">
-        <ul className="flex flex-wrap justify-center gap-x-5 gap-y-1 text-xs text-zinc-500">
+        <ul className="flex flex-wrap justify-center gap-x-5 gap-y-1 text-xs text-zinc-400">
           {footerLinks.map((link) => (
             <li key={link.href}>
               <Link
@@ -25,7 +25,7 @@ export default function SiteFooter() {
         </ul>
       </nav>
 
-      <p className="text-xs text-zinc-600">
+      <p className="text-xs text-zinc-400">
         © {new Date().getFullYear()} IsThisValid.com &mdash; results are
         informational only, not guaranteed.
       </p>

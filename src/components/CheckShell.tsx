@@ -35,7 +35,7 @@ export default function CheckShell({
       <nav className="w-full max-w-xl grid grid-cols-3 items-center">
         <Link
           href="/"
-          className="inline-flex items-center gap-1.5 text-zinc-500 hover:text-zinc-300 text-sm transition-colors group"
+          className="inline-flex items-center gap-1.5 text-zinc-400 hover:text-zinc-200 text-sm transition-colors group"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"

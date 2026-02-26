@@ -130,7 +130,7 @@ export default function TextCheckPage() {
 
             {value.length > 0 && (
               <p
-                className="text-xs text-zinc-500 text-right -mt-1"
+                className="text-xs text-zinc-400 text-right -mt-1"
                 aria-live="polite"
               >
                 {value.length} character{value.length !== 1 ? "s" : ""}
@@ -145,7 +145,7 @@ export default function TextCheckPage() {
                   setResult(EXAMPLE_RESULT);
                   setPhase("result");
                 }}
-                className="cursor-pointer text-xs text-zinc-500 hover:text-zinc-300 underline underline-offset-2 transition-colors"
+                className="cursor-pointer text-xs text-zinc-400 hover:text-zinc-200 underline underline-offset-2 transition-colors"
               >
                 Try an example
               </button>

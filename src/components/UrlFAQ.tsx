@@ -15,7 +15,7 @@ export default function UrlFAQ() {
     >
       <h2 className="text-zinc-300 font-semibold text-base">
         Why this tool?{" "}
-        <span className="text-zinc-500 font-normal text-sm">/ FAQ</span>
+        <span className="text-zinc-400 font-normal text-sm">/ FAQ</span>
       </h2>
 
       <div className="space-y-2">

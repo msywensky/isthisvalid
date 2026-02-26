@@ -15,14 +15,14 @@ export default function TextFAQ() {
         Frequently asked questions
       </h2>
 
-      <dl className="space-y-2">
+      <div className="space-y-2">
         {TEXT_FAQ_DATA.map(({ question, answer }) => (
           <details
             key={question}
             className="group rounded-xl border border-zinc-800 bg-zinc-900/50 open:border-violet-500/30 transition-colors duration-150"
           >
             <summary className="flex cursor-pointer items-center justify-between gap-4 px-5 py-4 text-sm font-medium text-zinc-200 marker:hidden list-none">
-              <dt>{question}</dt>
+              <span>{question}</span>
               <span
                 aria-hidden="true"
                 className="flex-shrink-0 text-zinc-500 group-open:rotate-180 transition-transform duration-200"
@@ -30,12 +30,12 @@ export default function TextFAQ() {
                 ▾
               </span>
             </summary>
-            <dd className="px-5 pb-4 text-sm text-zinc-400 leading-relaxed">
+            <div className="px-5 pb-4 text-sm text-zinc-400 leading-relaxed">
               {answer}
-            </dd>
+            </div>
           </details>
         ))}
-      </dl>
+      </div>
     </section>
   );
 }
