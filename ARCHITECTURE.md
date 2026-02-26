@@ -16,7 +16,9 @@ Browser  →  POST /api/validate { email }
   │
   ├─► validateEmailLocal() — free, <1 ms
   │     ├── RFC 5322 regex syntax check
-  │     ├── TLD presence + length
+  │     ├── RFC 5321 dot rules — rejects leading/trailing/consecutive dots in local part
+  │     ├── TLD presence + length (≥2 chars)
+  │     ├── Typo detection — domain in TYPO_MAP caps score ≤65 + targets message
   │     ├── Disposable-domain Set lookup (~57 000+ domains)
   │     └── Role-prefix Set lookup (110+ prefixes: admin@, noreply@, shop@, ceo@, …)
   │           └── +tag suffix stripped before lookup (noreply+bounce@ → noreply)
@@ -187,7 +189,7 @@ src/
 ├── proxy.ts                         # CORS enforcement / middleware (Next.js 16 convention)
 └── lib/
     ├── affiliate-links.ts           # Affiliate partner URLs — reads from NEXT_PUBLIC_* env vars
-    ├── email-validator.ts           # Core logic: validateEmailLocal, applyMxResult, mergeSmtpResult, mergeEmailableResult (compat wrapper); 110+ role prefixes; 35+ typo corrections; +tag stripped for role check
+    ├── email-validator.ts           # Core logic: validateEmailLocal, applyMxResult, mergeSmtpResult, mergeEmailableResult (compat wrapper); 110+ role prefixes; 35+ typo corrections; RFC 5321 dot validation; typo score cap (≤65); +tag stripped for role check
     ├── smtp-cache.ts                # Redis SMTP result cache: getCachedSmtpResult / setCachedSmtpResult; sha256 key, 7-day TTL, local-only results excluded
     ├── smtp-provider.ts             # Pluggable SMTP provider abstraction: SmtpProvider interface, EmailableProvider, ZeroBounceProvider, getSmtpProvider() factory
     ├── faq-data.ts                  # FAQ Q&A for email tool — consumed by FAQ.tsx + FAQPage JSON-LD
@@ -200,7 +202,7 @@ src/
     └── rate-limit.ts                # Upstash Redis: checkRateLimit (20/min), checkDailyTextLimit (20/day); getRedis() shared client
 __tests__/
 ├── debunk-text-route.test.ts        # Jest unit tests: POST /api/debunk/text route (35 tests)
-├── email-validator.test.ts          # Jest unit tests: validateEmailLocal, applyMxResult, mergeSmtpResult, mergeEmailableResult, role prefixes, plus-addressed role check, expanded typo map, DISPOSABLE_DOMAINS (113 tests)
+├── email-validator.test.ts          # Jest unit tests: validateEmailLocal, applyMxResult, mergeSmtpResult, mergeEmailableResult, role prefixes, plus-addressed role check, expanded typo map, RFC 5321 dot rules, typo score cap, exact scoring, case normalization, DISPOSABLE_DOMAINS (150 tests)
 ├── smtp-cache.test.ts               # Jest unit tests: getCachedSmtpResult, setCachedSmtpResult — Redis mocked (15 tests)
 └── url-validator.test.ts            # Jest unit tests: validateUrlLocal, applyHeadResult, applySafeBrowsingResult (21 tests)
 ```
@@ -313,7 +315,9 @@ POST /api/validate
   │
   ├─► validateEmailLocal() — free, <1 ms
   │     ├── RFC 5322 regex syntax
-  │     ├── TLD presence + length
+  │     ├── RFC 5321 dot rules — rejects leading/trailing/consecutive dots in local part
+  │     ├── TLD presence + length (≥2 chars)
+  │     ├── Typo detection — domain in TYPO_MAP caps score ≤65 + targets message
   │     ├── Disposable-domain lookup (~57 000+ domains — mailchecker + disposable-email-domains)
   │     └── Role-prefix lookup (110+ prefixes; +tag stripped before match)
   │

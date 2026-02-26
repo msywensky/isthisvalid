@@ -508,3 +508,286 @@ describe("DISPOSABLE_DOMAINS (merged mailchecker + disposable-email-domains)", (
     }
   });
 });
+
+// ── Local-part dot validation (RFC 5321) ──────────────────────────────────────
+// The broad character class in EMAIL_REGEX allows dots anywhere; the secondary
+// isLocalPartStructurallyValid() check gates these cases.
+describe("validateEmailLocal — local-part dot validation", () => {
+  it("rejects consecutive dots in local part (user..name@)", () => {
+    const r = validateEmailLocal("user..name@example.com");
+    expect(r.checks.syntax).toBe(false);
+    expect(r.valid).toBe(false);
+  });
+
+  it("rejects leading dot in local part (.user@)", () => {
+    const r = validateEmailLocal(".user@example.com");
+    expect(r.checks.syntax).toBe(false);
+    expect(r.valid).toBe(false);
+  });
+
+  it("rejects trailing dot in local part (user.@)", () => {
+    const r = validateEmailLocal("user.@example.com");
+    expect(r.checks.syntax).toBe(false);
+    expect(r.valid).toBe(false);
+  });
+
+  it("accepts dots in the middle of the local part (first.last@)", () => {
+    const r = validateEmailLocal("first.last@example.com");
+    expect(r.checks.syntax).toBe(true);
+    expect(r.valid).toBe(true);
+  });
+
+  it("accepts multiple valid dots in local part (a.b.c@)", () => {
+    const r = validateEmailLocal("a.b.c@example.com");
+    expect(r.checks.syntax).toBe(true);
+    expect(r.valid).toBe(true);
+  });
+});
+
+// ── Typo domain score capping ─────────────────────────────────────────────────
+// When a domain is a known typo, the local score must be capped at 65 so that
+// the UI shows a yellow/risky ring rather than a green pass.
+describe("validateEmailLocal — typo domain score cap", () => {
+  it("caps score at 65 when domain is a known typo", () => {
+    const r = validateEmailLocal("user@gmail.con");
+    expect(r.score).toBeLessThanOrEqual(65);
+    expect(r.suggestion).toBeDefined();
+  });
+
+  it("uses a typo hint message when suggestion is present and email is valid", () => {
+    const r = validateEmailLocal("user@gmail.con");
+    expect(r.message).toMatch(/typo/i);
+    expect(r.message).toContain("user@gmail.com");
+  });
+
+  it("does not cap score for a correctly-spelled domain", () => {
+    const r = validateEmailLocal("user@example.com");
+    expect(r.score).toBe(90); // syntax(40)+tld(15)+notDisposable(25)+notRole(10)
+    expect(r.suggestion).toBeUndefined();
+  });
+
+  it("applyMxResult preserves typo cap when hasMx=null (DNS timeout)", () => {
+    const local = validateEmailLocal("user@gmail.con");
+    const withMx = applyMxResult(local, null);
+    expect(withMx.score).toBeLessThanOrEqual(65);
+    expect(withMx.message).toMatch(/typo/i);
+  });
+
+  it("applyMxResult with hasMx=false overrides typo cap (already capped at 15)", () => {
+    const local = validateEmailLocal("user@gmail.con");
+    const withMx = applyMxResult(local, false);
+    expect(withMx.score).toBeLessThanOrEqual(15);
+    expect(withMx.valid).toBe(false);
+  });
+});
+
+// ── Exact score values ────────────────────────────────────────────────────────
+// Pinning the scoring weights catches accidental regressions if computeScore
+// is modified. Update these when intentionally changing point values.
+describe("computeScore — exact score values", () => {
+  it("clean valid email (no MX, no API) scores exactly 90", () => {
+    const r = validateEmailLocal("user@example.com");
+    expect(r.score).toBe(90); // syntax(40)+tld(15)+notDisposable(25)+notRole(10)
+  });
+
+  it("role address scores exactly 80 (notRole penalty of 10)", () => {
+    const r = validateEmailLocal("admin@example.com");
+    expect(r.score).toBe(80); // syntax(40)+tld(15)+notDisposable(25)+notRole(0)
+  });
+
+  it("disposable address scores exactly 65 (notDisposable penalty of 25)", () => {
+    const r = validateEmailLocal("user@mailinator.com");
+    expect(r.score).toBe(65); // syntax(40)+tld(15)+notDisposable(0)+notRole(10)
+  });
+
+  it("invalid syntax scores 35 (no syntax/tld points)", () => {
+    const r = validateEmailLocal("notanemail");
+    expect(r.score).toBe(35); // syntax(0)+tld(0)+notDisposable(25)+notRole(10)
+  });
+
+  it("applyMxResult hasMx=true gives +5 bonus (capped at 100)", () => {
+    const local = validateEmailLocal("user@example.com"); // 90
+    const r = applyMxResult(local, true);
+    expect(r.score).toBe(95); // 90 + 5
+  });
+
+  it("applyMxResult hasMx=false caps score at 15", () => {
+    const local = validateEmailLocal("user@example.com"); // 90
+    const r = applyMxResult(local, false);
+    expect(r.score).toBe(15);
+  });
+
+  it("mergeSmtpResult deliverable=true pushes score to 100", () => {
+    const local = applyMxResult(validateEmailLocal("user@example.com"), true); // 95
+    const r = mergeSmtpResult(local, {
+      deliverable: true,
+      undeliverable: false,
+      disposable: false,
+      source: "zerobounce",
+    });
+    expect(r.score).toBe(100); // min(95 + 10, 100)
+  });
+});
+
+// ── buildMessage coverage ─────────────────────────────────────────────────────
+describe("buildMessage — all message branches", () => {
+  it("returns syntax error message when syntax fails", () => {
+    const r = validateEmailLocal("notanemail");
+    expect(r.message).toMatch(/not even close/i);
+  });
+
+  it("returns syntax error message for no-TLD domain (localhost)", () => {
+    // EMAIL_REGEX enforces a TLD (.[a-zA-Z]{2,}), so "user@localhost" fails
+    // the regex → syntax=false hits the !checks.syntax branch before TLD.
+    // The TLD message branch in buildMessage is currently unreachable via the
+    // public API; it exists as a safety net for future regex relaxation.
+    const r = validateEmailLocal("user@localhost");
+    expect(r.checks.syntax).toBe(false);
+    expect(r.message).toMatch(/not even close/i);
+  });
+
+  it("returns disposable message when domain is disposable", () => {
+    const r = validateEmailLocal("user@mailinator.com");
+    expect(r.message).toMatch(/disposable/i);
+  });
+
+  it("returns no-mail-server message after hasMx=false", () => {
+    const r = applyMxResult(validateEmailLocal("user@example.com"), false);
+    expect(r.message).toMatch(/no mail server/i);
+  });
+
+  it("returns role address message when role is detected", () => {
+    const r = validateEmailLocal("admin@example.com");
+    expect(r.message).toMatch(/role address/i);
+  });
+
+  it("returns ghost address message when apiDeliverable=false", () => {
+    const r = mergeSmtpResult(
+      applyMxResult(validateEmailLocal("user@example.com"), true),
+      { deliverable: null, undeliverable: true, disposable: false, source: "zerobounce" },
+    );
+    expect(r.message).toMatch(/ghost address/i);
+  });
+
+  it("returns live mailbox message when apiDeliverable=true", () => {
+    const r = mergeSmtpResult(
+      applyMxResult(validateEmailLocal("user@example.com"), true),
+      { deliverable: true, undeliverable: false, disposable: false, source: "zerobounce" },
+    );
+    expect(r.message).toMatch(/mailbox is live/i);
+  });
+
+  it("returns legit message for valid email with no API check", () => {
+    const r = validateEmailLocal("user@example.com");
+    expect(r.message).toMatch(/legit/i);
+  });
+});
+
+// ── Case normalization ────────────────────────────────────────────────────────
+describe("validateEmailLocal — case normalization", () => {
+  it("normalizes uppercase email to lowercase", () => {
+    const r = validateEmailLocal("USER@GMAIL.COM");
+    expect(r.email).toBe("user@gmail.com");
+    expect(r.valid).toBe(true);
+  });
+
+  it("normalizes mixed-case input", () => {
+    const r = validateEmailLocal("First.Last@Example.COM");
+    expect(r.email).toBe("first.last@example.com");
+  });
+
+  it("uppercase typo domain is still matched in TYPO_MAP", () => {
+    const r = validateEmailLocal("USER@GMAIL.CON");
+    expect(r.suggestion).toBeDefined();
+    expect(r.suggestion).toBe("user@gmail.com");
+  });
+});
+
+// ── Hyphenated role prefixes ──────────────────────────────────────────────────
+describe("validateEmailLocal — hyphenated role prefixes", () => {
+  it("detects no-reply@ as a role address", () => {
+    expect(validateEmailLocal("no-reply@company.com").checks.notRole).toBe(false);
+  });
+
+  it("detects do-not-reply@ as a role address", () => {
+    expect(validateEmailLocal("do-not-reply@company.com").checks.notRole).toBe(false);
+  });
+
+  it("detects mailer-daemon@ as a role address", () => {
+    expect(validateEmailLocal("mailer-daemon@company.com").checks.notRole).toBe(false);
+  });
+
+  it("detects human-resources@ as a role address", () => {
+    expect(validateEmailLocal("human-resources@company.com").checks.notRole).toBe(false);
+  });
+
+  it("detects customer-service@ as a role address", () => {
+    expect(validateEmailLocal("customer-service@company.com").checks.notRole).toBe(false);
+  });
+});
+
+// ── Role address validity and score ──────────────────────────────────────────
+// Role emails are syntactically valid (can receive mail) but risky.
+// valid=true is intentional — they're flagged via score+message, not banned.
+describe("validateEmailLocal — role address valid=true", () => {
+  it("role address is valid=true (syntax passes, not disposable)", () => {
+    const r = validateEmailLocal("admin@example.com");
+    expect(r.valid).toBe(true);
+    expect(r.checks.syntax).toBe(true);
+    expect(r.checks.notRole).toBe(false);
+  });
+
+  it("role address with hasMx=false becomes valid=false after MX check", () => {
+    const r = applyMxResult(validateEmailLocal("admin@example.com"), false);
+    expect(r.valid).toBe(false);
+  });
+
+  it("role address with hasMx=true remains valid=true", () => {
+    const r = applyMxResult(validateEmailLocal("admin@example.com"), true);
+    expect(r.valid).toBe(true);
+  });
+});
+
+// ── mergeSmtpResult — edge cases ─────────────────────────────────────────────
+describe("mergeSmtpResult — edge cases", () => {
+  it("stays invalid when base is disposable even if SMTP says deliverable", () => {
+    // A disposable domain the local check caught; API erroneously says deliverable.
+    // The notDisposable flag is preserved from local: local.checks.notDisposable=false.
+    const disposableLocal = validateEmailLocal("user@mailinator.com");
+    // mailinator has real MX records, so simulate hasMx=true
+    const withMx = applyMxResult(disposableLocal, true);
+    const merged = mergeSmtpResult(withMx, {
+      deliverable: true,
+      undeliverable: false,
+      disposable: false, // API missed it
+      source: "zerobounce",
+    });
+    // notDisposable from local is false; merged inherits it
+    expect(merged.checks.notDisposable).toBe(false);
+    expect(merged.valid).toBe(false);
+  });
+
+  it("conflicting deliverable+undeliverable: deliverable wins (apiDeliverable=true)", () => {
+    const local = applyMxResult(validateEmailLocal("user@example.com"), true);
+    const merged = mergeSmtpResult(local, {
+      deliverable: true,
+      undeliverable: true, // contradictory — deliverable takes precedence
+      disposable: false,
+      source: "zerobounce",
+    });
+    expect(merged.checks.apiDeliverable).toBe(true);
+  });
+
+  it("suggestion field is preserved through mergeSmtpResult", () => {
+    const typoLocal = validateEmailLocal("user@gmail.con");
+    expect(typoLocal.suggestion).toBeDefined();
+    const withMx = applyMxResult(typoLocal, true);
+    const merged = mergeSmtpResult(withMx, {
+      deliverable: true,
+      undeliverable: false,
+      disposable: false,
+      source: "zerobounce",
+    });
+    expect(merged.suggestion).toBe("user@gmail.com");
+  });
+});

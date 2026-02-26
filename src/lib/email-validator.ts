@@ -179,10 +179,10 @@ const TYPO_MAP: Record<string, string> = {
   "gnail.com": "gmail.com",
   "gmail.co": "gmail.com",
   "gamil.com": "gmail.com",
-  "gmaill.com": "gmail.com",    // doubled l
-  "gmail.con": "gmail.com",    // .con (adjacent to .com on keyboard)
-  "gmail.cmo": "gmail.com",    // .cmo (transposed)
-  "gmail.ocm": "gmail.com",    // .ocm (transposed)
+  "gmaill.com": "gmail.com", // doubled l
+  "gmail.con": "gmail.com", // .con (adjacent to .com on keyboard)
+  "gmail.cmo": "gmail.com", // .cmo (transposed)
+  "gmail.ocm": "gmail.com", // .ocm (transposed)
   // ── Hotmail ─────────────────────────────────────────────────────────────
   "hotmali.com": "hotmail.com",
   "hotmal.com": "hotmail.com",
@@ -193,7 +193,7 @@ const TYPO_MAP: Record<string, string> = {
   // ── Yahoo ────────────────────────────────────────────────────────────────
   "yahooo.com": "yahoo.com",
   "yaho.com": "yahoo.com",
-  "yhaoo.com": "yahoo.com",     // transposed
+  "yhaoo.com": "yahoo.com", // transposed
   "yahoo.con": "yahoo.com",
   "yahoo.cmo": "yahoo.com",
   "yahoo.ocm": "yahoo.com",
@@ -206,14 +206,14 @@ const TYPO_MAP: Record<string, string> = {
   "outlook.ocm": "outlook.com",
   // ── iCloud ───────────────────────────────────────────────────────────────
   "iclod.com": "icloud.com",
-  "iclould.com": "icloud.com",   // extra l
-  "icolud.com": "icloud.com",   // transposed
+  "iclould.com": "icloud.com", // extra l
+  "icolud.com": "icloud.com", // transposed
   "icloud.con": "icloud.com",
   "icloud.cmo": "icloud.com",
   // ── Protonmail ───────────────────────────────────────────────────────────
   "protonmali.com": "protonmail.com",
-  "protonmal.com": "protonmail.com",  // missing i
-  "protonmai.com": "protonmail.com",  // missing l
+  "protonmal.com": "protonmail.com", // missing i
+  "protonmai.com": "protonmail.com", // missing l
   "protonmail.con": "protonmail.com",
   "protonmail.cmo": "protonmail.com",
 };
@@ -222,10 +222,28 @@ const TYPO_MAP: Record<string, string> = {
  * Returns a full corrected email address (e.g. "user@gmail.com") when the
  * domain looks like a common typo, or undefined if no match.
  */
-function getTypoSuggestion(localPart: string, domain: string): string | undefined {
+function getTypoSuggestion(
+  localPart: string,
+  domain: string,
+): string | undefined {
   const corrected = TYPO_MAP[domain.toLowerCase()];
   if (!corrected) return undefined;
   return `${localPart}@${corrected}`;
+}
+
+/**
+ * RFC 5321 constraints on the local part (everything before @):
+ *   - No consecutive dots  (user..name)
+ *   - No leading dot       (.user)
+ *   - No trailing dot      (user.)
+ * The main EMAIL_REGEX allows these accidentally via the broad character class;
+ * this function catches them as an additional syntax gate.
+ */
+function isLocalPartStructurallyValid(localPart: string): boolean {
+  if (!localPart) return false;
+  if (localPart.startsWith(".") || localPart.endsWith(".")) return false;
+  if (localPart.includes("..")) return false;
+  return true;
 }
 
 /**
@@ -235,7 +253,8 @@ export function validateEmailLocal(rawEmail: string): EmailValidationResult {
   const email = rawEmail.trim().toLowerCase();
   const [localPart, domain] = email.split("@");
 
-  const syntaxOk = EMAIL_REGEX.test(email);
+  const syntaxOk =
+    EMAIL_REGEX.test(email) && isLocalPartStructurallyValid(localPart);
   // A domain must have at least one dot AND the final segment must be ≥ 2 chars.
   // This correctly fails "localhost" (no dot) while passing "example.com".
   const tldOk = domain
@@ -259,13 +278,23 @@ export function validateEmailLocal(rawEmail: string): EmailValidationResult {
   const score = computeScore(checks);
   const valid = syntaxOk && !isDisposable && tldOk;
 
+  // Typo suggestion: if the domain is a known misspelling, cap the local
+  // score in the "risky" zone (≤65) and use a targeted message so that
+  // gmail.con doesn't show as 90/100 valid with a green ring.
+  const suggestion = domain ? getTypoSuggestion(localPart, domain) : undefined;
+  const finalScore = suggestion ? Math.min(score, 65) : score;
+  const message =
+    suggestion && valid
+      ? `Heads up — that domain looks like a typo. Did you mean ${suggestion}?`
+      : buildMessage(valid, checks, email);
+
   return {
     email,
     valid,
-    score,
+    score: finalScore,
     checks,
-    message: buildMessage(valid, checks, email),
-    suggestion: domain ? getTypoSuggestion(localPart, domain) : undefined,
+    message,
+    suggestion,
     source: "local",
   };
 }
@@ -317,15 +346,27 @@ export function applyMxResult(
   hasMx: boolean | null,
 ): EmailValidationResult {
   const checks: ValidationChecks = { ...local.checks, hasMx };
-  const score = computeScore(checks);
+  let score = computeScore(checks);
   // hasMx=false means the domain genuinely cannot receive mail
   const valid = local.valid && hasMx !== false;
+
+  // If the domain is a known typo and MX was inconclusive (DNS timeout),
+  // re-apply the cap so the result stays in the risky zone rather than
+  // bouncing back to 90. hasMx=false already caps to 15; hasMx=true means
+  // the domain genuinely exists and we trust it.
+  if (local.suggestion && hasMx === null) score = Math.min(score, 65);
+
+  const message =
+    local.suggestion && valid
+      ? `Heads up — that domain looks like a typo. Did you mean ${local.suggestion}?`
+      : buildMessage(valid, checks, local.email);
+
   return {
     ...local,
     valid,
     score,
     checks,
-    message: buildMessage(valid, checks, local.email),
+    message,
   };
 }
 
