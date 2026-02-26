@@ -19,6 +19,7 @@ Browser  →  POST /api/validate { email }
   │     ├── TLD presence + length
   │     ├── Disposable-domain Set lookup (~57 000+ domains)
   │     └── Role-prefix Set lookup (110+ prefixes: admin@, noreply@, shop@, ceo@, …)
+  │           └── +tag suffix stripped before lookup (noreply+bounce@ → noreply)
   │
   ├─► Early exit if syntax invalid
   │
@@ -45,7 +46,9 @@ Browser  →  POST /api/validate { email }
               ├── checks: { syntax, validTld, notDisposable, notRole, hasMx, apiDeliverable }
               ├── message: human-readable verdict
               ├── source: "zerobounce" | "emailable" | "local"
-              └── suggestion: typo correction (optional)
+              └── suggestion: full corrected email for common domain typos
+                              (e.g. user@gmial.com → user@gmail.com; covers
+                               .con, .cmo, .ocm TLD typos + 30+ domain variants)
 ```
 
 ### URL Safety Check (`POST /api/validate-url`)
@@ -184,7 +187,7 @@ src/
 ├── proxy.ts                         # CORS enforcement / middleware (Next.js 16 convention)
 └── lib/
     ├── affiliate-links.ts           # Affiliate partner URLs — reads from NEXT_PUBLIC_* env vars
-    ├── email-validator.ts           # Core logic: validateEmailLocal, applyMxResult, mergeSmtpResult, mergeEmailableResult (compat wrapper); 110+ role prefixes
+    ├── email-validator.ts           # Core logic: validateEmailLocal, applyMxResult, mergeSmtpResult, mergeEmailableResult (compat wrapper); 110+ role prefixes; 35+ typo corrections; +tag stripped for role check
     ├── smtp-cache.ts                # Redis SMTP result cache: getCachedSmtpResult / setCachedSmtpResult; sha256 key, 7-day TTL, local-only results excluded
     ├── smtp-provider.ts             # Pluggable SMTP provider abstraction: SmtpProvider interface, EmailableProvider, ZeroBounceProvider, getSmtpProvider() factory
     ├── faq-data.ts                  # FAQ Q&A for email tool — consumed by FAQ.tsx + FAQPage JSON-LD
@@ -197,7 +200,7 @@ src/
     └── rate-limit.ts                # Upstash Redis: checkRateLimit (20/min), checkDailyTextLimit (20/day); getRedis() shared client
 __tests__/
 ├── debunk-text-route.test.ts        # Jest unit tests: POST /api/debunk/text route (35 tests)
-├── email-validator.test.ts          # Jest unit tests: validateEmailLocal, applyMxResult, mergeSmtpResult, mergeEmailableResult, role prefixes, DISPOSABLE_DOMAINS (83 tests)
+├── email-validator.test.ts          # Jest unit tests: validateEmailLocal, applyMxResult, mergeSmtpResult, mergeEmailableResult, role prefixes, plus-addressed role check, expanded typo map, DISPOSABLE_DOMAINS (113 tests)
 ├── smtp-cache.test.ts               # Jest unit tests: getCachedSmtpResult, setCachedSmtpResult — Redis mocked (15 tests)
 └── url-validator.test.ts            # Jest unit tests: validateUrlLocal, applyHeadResult, applySafeBrowsingResult (21 tests)
 ```
@@ -312,7 +315,7 @@ POST /api/validate
   │     ├── RFC 5322 regex syntax
   │     ├── TLD presence + length
   │     ├── Disposable-domain lookup (~57 000+ domains — mailchecker + disposable-email-domains)
-  │     └── Role-prefix lookup (110+ prefixes)
+  │     └── Role-prefix lookup (110+ prefixes; +tag stripped before match)
   │
   ├─► Early exit if syntax fails (no DNS or API call)
   │
@@ -437,13 +440,13 @@ See ROADMAP.md (local file, gitignored for privacy planning).
 
 ## Cost Monitoring
 
-| Service                    | Free Tier                          | Cost at Scale        |
-| -------------------------- | ---------------------------------- | -------------------- |
-| Vercel Hosting             | 100 GB bandwidth/mo                | ~$20/mo Pro          |
-| ZeroBounce                 | 100 checks/mo recurring (free)     | $0.008/check (paid)  |
-| Emailable                  | 250 checks/mo one-time (fallback)  | $0.005/check (paid)  |
-| Google Safe Browsing       | 10 k req/day                       | Free                 |
-| Upstash Redis              | 10 k req/day                       | $0.20/100 k          |
+| Service              | Free Tier                         | Cost at Scale       |
+| -------------------- | --------------------------------- | ------------------- |
+| Vercel Hosting       | 100 GB bandwidth/mo               | ~$20/mo Pro         |
+| ZeroBounce           | 100 checks/mo recurring (free)    | $0.008/check (paid) |
+| Emailable            | 250 checks/mo one-time (fallback) | $0.005/check (paid) |
+| Google Safe Browsing | 10 k req/day                      | Free                |
+| Upstash Redis        | 10 k req/day                      | $0.20/100 k         |
 
 **Estimated ZeroBounce cost at 10k unique validations/day (no caching)**: ~$80/day
 **With Redis SMTP caching + role/disposable pre-filters (~75% reduction)**: ~$20/day at scale

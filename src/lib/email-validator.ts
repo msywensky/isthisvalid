@@ -172,27 +172,60 @@ export interface EmailValidationResult {
 
 /** Common free-provider typos and their corrections */
 const TYPO_MAP: Record<string, string> = {
+  // ── Gmail ───────────────────────────────────────────────────────────────
   "gmial.com": "gmail.com",
   "gmai.com": "gmail.com",
   "gmali.com": "gmail.com",
   "gnail.com": "gmail.com",
   "gmail.co": "gmail.com",
   "gamil.com": "gmail.com",
+  "gmaill.com": "gmail.com",    // doubled l
+  "gmail.con": "gmail.com",    // .con (adjacent to .com on keyboard)
+  "gmail.cmo": "gmail.com",    // .cmo (transposed)
+  "gmail.ocm": "gmail.com",    // .ocm (transposed)
+  // ── Hotmail ─────────────────────────────────────────────────────────────
   "hotmali.com": "hotmail.com",
   "hotmal.com": "hotmail.com",
+  "hotmaill.com": "hotmail.com", // doubled l
+  "hotmail.con": "hotmail.com",
+  "hotmail.cmo": "hotmail.com",
+  "hotmail.ocm": "hotmail.com",
+  // ── Yahoo ────────────────────────────────────────────────────────────────
   "yahooo.com": "yahoo.com",
   "yaho.com": "yahoo.com",
+  "yhaoo.com": "yahoo.com",     // transposed
+  "yahoo.con": "yahoo.com",
+  "yahoo.cmo": "yahoo.com",
+  "yahoo.ocm": "yahoo.com",
+  // ── Outlook ──────────────────────────────────────────────────────────────
   "outook.com": "outlook.com",
   "outlok.com": "outlook.com",
+  "outlookk.com": "outlook.com", // doubled k
+  "outlook.con": "outlook.com",
+  "outlook.cmo": "outlook.com",
+  "outlook.ocm": "outlook.com",
+  // ── iCloud ───────────────────────────────────────────────────────────────
   "iclod.com": "icloud.com",
+  "iclould.com": "icloud.com",   // extra l
+  "icolud.com": "icloud.com",   // transposed
+  "icloud.con": "icloud.com",
+  "icloud.cmo": "icloud.com",
+  // ── Protonmail ───────────────────────────────────────────────────────────
   "protonmali.com": "protonmail.com",
+  "protonmal.com": "protonmail.com",  // missing i
+  "protonmai.com": "protonmail.com",  // missing l
+  "protonmail.con": "protonmail.com",
+  "protonmail.cmo": "protonmail.com",
 };
 
-function getTypoSuggestion(domain: string): string | undefined {
-  const lower = domain.toLowerCase();
-  return TYPO_MAP[lower]
-    ? `${lower.split(".")[0]} → ${TYPO_MAP[lower]}`
-    : undefined;
+/**
+ * Returns a full corrected email address (e.g. "user@gmail.com") when the
+ * domain looks like a common typo, or undefined if no match.
+ */
+function getTypoSuggestion(localPart: string, domain: string): string | undefined {
+  const corrected = TYPO_MAP[domain.toLowerCase()];
+  if (!corrected) return undefined;
+  return `${localPart}@${corrected}`;
 }
 
 /**
@@ -209,7 +242,10 @@ export function validateEmailLocal(rawEmail: string): EmailValidationResult {
     ? domain.includes(".") && domain.split(".").at(-1)!.length >= 2
     : false;
   const isDisposable = domain ? DISPOSABLE_DOMAINS.has(domain) : false;
-  const isRole = localPart ? ROLE_PREFIXES.has(localPart) : false;
+  // Strip plus-addressing (+tag) before role check so that
+  // noreply+bounce@company.com is correctly identified as a role address.
+  const roleLocal = localPart ? localPart.split("+")[0] : "";
+  const isRole = roleLocal ? ROLE_PREFIXES.has(roleLocal) : false;
 
   const checks: ValidationChecks = {
     syntax: syntaxOk,
@@ -229,7 +265,7 @@ export function validateEmailLocal(rawEmail: string): EmailValidationResult {
     score,
     checks,
     message: buildMessage(valid, checks, email),
-    suggestion: domain ? getTypoSuggestion(domain) : undefined,
+    suggestion: domain ? getTypoSuggestion(localPart, domain) : undefined,
     source: "local",
   };
 }

@@ -99,19 +99,125 @@ describe("validateEmailLocal", () => {
   });
 
   // ── Typo suggestions ──────────────────────────────────────────────────────
-  it("suggests gmail.com for gmial.com", () => {
+  it("suggests full corrected email for gmial.com", () => {
     const r = validateEmailLocal("user@gmial.com");
-    expect(r.suggestion).toContain("gmail.com");
+    expect(r.suggestion).toBe("user@gmail.com");
   });
 
-  it("suggests hotmail.com for hotmali.com", () => {
+  it("suggests full corrected email for hotmali.com", () => {
     const r = validateEmailLocal("user@hotmali.com");
-    expect(r.suggestion).toContain("hotmail.com");
+    expect(r.suggestion).toBe("user@hotmail.com");
+  });
+
+  it("preserves local part including plus-tag in suggestion", () => {
+    const r = validateEmailLocal("firstname.last+tag@gmial.com");
+    expect(r.suggestion).toBe("firstname.last+tag@gmail.com");
+  });
+
+  it("returns no suggestion for a correctly-spelled domain", () => {
+    const r = validateEmailLocal("user@gmail.com");
+    expect(r.suggestion).toBeUndefined();
   });
 
   // ── Score ─────────────────────────────────────────────────────────────────
   it("source is always 'local'", () => {
     expect(validateEmailLocal("a@b.com").source).toBe("local");
+  });
+});
+
+// ── Plus-addressing role check ────────────────────────────────────────────────
+// The +tag suffix must be stripped before the ROLE_PREFIXES lookup so that
+// noreply+bounce@company.com is correctly identified as a role address.
+describe("validateEmailLocal — plus-addressed role detection", () => {
+  it("flags noreply+bounce@ as a role address", () => {
+    const r = validateEmailLocal("noreply+bounce@company.com");
+    expect(r.checks.notRole).toBe(false);
+    expect(r.checks.syntax).toBe(true);
+  });
+
+  it("flags admin+anything@ as a role address", () => {
+    const r = validateEmailLocal("admin+foo@example.com");
+    expect(r.checks.notRole).toBe(false);
+  });
+
+  it("flags support+ticket123@ as a role address", () => {
+    const r = validateEmailLocal("support+ticket123@company.com");
+    expect(r.checks.notRole).toBe(false);
+  });
+
+  it("does not flag a real user with a plus tag as a role address", () => {
+    const r = validateEmailLocal("alice+newsletter@example.com");
+    expect(r.checks.notRole).toBe(true);
+  });
+
+  it("plus-addressed real user email remains valid", () => {
+    const r = validateEmailLocal("user+tag@gmail.com");
+    expect(r.valid).toBe(true);
+    expect(r.checks.notRole).toBe(true);
+  });
+});
+
+// ── Expanded typo map ──────────────────────────────────────────────────────────────
+describe("validateEmailLocal — typo suggestions", () => {
+  // .con (fat-finger, adjacent to .com)
+  it.each([
+    ["gmail.con", "gmail.com"],
+    ["yahoo.con", "yahoo.com"],
+    ["hotmail.con", "hotmail.com"],
+    ["outlook.con", "outlook.com"],
+    ["icloud.con", "icloud.com"],
+    ["protonmail.con", "protonmail.com"],
+  ])("suggests correction for %s", (typo, correct) => {
+    const r = validateEmailLocal(`user@${typo}`);
+    expect(r.suggestion).toBe(`user@${correct}`);
+  });
+
+  // .cmo (transposed extension)
+  it.each([
+    ["gmail.cmo", "gmail.com"],
+    ["yahoo.cmo", "yahoo.com"],
+    ["hotmail.cmo", "hotmail.com"],
+    ["outlook.cmo", "outlook.com"],
+  ])("suggests correction for %s", (typo, correct) => {
+    const r = validateEmailLocal(`user@${typo}`);
+    expect(r.suggestion).toBe(`user@${correct}`);
+  });
+
+  // .ocm (transposed extension)
+  it.each([
+    ["gmail.ocm", "gmail.com"],
+    ["hotmail.ocm", "hotmail.com"],
+    ["outlook.ocm", "outlook.com"],
+  ])("suggests correction for %s", (typo, correct) => {
+    const r = validateEmailLocal(`user@${typo}`);
+    expect(r.suggestion).toBe(`user@${correct}`);
+  });
+
+  // Doubled/missing/transposed letters within domain names
+  it.each([
+    ["gmaill.com", "gmail.com"],
+    ["hotmaill.com", "hotmail.com"],
+    ["outlookk.com", "outlook.com"],
+    ["yhaoo.com", "yahoo.com"],
+    ["iclould.com", "icloud.com"],
+    ["icolud.com", "icloud.com"],
+    ["protonmal.com", "protonmail.com"],
+    ["protonmai.com", "protonmail.com"],
+  ])("suggests correction for %s", (typo, correct) => {
+    const r = validateEmailLocal(`user@${typo}`);
+    expect(r.suggestion).toBe(`user@${correct}`);
+  });
+
+  // Suggestion includes the full local part, not just the domain
+  it("includes local part in the full suggestion string", () => {
+    const r = validateEmailLocal("jane.doe@gmial.com");
+    expect(r.suggestion).toBe("jane.doe@gmail.com");
+  });
+
+  // No suggestion for an unknown (non-typo) domain
+  it("returns undefined for an unknown domain", () => {
+    const r = validateEmailLocal("user@randomdomain.com");
+    expect(r.suggestion).toBeUndefined();
   });
 });
 
@@ -280,14 +386,21 @@ describe("validateEmailLocal — expanded role prefixes", () => {
   const domain = "company.com";
 
   // Mail infrastructure (added in expansion)
-  it.each(["bounce", "smtp", "imap", "pop", "pop3", "dns", "www", "sysadmin", "mailerdaemon"])(
-    "detects '%s' as a role address",
-    (prefix) => {
-      const r = validateEmailLocal(`${prefix}@${domain}`);
-      expect(r.checks.notRole).toBe(false);
-      expect(r.checks.syntax).toBe(true);
-    },
-  );
+  it.each([
+    "bounce",
+    "smtp",
+    "imap",
+    "pop",
+    "pop3",
+    "dns",
+    "www",
+    "sysadmin",
+    "mailerdaemon",
+  ])("detects '%s' as a role address", (prefix) => {
+    const r = validateEmailLocal(`${prefix}@${domain}`);
+    expect(r.checks.notRole).toBe(false);
+    expect(r.checks.syntax).toBe(true);
+  });
 
   // No-reply variants (added in expansion)
   it.each(["no_reply", "donot-reply"])(
@@ -308,13 +421,18 @@ describe("validateEmailLocal — expanded role prefixes", () => {
   );
 
   // Business functions
-  it.each(["accounting", "payroll", "invoices", "procurement", "gdpr", "compliance", "humanresources"])(
-    "detects '%s' as a role address",
-    (prefix) => {
-      const r = validateEmailLocal(`${prefix}@${domain}`);
-      expect(r.checks.notRole).toBe(false);
-    },
-  );
+  it.each([
+    "accounting",
+    "payroll",
+    "invoices",
+    "procurement",
+    "gdpr",
+    "compliance",
+    "humanresources",
+  ])("detects '%s' as a role address", (prefix) => {
+    const r = validateEmailLocal(`${prefix}@${domain}`);
+    expect(r.checks.notRole).toBe(false);
+  });
 
   // E-commerce
   it.each(["shop", "store", "reservations", "bookings", "returns", "refunds"])(
@@ -326,13 +444,18 @@ describe("validateEmailLocal — expanded role prefixes", () => {
   );
 
   // Communications
-  it.each(["newsletter", "newsletters", "press", "media", "alerts", "unsubscribe", "list"])(
-    "detects '%s' as a role address",
-    (prefix) => {
-      const r = validateEmailLocal(`${prefix}@${domain}`);
-      expect(r.checks.notRole).toBe(false);
-    },
-  );
+  it.each([
+    "newsletter",
+    "newsletters",
+    "press",
+    "media",
+    "alerts",
+    "unsubscribe",
+    "list",
+  ])("detects '%s' as a role address", (prefix) => {
+    const r = validateEmailLocal(`${prefix}@${domain}`);
+    expect(r.checks.notRole).toBe(false);
+  });
 
   // Executive titles (rarely personal inboxes)
   it.each(["ceo", "cfo", "cto", "coo", "founders"])(
