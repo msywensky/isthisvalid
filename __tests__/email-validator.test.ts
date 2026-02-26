@@ -3,6 +3,7 @@ import {
   mergeEmailableResult,
   mergeSmtpResult,
   applyMxResult,
+  type EmailValidationResult,
 } from "@/lib/email-validator";
 import { DISPOSABLE_DOMAINS } from "@/lib/disposable-domains";
 
