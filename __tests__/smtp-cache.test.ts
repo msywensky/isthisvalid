@@ -18,7 +18,9 @@ const mockGetRedis = getRedis as jest.MockedFunction<typeof getRedis>;
 
 // Build a reusable mock Redis object matching the subset of the Upstash client
 // that smtp-cache.ts actually calls.
-function makeMockRedis(overrides: Partial<{ get: jest.Mock; set: jest.Mock }> = {}) {
+function makeMockRedis(
+  overrides: Partial<{ get: jest.Mock; set: jest.Mock }> = {},
+) {
   return {
     get: jest.fn().mockResolvedValue(null),
     set: jest.fn().mockResolvedValue("OK"),
@@ -89,6 +91,7 @@ describe("getCachedSmtpResult", () => {
   });
 
   it("returns null and does not throw when redis.get rejects", async () => {
+    jest.spyOn(console, "warn").mockImplementation(() => {});
     const redis = makeMockRedis({
       get: jest.fn().mockRejectedValue(new Error("connection timeout")),
     });
@@ -193,11 +196,16 @@ describe("setCachedSmtpResult", () => {
 
     await setCachedSmtpResult("user@example.com", ZEROBOUNCE_RESULT);
 
-    const [, , options] = redis.set.mock.calls[0] as [string, unknown, { ex: number }];
+    const [, , options] = redis.set.mock.calls[0] as [
+      string,
+      unknown,
+      { ex: number },
+    ];
     expect(options).toMatchObject({ ex: 60 * 60 * 24 * 7 });
   });
 
   it("does not throw when redis.set rejects", async () => {
+    jest.spyOn(console, "warn").mockImplementation(() => {});
     const redis = makeMockRedis({
       set: jest.fn().mockRejectedValue(new Error("write failed")),
     });
