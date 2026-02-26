@@ -23,6 +23,15 @@ const ALLOWED_ORIGINS: ReadonlySet<string> = new Set([
     : []),
 ]);
 
+// Vercel preview deployments use dynamic subdomains — allow them via regex.
+// Pattern: https://isthisvalid-<hash>-<team>.vercel.app
+const VERCEL_PREVIEW_ORIGIN =
+  /^https:\/\/isthisvalid(-[a-z0-9]+)+\.vercel\.app$/;
+
+function isAllowedOrigin(origin: string): boolean {
+  return ALLOWED_ORIGINS.has(origin) || VERCEL_PREVIEW_ORIGIN.test(origin);
+}
+
 const CORS_HEADERS_ALLOWED = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type",
@@ -41,7 +50,7 @@ export function proxy(req: NextRequest) {
 
   // ── CORS preflight ────────────────────────────────────────────────────────
   if (req.method === "OPTIONS") {
-    if (!origin || !ALLOWED_ORIGINS.has(origin)) {
+    if (!origin || !isAllowedOrigin(origin)) {
       // Unknown origin — deny preflight so the browser won't send the actual request.
       return new NextResponse(null, { status: 403 });
     }
@@ -56,7 +65,7 @@ export function proxy(req: NextRequest) {
   // ── Cross-origin request from an untrusted browser origin ─────────────────
   // Requests with NO Origin header are direct/server-to-server calls and are
   // allowed. Only browser-initiated cross-origin requests carry an Origin header.
-  if (origin && !ALLOWED_ORIGINS.has(origin)) {
+  if (origin && !isAllowedOrigin(origin)) {
     return NextResponse.json(
       { error: "Cross-origin requests are not allowed." },
       { status: 403 },
@@ -65,7 +74,7 @@ export function proxy(req: NextRequest) {
 
   // ── Allowed request — pass through, add CORS header for the response ──────
   const res = NextResponse.next();
-  if (origin && ALLOWED_ORIGINS.has(origin)) {
+  if (origin && isAllowedOrigin(origin)) {
     res.headers.set("Access-Control-Allow-Origin", origin);
   }
   return res;

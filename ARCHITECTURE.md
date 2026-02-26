@@ -178,7 +178,8 @@ src/
 ├── proxy.ts                         # CORS enforcement / middleware (Next.js 16 convention)
 └── lib/
     ├── affiliate-links.ts           # Affiliate partner URLs — reads from NEXT_PUBLIC_* env vars
-    ├── email-validator.ts           # Core logic: validateEmailLocal, applyMxResult, mergeEmailableResult
+    ├── email-validator.ts           # Core logic: validateEmailLocal, applyMxResult, mergeSmtpResult, mergeEmailableResult (compat wrapper)
+    ├── smtp-provider.ts             # Pluggable SMTP provider abstraction: SmtpProvider interface, EmailableProvider, ZeroBounceProvider, getSmtpProvider() factory
     ├── faq-data.ts                  # FAQ Q&A for email tool — consumed by FAQ.tsx + FAQPage JSON-LD
     ├── url-validator.ts             # Core logic: validateUrlLocal, applyHeadResult, applySafeBrowsingResult
     ├── url-faq-data.ts              # FAQ Q&A for URL tool — consumed by UrlFAQ.tsx + FAQPage JSON-LD
@@ -189,22 +190,23 @@ src/
     └── rate-limit.ts                # Upstash Redis: checkRateLimit (20/min), checkDailyTextLimit (20/day)
 __tests__/
 ├── debunk-text-route.test.ts        # Jest unit tests: POST /api/debunk/text route (35 tests)
-├── email-validator.test.ts          # Jest unit tests: validateEmailLocal, applyMxResult, mergeEmailableResult (27 tests)
+├── email-validator.test.ts          # Jest unit tests: validateEmailLocal, applyMxResult, mergeSmtpResult, mergeEmailableResult (27 tests)
 └── url-validator.test.ts            # Jest unit tests: validateUrlLocal, applyHeadResult, applySafeBrowsingResult (21 tests)
 ```
 
 ## Environment Variables
 
-| Variable                               | Required | Description                                                                               |
-| -------------------------------------- | -------- | ----------------------------------------------------------------------------------------- |
-| `ANTHROPIC_API_KEY`                    | Yes      | Anthropic API key — powers the Text / SMS scam detector (Claude claude-sonnet-4-20250514) |
-| `UPSTASH_REDIS_REST_URL`               | Yes      | Upstash Redis URL — rate limiting (20 req/min) + result cache (24 h TTL)                  |
-| `UPSTASH_REDIS_REST_TOKEN`             | Yes      | Upstash Redis token — required alongside the URL above                                    |
-| `GOOGLE_SAFE_BROWSING_API_KEY`         | No       | Google Safe Browsing v5 key — enables malware/phishing lookup on URL tool                 |
-| `EMAILABLE_API_KEY`                    | No       | Emailable API key — enables SMTP-level mailbox checks on email tool                       |
-| `NEXT_PUBLIC_ADSENSE_ID`               | No       | Google AdSense publisher ID (`ca-pub-...`) — leave blank until approved                   |
-| `NEXT_PUBLIC_ZEROBOUNCE_AFFILIATE_URL` | No       | ZeroBounce affiliate tracking URL — shown on email tool risky results                     |
-| `NEXT_PUBLIC_NORDVPN_AFFILIATE_URL`    | No       | NordVPN affiliate tracking URL — shown on URL/text tool unsafe results                    |
+| Variable                               | Required | Description                                                                                                             |
+| -------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `ANTHROPIC_API_KEY`                    | Yes      | Anthropic API key — powers the Text / SMS scam detector (Claude claude-sonnet-4-20250514)                               |
+| `UPSTASH_REDIS_REST_URL`               | Yes      | Upstash Redis URL — rate limiting (20 req/min) + result cache (24 h TTL)                                                |
+| `UPSTASH_REDIS_REST_TOKEN`             | Yes      | Upstash Redis token — required alongside the URL above                                                                  |
+| `GOOGLE_SAFE_BROWSING_API_KEY`         | No       | Google Safe Browsing v5 key — enables malware/phishing lookup on URL tool                                               |
+| `ZEROBOUNCE_API_KEY`                   | No       | ZeroBounce API key — preferred SMTP provider (100 free verifications/month recurring)                                   |
+| `EMAILABLE_API_KEY`                    | No       | Emailable API key — fallback SMTP provider (250 one-time free, then paid); used only if `ZEROBOUNCE_API_KEY` is not set |
+| `NEXT_PUBLIC_ADSENSE_ID`               | No       | Google AdSense publisher ID (`ca-pub-...`) — leave blank until approved                                                 |
+| `NEXT_PUBLIC_ZEROBOUNCE_AFFILIATE_URL` | No       | ZeroBounce affiliate tracking URL — shown on email tool risky results                                                   |
+| `NEXT_PUBLIC_NORDVPN_AFFILIATE_URL`    | No       | NordVPN affiliate tracking URL — shown on URL/text tool unsafe results                                                  |
 
 ## Affiliate Links
 
@@ -325,17 +327,20 @@ POST /api/validate
 The site uses an **always-dark** design (zinc-950 background) with a neon-orange brand
 colour — deliberately distinct from Emailable's corporate blue/teal palette.
 
-| Token role           | Tailwind class       | Hex        |
-| -------------------- | -------------------- | ---------- |
-| Brand / CTA button   | `bg-orange-500`      | `#f97316`  |
-| Brand accent / links | `text-orange-400`    | `#fb923c`  |
-| Focus rings          | `ring-orange-500`    | `#f97316`  |
-| Valid result         | `border-lime-500`    | `#84cc16`  |
-| Risky result         | `border-yellow-500`  | `#eab308`  |
-| Invalid result       | `border-rose-500`    | `#fb7185`  |
-| Score ring — valid   | `#84cc16` (SVG fill) | lime-400   |
-| Score ring — warn    | `#eab308` (SVG fill) | yellow-400 |
-| Score ring — invalid | `#fb7185` (SVG fill) | rose-400   |
+| Token role            | Tailwind class       | Hex        |
+| --------------------- | -------------------- | ---------- |
+| Brand / CTA button    | `bg-orange-500`      | `#f97316`  |
+| Brand accent / links  | `text-orange-400`    | `#fb923c`  |
+| Focus rings           | `ring-orange-500`    | `#f97316`  |
+| Valid result          | `border-lime-500`    | `#84cc16`  |
+| Risky result          | `border-yellow-500`  | `#eab308`  |
+| Invalid result        | `border-rose-500`    | `#fb7185`  |
+| Score ring — valid    | `#84cc16` (SVG fill) | lime-400   |
+| Score ring — warn     | `#eab308` (SVG fill) | yellow-400 |
+| Score ring — invalid  | `#fb7185` (SVG fill) | rose-400   |
+| Body / secondary text | `text-zinc-400`      | `#a1a1aa`  |
+
+> **WCAG AA note:** Secondary and body text uses `zinc-400` (#a1a1aa, ~6:1 contrast on zinc-950) rather than `zinc-500` (#71717a, ~4.1:1 which fails AA). This was audited and corrected Feb 26 2026 across `CheckShell.tsx`, `FAQ.tsx`, `UrlFAQ.tsx`, `TextResultCard.tsx`, `SiteFooter.tsx`, and `check/text/page.tsx`.
 
 ## Analytics
 
