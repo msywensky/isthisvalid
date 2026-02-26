@@ -15,7 +15,7 @@ A free, no-signup verification hub for checking emails, scanning URLs for threat
 - Disposable email detection (3,500+ domains)
 - Role-based email filtering (admin@, noreply@, etc.)
 - MX record lookup
-- Optional SMTP mailbox verification via Emailable API
+- Optional SMTP mailbox verification (pluggable provider: ZeroBounce preferred, Emailable fallback)
 - Typo suggestions
 
 **Result:** 0–100 confidence score with detailed check breakdown
@@ -85,7 +85,8 @@ Then edit `.env.local` and add your API keys:
 - `UPSTASH_REDIS_REST_URL` — Redis for rate limiting (required)
 - `UPSTASH_REDIS_REST_TOKEN` — Redis token (required)
 - `GOOGLE_SAFE_BROWSING_API_KEY` — Safe Browsing API (optional)
-- `EMAILABLE_API_KEY` — Email verification API (optional)
+- `ZEROBOUNCE_API_KEY` — ZeroBounce email verification (optional, preferred — 100 free/month)
+- `EMAILABLE_API_KEY` — Emailable fallback (optional, only used if ZeroBounce key is absent)
 - `NEXT_PUBLIC_ADSENSE_ID` — AdSense publisher ID (optional, leave blank until approved)
 
 All external APIs degrade gracefully if keys are missing.
@@ -131,10 +132,10 @@ src/
 │   ├── ResultCard.tsx      # Email validator result display
 │   ├── UrlResultCard.tsx   # URL checker result display
 │   ├── TextResultCard.tsx  # Text debunker result display
-│   ├── AffiliateNudge.tsx  # Contextual affiliate recommendations
 │   └── ...
 ├── lib/                    # Utility functions & constants
 │   ├── email-validator.ts  # Core email validation logic
+│   ├── smtp-provider.ts    # Pluggable SMTP provider (ZeroBounce / Emailable)
 │   ├── url-validator.ts    # Core URL validation logic
 │   ├── text-debunker.ts    # Text analysis types
 │   ├── llm-client.ts       # Anthropic API wrapper
@@ -166,13 +167,14 @@ Set all required env vars (ANTHROPIC_API_KEY, UPSTASH_REDIS_REST_URL/TOKEN, GOOG
 
 ## Cost Monitoring
 
-| Service              | Free Tier              | Notes                                         |
-| -------------------- | ---------------------- | --------------------------------------------- |
-| Vercel               | 100 GB bandwidth/month | Hobby plan sufficient                         |
-| Anthropic Claude     | Pay-per-token          | ~$1–3/month at 20 text checks/day             |
-| Google Safe Browsing | 10,000 req/day         | Free                                          |
-| Upstash Redis        | 10,000 req/day         | Free tier                                     |
-| Emailable            | 250 checks/month       | Optional; local validation sufficient for MVP |
+| Service              | Free Tier              | Notes                                        |
+| -------------------- | ---------------------- | -------------------------------------------- |
+| Vercel               | 100 GB bandwidth/month | Hobby plan sufficient                        |
+| Anthropic Claude     | Pay-per-token          | ~$1–3/month at 20 text checks/day            |
+| Google Safe Browsing | 10,000 req/day         | Free                                         |
+| Upstash Redis        | 10,000 req/day         | Free tier                                    |
+| ZeroBounce           | 100 checks/month       | Preferred SMTP provider; recurring free tier |
+| Emailable            | 250 checks (one-time)  | Fallback; only used if ZeroBounce key absent |
 
 **Estimated monthly cost:** $0–5 with all APIs (depends on usage)
 
