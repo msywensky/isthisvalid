@@ -1,4 +1,5 @@
 import { DISPOSABLE_DOMAINS } from "./disposable-domains";
+import type { SmtpVerifyResult } from "./smtp-provider";
 
 // RFC 5322–inspired regex — strict enough for MVP, permissive enough to not
 // reject valid international addresses.
@@ -65,7 +66,7 @@ export interface EmailValidationResult {
   /** Suggested fix (e.g. typo correction) */
   suggestion?: string;
   /** Which validation path was used */
-  source: "local" | "emailable";
+  source: "local" | "emailable" | "zerobounce";
 }
 
 /** Common free-provider typos and their corrections */
@@ -191,19 +192,19 @@ export function applyMxResult(
   };
 }
 
-/** Merge local result with Emailable API response */
-export function mergeEmailableResult(
+/** Merge local result with a normalised SmtpVerifyResult from any provider */
+export function mergeSmtpResult(
   local: EmailValidationResult,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  apiData: Record<string, any>,
+  smtp: SmtpVerifyResult,
 ): EmailValidationResult {
-  const deliverable = apiData.state === "deliverable";
-  const undeliverable = apiData.state === "undeliverable";
-
   const checks: ValidationChecks = {
-    ...local.checks, // preserves hasMx from applyMxResult
-    apiDeliverable: deliverable ? true : undeliverable ? false : null,
-    notDisposable: local.checks.notDisposable && !apiData.disposable,
+    ...local.checks,
+    apiDeliverable: smtp.deliverable === true
+      ? true
+      : smtp.undeliverable
+        ? false
+        : null,
+    notDisposable: local.checks.notDisposable && !smtp.disposable,
   };
 
   const score = computeScore(checks);
@@ -211,7 +212,8 @@ export function mergeEmailableResult(
     local.checks.syntax &&
     checks.notDisposable &&
     local.checks.hasMx !== false &&
-    (deliverable || (!undeliverable && local.valid));
+    (smtp.deliverable === true ||
+      (!smtp.undeliverable && local.valid));
 
   return {
     ...local,
@@ -219,6 +221,25 @@ export function mergeEmailableResult(
     score,
     checks,
     message: buildMessage(valid, checks, local.email),
+    source: smtp.source,
+  };
+}
+
+/**
+ * Merge local result with Emailable API response.
+ * @deprecated Use mergeSmtpResult with an EmailableProvider instead.
+ * Kept for backward compatibility with existing tests.
+ */
+export function mergeEmailableResult(
+  local: EmailValidationResult,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  apiData: Record<string, any>,
+): EmailValidationResult {
+  const smtp: SmtpVerifyResult = {
+    deliverable: apiData.state === "deliverable" ? true : null,
+    undeliverable: apiData.state === "undeliverable",
+    disposable: Boolean(apiData.disposable),
     source: "emailable",
   };
+  return mergeSmtpResult(local, smtp);
 }

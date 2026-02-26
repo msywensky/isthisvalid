@@ -4,8 +4,9 @@ import { z } from "zod";
 import {
   validateEmailLocal,
   applyMxResult,
-  mergeEmailableResult,
+  mergeSmtpResult,
 } from "@/lib/email-validator";
+import { getSmtpProvider } from "@/lib/smtp-provider";
 import { checkRateLimit } from "@/lib/rate-limit";
 
 const RequestSchema = z.object({
@@ -88,39 +89,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(resultWithMx, { headers: securityHeaders() });
   }
 
-  const apiKey = process.env.EMAILABLE_API_KEY;
-  if (!apiKey) {
+  // ── SMTP verification via pluggable provider ────────────────────────────────
+  // ZeroBounce is used when ZEROBOUNCE_API_KEY is set (preferred — 100 free/month).
+  // Falls back to Emailable when EMAILABLE_API_KEY is set.
+  // Returns local+MX result if neither key is configured.
+  const provider = getSmtpProvider();
+  if (!provider) {
     return NextResponse.json(resultWithMx, { headers: securityHeaders() });
   }
 
-  // ── Emailable API ──────────────────────────────────────────────────────────
-  // Docs: https://emailable.com/docs/api
   try {
-    const emailableRes = await fetch(
-      `https://api.emailable.com/v1/verify?email=${encodeURIComponent(email)}&api_key=${apiKey}`,
-      {
-        method: "GET",
-        signal: AbortSignal.timeout(8_000),
-        next: { revalidate: 0 },
-      },
-    );
-
-    if (!emailableRes.ok) {
-      console.warn(
-        `[validate] Emailable returned ${emailableRes.status} for ${email} — using local result`,
-      );
-      return NextResponse.json(resultWithMx, { headers: securityHeaders() });
-    }
-
-    const apiData = (await emailableRes.json()) as Record<string, unknown>;
-    const merged = mergeEmailableResult(
-      resultWithMx,
-      apiData as Record<string, unknown>,
-    );
-
+    const smtpResult = await provider.verify(email);
+    const merged = mergeSmtpResult(resultWithMx, smtpResult);
     return NextResponse.json(merged, { headers: securityHeaders() });
   } catch (err) {
-    console.error("[validate] Emailable API error:", err);
+    console.error(`[validate] ${provider.name} error:`, err);
     return NextResponse.json(resultWithMx, { headers: securityHeaders() });
   }
 }
