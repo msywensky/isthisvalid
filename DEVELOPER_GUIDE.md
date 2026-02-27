@@ -1,6 +1,6 @@
 # isthisvalid.com — Maintenance-Grade Technical Documentation
 
-**Generated:** February 27, 2026 | **Build:** ✅ clean (16 routes) | **Tests:** ✅ 290/290 | **Branch:** `main`
+**Generated:** February 27, 2026 | **Build:** ✅ clean (16 routes) | **Tests:** ✅ 320/320 | **Branch:** `feat/reduce-google-dependency`
 
 ---
 
@@ -325,17 +325,23 @@ If `smtp.deliverable === true` short-circuits, `validTld` must still be checked 
 validateUrlLocal(rawUrl: string): UrlValidationResult
 applyHeadResult(result: UrlValidationResult, resolves: boolean | null): UrlValidationResult
 applySafeBrowsingResult(result: UrlValidationResult, isFlagged: boolean): UrlValidationResult
+applyRdapResult(result: UrlValidationResult, isOld: boolean | null): UrlValidationResult
+applyRedirectResult(result: UrlValidationResult, destResult: UrlValidationResult, finalUrl: string): UrlValidationResult
 /** @internal */ getRegisteredDomain(hostname: string): string   // eTLD+1 extractor (CCTLD_SECOND_LEVELS-aware)
-/** @internal */ checkBrandSquat(hostname: string): boolean       // brand squat detector; exported for testability
+/** @internal */ checkBrandSquat(hostname: string): boolean       // exact brand-squat detector
+/** @internal */ checkTyposquat(hostname: string): boolean        // Levenshtein + digit-substitution typosquat detector
 ```
 
 **Check priority order (scoring & message precedence):**
 
 ```
 safeBrowsing=false             → score ≤5, safe=false  (nuclear override)
-noBrandSquat=false             → score -15
+noBrandSquat=false             → score -15, safe=false
+notTyposquat=false             → score cap ≤79, safe=false
 notExcessiveSubdomains=false   → score cap ≤60
 notSuspiciousTld=false         → score cap ≤80
+notHighEntropy=false           → score cap ≤75
+notNewlyRegistered=false       → score cap ≤70, safe=false
 notIpAddress=false             → score -15
 noUserInfo=false               → score -10
 notShortener=false             → score -10
@@ -343,6 +349,7 @@ noSuspiciousKeywords=false     → score -20
 notPunycode=false              → score -10
 validTld=false                 → score -10
 validScheme=false              → score -10
+notExcessiveHyphens=false      → score -8
 resolves=false                 → score cap ≤70
 resolves=true                  → score +5
 ```
@@ -352,6 +359,18 @@ resolves=true                  → score +5
 **Subdomain depth threshold:** ≥5 labels. `www.example.com` (3) and `api.shop.example.com` (4) pass cleanly. `paypal.com.secure.verify.evil.com` (6) is flagged. The `safe` check in `applyHeadResult` also enforces `notExcessiveSubdomains` — a URL cannot be `safe=true` with excessive subdomain depth regardless of score.
 
 **Suspicious TLD list rationale:** Drawn from ICANN abuse statistics and threat intelligence data. These are _risk signals_, not hard fails — legitimate services exist on these TLDs. The cap at ≤80 prevents a `score=100` clean verdict but does not auto-flag as unsafe.
+
+**Typosquat detection:** `checkTyposquat` normalises the registered-domain label by substituting common digit/symbol lookalikes (`1→l`, `0→o`, `3→e`, `5→s`, `4→a`, etc.) then checks for an exact match or Levenshtein edit distance ≤1 against any brand in `KNOWN_BRANDS`. Only brands with ≥6 characters use the distance check — shorter brand names produce too many false positives. The cap at ≤79 forces the score into Suspicious (≤80 = Safe) regardless of all other passing checks.
+
+**Hostname entropy:** `hasHighEntropy` computes Shannon entropy over each hostname label. Labels ≥12 chars with entropy >3.8 bits/char are consistent with DGA (Domain Generation Algorithm) malware or automated phishing infrastructure. Caps score at ≤75. Short labels (<12 chars) are excluded — short meaningful words naturally have higher entropy.
+
+**Excessive hyphens:** Three or more hyphens in a single label (e.g. `secure-paypal-login-verify.com`) is a strong indicator of a crafted phishing domain. Deducts 8 points; does not hard-cap.
+
+**RDAP domain age:** `checkDomainAge` queries `rdap.org` (free, no API key) for the domain's `registration` event date. Domains <30 days old get score capped at ≤70 and `safe=false`. RDAP and the HEAD request run in parallel via `Promise.all` to avoid adding latency. If RDAP times out or returns no data, the result is `null` — no penalty applied.
+
+**Redirect chain analysis:** `checkResolves` now follows up to 5 redirect hops using `redirect: "manual"` + iterative fetches. If the final URL is on a different domain than the submitted URL, `validateUrlLocal` is run on the destination and the worst-case flags and score are merged via `applyRedirectResult`. This closes the shortener blindspot — a `bit.ly` to phishing page chain is now evaluated end-to-end.
+
+**Early Google exit:** After local checks + RDAP, if `score < 50` the Safe Browsing API call is skipped entirely. URLs that are already clearly dangerous (brand squat, typosquat, new domain, etc.) don't need Google confirmation and the skipped call saves quota.
 
 **Safe Browsing API version note:** The code uses **v4 (JSON REST)**. v5 returns protobuf by default and does not support clean JSON output with the same key. Do not upgrade to v5 without refactoring the parser. The route is correctly commented with the v4 lookup API URL. Verify it links to `https://developers.google.com/safe-browsing/v4/lookup-api` before any Safe Browsing refactor.
 
@@ -519,12 +538,12 @@ All tests live in `__tests__/` and are pure unit tests — no network, no Redis,
 
 **Current suite:**
 
-| File                        | Tests | Pattern                                                                                            |
-| --------------------------- | ----- | -------------------------------------------------------------------------------------------------- |
-| `email-validator.test.ts`   | 150   | One `describe` per validator concept; explicit bug-regression suites labelled `[Bug N regression]` |
-| `url-validator.test.ts`     | 80    | One `describe` per check; one per merge helper; dedicated suites for `getRegisteredDomain`, `checkBrandSquat`, and IP edge cases |
-| `debunk-text-route.test.ts` | 35    | Mocked `callClaude` and Redis; covers rate limit, cache hit/miss, bad JSON, injection              |
-| `smtp-cache.test.ts`        | 15    | Mocked Redis; covers hash correctness, TTL, local-source no-op, error resilience                   |
+| File                        | Tests | Pattern                                                                                                                                                                                  |
+| --------------------------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `email-validator.test.ts`   | 150   | One `describe` per validator concept; explicit bug-regression suites labelled `[Bug N regression]`                                                                                       |
+| `url-validator.test.ts`     | 110   | One `describe` per check; dedicated suites for `getRegisteredDomain`, `checkBrandSquat`, `checkTyposquat`, `applyRdapResult`, `applyRedirectResult`, entropy, hyphens, and IP edge cases |
+| `debunk-text-route.test.ts` | 35    | Mocked `callClaude` and Redis; covers rate limit, cache hit/miss, bad JSON, injection                                                                                                    |
+| `smtp-cache.test.ts`        | 15    | Mocked Redis; covers hash correctness, TTL, local-source no-op, error resilience                                                                                                         |
 
 **To extend tests:** Follow the existing `describe`/`test` pattern. For a new check in `url-validator.ts`, add a new `describe("new check name")` block with: one passing case, one failing case, score assertion, flag-text assertion, and message assertion.
 
@@ -571,14 +590,14 @@ feat/* branches → Vercel preview URLs (auto-generated)
 
 ### Known Issues & Technical Debt
 
-| Issue                                               | Severity | Notes                                                                                                                                |
-| --------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| No CI/CD pipeline                                   | Medium   | Manual build+test required before merge; easy to forget                                                                              |
+| Issue                                               | Severity | Notes                                                                                                                                                                                                                                       |
+| --------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| No CI/CD pipeline                                   | Medium   | Manual build+test required before merge; easy to forget                                                                                                                                                                                     |
 | `getRegisteredDomain` is not PSL-aware              | Low      | Uses a curated `CCTLD_SECOND_LEVELS` list (100+ entries: `co.uk`, `com.au`, `co.jp`, `co.in` …) instead of a full PSL. Covers the most common registries; exotic ccTLDs may still be misclassified. Replace with `tldts` for full coverage. |
-| Rate limiter key space is shared                    | Low      | All three tools consume from the same 20/min bucket per IP. Heavy URL checking can block email checking. Consider per-tool prefixes. |
-| No integration tests                                | Low      | All tests are unit; end-to-end API behaviour (including Redis, real DNS) is untested                                                 |
-| Text tool has no streaming                          | Low      | Claude response is buffered. Long messages create latency. SSE streaming would improve UX.                                           |
-| `safe` verdict does not hard-fail on `!validScheme` | Low      | An FTP URL can score ≥80 if all other checks pass; `safe` would be `true`. Should add `checks.validScheme` to the `safe` formula.    |
+| Rate limiter key space is shared                    | Low      | All three tools consume from the same 20/min bucket per IP. Heavy URL checking can block email checking. Consider per-tool prefixes.                                                                                                        |
+| No integration tests                                | Low      | All tests are unit; end-to-end API behaviour (including Redis, real DNS) is untested                                                                                                                                                        |
+| Text tool has no streaming                          | Low      | Claude response is buffered. Long messages create latency. SSE streaming would improve UX.                                                                                                                                                  |
+| `safe` verdict does not hard-fail on `!validScheme` | Low      | An FTP URL can score ≥80 if all other checks pass; `safe` would be `true`. Should add `checks.validScheme` to the `safe` formula.                                                                                                           |
 
 ---
 

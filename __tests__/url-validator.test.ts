@@ -2,8 +2,11 @@ import {
   validateUrlLocal,
   applyHeadResult,
   applySafeBrowsingResult,
+  applyRdapResult,
+  applyRedirectResult,
   getRegisteredDomain,
   checkBrandSquat,
+  checkTyposquat,
 } from "../src/lib/url-validator";
 
 // ── validateUrlLocal ───────────────────────────────────────────────────────
@@ -516,5 +519,245 @@ describe("IP address detection edge cases", () => {
   test("IPv6 loopback is flagged", () => {
     const r = validateUrlLocal("http://[::1]/admin");
     expect(r.checks.notIpAddress).toBe(false);
+  });
+});
+
+// ── checkTyposquat ────────────────────────────────────────────────────────
+
+describe("checkTyposquat", () => {
+  test("legitimate domain returns true", () => {
+    expect(checkTyposquat("paypal.com")).toBe(true);
+  });
+
+  test("digit substitution 1→l is caught (paypa1.com)", () => {
+    expect(checkTyposquat("paypa1.com")).toBe(false);
+  });
+
+  test("digit substitution 0→o is caught (g00gle.com)", () => {
+    expect(checkTyposquat("g00gle.com")).toBe(false);
+  });
+
+  test("single character dropped (paypl.com)", () => {
+    expect(checkTyposquat("paypl.com")).toBe(false);
+  });
+
+  test("character doubled (ppaypal.com) is caught", () => {
+    // 'ppaypal' is Levenshtein distance 1 from 'paypal'
+    expect(checkTyposquat("ppaypal.com")).toBe(false);
+  });
+
+  test("combined digit + extra char (paypa1l.com) is caught", () => {
+    // normalises to 'paypal' → distance 1 from 'paypal' → but actually normalises to 'paypall'
+    // distance 1 from 'paypal' → flagged
+    expect(checkTyposquat("paypa1l.com")).toBe(false);
+  });
+
+  test("unrelated short common word is not flagged (maple.com)", () => {
+    // 'maple' is distance 1 from 'apple' but 'apple' < 6 chars after norm — wait, apple IS 5 chars = brand.length < 6, so skip the Levenshtein check
+    // Actually apple has length 5, and brand.length >= 6 guard should prevent the false positive
+    expect(checkTyposquat("maple.com")).toBe(true);
+  });
+
+  test("canonical brand subdomain is not flagged (www.paypal.com)", () => {
+    expect(checkTyposquat("www.paypal.com")).toBe(true);
+  });
+
+  test("brand in path-like position does not affect hostname check", () => {
+    // paypaling.com — 'paypaling' vs 'paypal': distance 3 → not flagged
+    expect(checkTyposquat("paypaling.com")).toBe(true);
+  });
+
+  test("microsoft with digit (micros0ft.com) is caught", () => {
+    expect(checkTyposquat("micros0ft.com")).toBe(false);
+  });
+});
+
+// ── notHighEntropy check ──────────────────────────────────────────────────
+
+describe("notHighEntropy check", () => {
+  test("clean short domain has notHighEntropy=true", () => {
+    const r = validateUrlLocal("https://example.com");
+    expect(r.checks.notHighEntropy).toBe(true);
+  });
+
+  test("normal branded domain has notHighEntropy=true", () => {
+    const r = validateUrlLocal("https://microsoftofficedownload.com");
+    expect(r.checks.notHighEntropy).toBe(true);
+  });
+
+  test("DGA-like random label (≥12 chars) triggers notHighEntropy=false", () => {
+    // 18-char label with all unique chars → Shannon entropy ≈ 4.17 > 3.8
+    const r = validateUrlLocal("https://xvqzmbfpkjhgdlnrst.com");
+    expect(r.checks.notHighEntropy).toBe(false);
+    expect(r.score).toBeLessThanOrEqual(75);
+    expect(r.flags.some((f) => f.includes("random-looking"))).toBe(true);
+  });
+
+  test("short label (< 12 chars) is not flagged even if high entropy", () => {
+    // 'xkcd' is short — below the threshold
+    const r = validateUrlLocal("https://xkcd.com");
+    expect(r.checks.notHighEntropy).toBe(true);
+  });
+});
+
+// ── notExcessiveHyphens check ─────────────────────────────────────────────
+
+describe("notExcessiveHyphens check", () => {
+  test("normal hyphenated domain passes (my-example.com)", () => {
+    const r = validateUrlLocal("https://my-example.com");
+    expect(r.checks.notExcessiveHyphens).toBe(true);
+  });
+
+  test("double-hyphen domain passes (my-cool-site.com)", () => {
+    const r = validateUrlLocal("https://my-cool-site.com");
+    expect(r.checks.notExcessiveHyphens).toBe(true);
+  });
+
+  test("3 hyphens in one label is flagged (secure-paypal-login-verify.com)", () => {
+    const r = validateUrlLocal("https://secure-paypal-login-verify.com");
+    expect(r.checks.notExcessiveHyphens).toBe(false);
+    expect(r.flags.some((f) => f.includes("hyphens"))).toBe(true);
+  });
+
+  test("score is reduced for excessive hyphens", () => {
+    const clean = validateUrlLocal("https://example.com");
+    const hyph = validateUrlLocal("https://secure-paypal-login-verify.com");
+    // hyph should score lower (also caught by brand squat, but deduction still applies)
+    expect(hyph.score).toBeLessThan(clean.score);
+  });
+
+  test("hyphens spread across different labels are not flagged", () => {
+    // Each label has only 1 hyphen
+    const r = validateUrlLocal("https://sub-domain.my-site.com");
+    expect(r.checks.notExcessiveHyphens).toBe(true);
+  });
+});
+
+// ── applyRdapResult ───────────────────────────────────────────────────────
+
+describe("applyRdapResult", () => {
+  function base() {
+    return validateUrlLocal("https://example.com");
+  }
+
+  test("isOld=null (RDAP unavailable) leaves score unchanged", () => {
+    const r = base();
+    const result = applyRdapResult(r, null);
+    expect(result.score).toBe(r.score);
+    expect(result.checks.notNewlyRegistered).toBeNull();
+    expect(result.safe).toBe(true);
+  });
+
+  test("isOld=true (established domain) leaves score unchanged", () => {
+    const r = base();
+    const result = applyRdapResult(r, true);
+    expect(result.score).toBe(r.score);
+    expect(result.checks.notNewlyRegistered).toBe(true);
+    expect(result.safe).toBe(true);
+  });
+
+  test("isOld=false (new domain) caps score at ≤70", () => {
+    const r = base();
+    const result = applyRdapResult(r, false);
+    expect(result.score).toBeLessThanOrEqual(70);
+    expect(result.checks.notNewlyRegistered).toBe(false);
+    expect(result.safe).toBe(false);
+  });
+
+  test("isOld=false prepends a flag about newly registered domain", () => {
+    const r = base();
+    const result = applyRdapResult(r, false);
+    expect(result.flags[0]).toMatch(/30 days/);
+  });
+
+  test("isOld=false sets safe=false even when score was 100", () => {
+    const r = base();
+    expect(r.score).toBe(100);
+    const result = applyRdapResult(r, false);
+    expect(result.safe).toBe(false);
+  });
+
+  test("message reflects newly-registered warning", () => {
+    const r = base();
+    const result = applyRdapResult(r, false);
+    expect(result.message).toMatch(/30 days/);
+  });
+});
+
+// ── applyRedirectResult ───────────────────────────────────────────────────
+
+describe("applyRedirectResult", () => {
+  function base() {
+    return validateUrlLocal("https://bit.ly/abc123");
+  }
+
+  test("takes the minimum score of original and destination", () => {
+    const orig = validateUrlLocal("https://example.com"); // score 100
+    const dest = validateUrlLocal("https://paypal-secure.com"); // brand squat
+    const result = applyRedirectResult(orig, dest, "https://paypal-secure.com");
+    expect(result.score).toBeLessThanOrEqual(orig.score);
+    expect(result.score).toBe(Math.min(orig.score, dest.score));
+  });
+
+  test("sets redirectedTo to the final URL", () => {
+    const orig = base();
+    const dest = validateUrlLocal("https://example.com");
+    const result = applyRedirectResult(orig, dest, "https://example.com");
+    expect(result.redirectedTo).toBe("https://example.com");
+  });
+
+  test("destination flags are prefixed with 'Redirect destination:'", () => {
+    const orig = validateUrlLocal("https://example.com");
+    const dest = validateUrlLocal("https://paypal-secure.com");
+    const result = applyRedirectResult(orig, dest, "https://paypal-secure.com");
+    const prefixed = result.flags.filter((f) =>
+      f.startsWith("Redirect destination:"),
+    );
+    expect(prefixed.length).toBeGreaterThan(0);
+  });
+
+  test("safe=false if destination is unsafe", () => {
+    const orig = validateUrlLocal("https://example.com");
+    // Brand squat → noBrandSquat=false → safe=false
+    const dest = validateUrlLocal("https://paypal-verify.com");
+    const result = applyRedirectResult(orig, dest, "https://paypal-verify.com");
+    expect(result.safe).toBe(false);
+  });
+
+  test("safe=true if both original and destination are clean", () => {
+    const orig = validateUrlLocal("https://example.com");
+    const dest = validateUrlLocal("https://other.com");
+    const result = applyRedirectResult(orig, dest, "https://other.com");
+    expect(result.safe).toBe(true);
+  });
+});
+
+// ── Scoring-order regression tests ────────────────────────────────────────
+// These guard specific cap-ordering interactions that were previously buggy.
+
+describe("scoring order regressions", () => {
+  test("typosquat + resolves=true: score stays ≤79 (resolve bonus cannot bypass the cap)", () => {
+    // paypa1.com passes all other local checks but fails notTyposquat.
+    // Cap must hold at ≤79 even after the +5 resolve bonus is applied.
+    const local = validateUrlLocal("https://paypa1.com");
+    expect(local.checks.notTyposquat).toBe(false);
+    const withHead = applyHeadResult(local, true); // +5 resolve bonus
+    expect(withHead.score).toBeLessThanOrEqual(79);
+    expect(withHead.safe).toBe(false);
+  });
+
+  test("typosquat + resolves=null: score stays ≤79", () => {
+    const local = validateUrlLocal("https://paypa1.com");
+    const withHead = applyHeadResult(local, null);
+    expect(withHead.score).toBeLessThanOrEqual(79);
+    expect(withHead.safe).toBe(false);
+  });
+
+  test("typosquat + RDAP old: score stays ≤79", () => {
+    const local = validateUrlLocal("https://ppaypal.com");
+    const withHead = applyHeadResult(local, true);
+    const withRdap = applyRdapResult(withHead, true); // established domain
+    expect(withRdap.score).toBeLessThanOrEqual(79);
+    expect(withRdap.safe).toBe(false);
   });
 });

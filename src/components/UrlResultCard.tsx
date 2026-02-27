@@ -71,12 +71,15 @@ export function UrlResultCard({ result }: Props) {
   const hasFlags = result.flags.length > 0;
   const hasSafeBrowsing = checks.safeBrowsing !== null;
   const hasResolves = checks.resolves !== null;
+  const hasRdap = checks.notNewlyRegistered !== null;
   const safeBrowsingFailed = result.safeBrowsingError === true;
 
   // Source badge text
   const sourceText = hasSafeBrowsing
-    ? "Safe Browsing + local checks"
-    : "local checks";
+    ? "Safe Browsing + RDAP + local checks"
+    : hasRdap
+      ? "RDAP + local checks"
+      : "local checks";
 
   return (
     <div className="mt-8 w-full rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur">
@@ -157,10 +160,22 @@ export function UrlResultCard({ result }: Props) {
           label="Normal subdomain depth"
           pass={checks.notExcessiveSubdomains}
         />
+        <CheckRow label="Low-risk TLD" pass={checks.notSuspiciousTld} />
+        <CheckRow label="No typosquatting" pass={checks.notTyposquat} />
         <CheckRow
-          label="Low-risk TLD"
-          pass={checks.notSuspiciousTld}
+          label="Normal domain structure"
+          pass={checks.notHighEntropy}
         />
+        <CheckRow
+          label="Normal hyphen usage"
+          pass={checks.notExcessiveHyphens}
+        />
+        {hasRdap && (
+          <CheckRow
+            label="Established domain (≥30 days)"
+            pass={checks.notNewlyRegistered}
+          />
+        )}
         {hasResolves && (
           <CheckRow
             label="URL resolves (live server)"
@@ -176,6 +191,14 @@ export function UrlResultCard({ result }: Props) {
           />
         )}
       </div>
+
+      {/* Redirect notice */}
+      {result.redirectedTo && (
+        <div className="mt-3 rounded-lg bg-white/5 px-3 py-2 text-xs text-zinc-400">
+          Redirects to:{" "}
+          <span className="break-all text-zinc-300">{result.redirectedTo}</span>
+        </div>
+      )}
 
       {/* Flags list */}
       {hasFlags && (
