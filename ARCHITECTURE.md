@@ -1,6 +1,6 @@
 # IsThisValid.com — Architecture Guide
 
-**Last updated: February 26, 2026**
+**Last updated: February 27, 2026**
 
 ## High-Level Flow
 
@@ -68,11 +68,13 @@ Browser  →  POST /api/validate-url { url }
   │     ├── Scheme — must be http or https
   │     ├── IP address — raw IPv4/IPv6 in host flagged
   │     ├── User info — embedded credentials (@ trick) flagged
-  │     ├── Shortener — 20 known services (bit.ly, tinyurl.com …)
-  │     ├── Suspicious keywords — 6 phishing-path pattern combos
+  │     ├── Shortener — 35 known services (bit.ly, tinyurl.com, t.ly, rebrand.ly …)
+  │     ├── Suspicious keywords — 12 phishing-path pattern combos
   │     ├── Punycode — xn-- homograph detection
   │     ├── TLD — must have a dot + ≥2-char suffix
-  │     └── Brand squatting — 20 brands × word-boundary regex vs eTLD+1
+  │     ├── Brand squatting — 54 brands × word-boundary regex vs eTLD+1
+  │     ├── Excessive subdomain depth — ≥5 labels flagged (score cap ≤60)
+  │     └── Suspicious TLD — 15 high-abuse TLDs flagged (score cap ≤80)
   │
   ├─► Early exit if URL is unparseable
   │
@@ -204,7 +206,8 @@ __tests__/
 ├── debunk-text-route.test.ts        # Jest unit tests: POST /api/debunk/text route (35 tests)
 ├── email-validator.test.ts          # Jest unit tests: validateEmailLocal, applyMxResult, mergeSmtpResult, mergeEmailableResult, role prefixes, plus-addressed role check, expanded typo map, RFC 5321 dot rules, typo score cap, exact scoring, case normalization, DISPOSABLE_DOMAINS (150 tests)
 ├── smtp-cache.test.ts               # Jest unit tests: getCachedSmtpResult, setCachedSmtpResult — Redis mocked (15 tests)
-└── url-validator.test.ts            # Jest unit tests: validateUrlLocal, applyHeadResult, applySafeBrowsingResult (21 tests)
+└── url-validator.test.ts            # Jest unit tests: validateUrlLocal, applyHeadResult, applySafeBrowsingResult;
+    #   expanded shorteners, brands, path patterns, subdomain depth, suspicious TLD checks (53 tests)
 ```
 
 ## Environment Variables
@@ -214,7 +217,7 @@ __tests__/
 | `ANTHROPIC_API_KEY`                    | Yes      | Anthropic API key — powers the Text / SMS scam detector (Claude claude-sonnet-4-20250514)                               |
 | `UPSTASH_REDIS_REST_URL`               | Yes      | Upstash Redis URL — rate limiting (20 req/min) + result cache (24 h TTL)                                                |
 | `UPSTASH_REDIS_REST_TOKEN`             | Yes      | Upstash Redis token — required alongside the URL above                                                                  |
-| `GOOGLE_SAFE_BROWSING_API_KEY`         | No       | Google Safe Browsing v5 key — enables malware/phishing lookup on URL tool                                               |
+| `GOOGLE_SAFE_BROWSING_API_KEY`         | No       | Google Safe Browsing v4 JSON REST key — enables malware/phishing lookup on URL tool                                               |
 | `ZEROBOUNCE_API_KEY`                   | No       | ZeroBounce API key — preferred SMTP provider (100 free verifications/month recurring)                                   |
 | `EMAILABLE_API_KEY`                    | No       | Emailable API key — fallback SMTP provider (250 one-time free, then paid); used only if `ZEROBOUNCE_API_KEY` is not set |
 | `NEXT_PUBLIC_ADSENSE_ID`               | No       | Google AdSense publisher ID (`ca-pub-...`) — leave blank until approved                                                 |
@@ -251,11 +254,13 @@ POST /api/validate-url
   │     ├── Scheme — must be http or https
   │     ├── IP address — raw IPv4/IPv6 in host is flagged
   │     ├── User info — embedded credentials (@ trick) flagged
-  │     ├── Shortener — 20 known services (bit.ly, tinyurl.com …)
-  │     ├── Suspicious keywords — 6 phishing-path pattern combos
+  │     ├── Shortener — 35 known services (bit.ly, tinyurl.com, t.ly, rebrand.ly …)
+  │     ├── Suspicious keywords — 12 phishing-path pattern combos
   │     ├── Punycode — xn-- homograph detection
   │     ├── TLD — must have a dot + ≥2-char suffix
-  │     └── Brand squatting — 20 brands × word-boundary regex vs eTLD+1
+  │     ├── Brand squatting — 54 brands × word-boundary regex vs eTLD+1
+  │     ├── Excessive subdomain depth — ≥5 labels flagged (score cap ≤60)
+  │     └── Suspicious TLD — 15 high-abuse TLDs (.tk, .ml, .xyz, .top …) flagged (score cap ≤80)
   │
   ├─► Early exit if !parseable
   │
@@ -268,8 +273,8 @@ POST /api/validate-url
   │     ├── resolves=true  → +5 bonus (capped at 100)
   │     └── resolves=false → score capped at 70
   │
-  ├─► Google Safe Browsing v5 Lookup API (optional, only if GOOGLE_SAFE_BROWSING_API_KEY set)
-  │     └── GET urls:search — checks against malware, phishing, and unwanted software databases
+  ├─► Google Safe Browsing v4 Lookup API (optional, only if GOOGLE_SAFE_BROWSING_API_KEY set)
+  │     └── POST threatMatches:find — checks against malware, phishing, and unwanted software databases
   │     │
   │     ├── API success → applySafeBrowsingResult()
   │     │     ├── threats found → score capped at 5, safe=false
@@ -287,20 +292,26 @@ POST /api/validate-url
 
 ### URL Scoring (0–100)
 
-| Check                  | Points  |
-| ---------------------- | ------- |
-| Valid scheme           | +10     |
-| Not IP address         | +15     |
-| No user info           | +10     |
-| Not shortener          | +10     |
-| No suspicious keywords | +20     |
-| Not punycode           | +10     |
-| Valid TLD              | +10     |
-| No brand squatting     | +15     |
-| Resolves (HEAD bonus)  | +5      |
-| **Total (max)**        | **100** |
+| Check                      | Points / Cap                     |
+| -------------------------- | -------------------------------- |
+| Valid scheme               | +10                              |
+| Not IP address             | +15                              |
+| No user info               | +10                              |
+| Not shortener              | +10                              |
+| No suspicious keywords     | +20                              |
+| Not punycode               | +10                              |
+| Valid TLD                  | +10                              |
+| No brand squatting         | +15                              |
+| Not excessive subdomains   | cap ≤60 if violated              |
+| Not suspicious TLD         | cap ≤80 if violated              |
+| Resolves (HEAD bonus)      | +5 (cap at 100)                  |
+| Resolves=false             | cap ≤70                          |
+| Safe Browsing flagged      | cap ≤5                           |
+| **Total (max)**            | **100**                          |
 
-> Score ≥ 80 → Safe (lime) · 50–79 → Suspicious (yellow) · < 50 → Dangerous (rose)
+> Score ≥ 80 → Safe (lime) · 50–79 → Suspicious (yellow) · < 50 → Dangerous (rose)  
+> Excessive subdomain depth caps at ≤60 regardless of other checks.  
+> Suspicious TLD caps at ≤80 regardless of other checks.  
 > Safe Browsing flagged → score hard-capped at 5.
 
 ## Email Validation Pipeline
