@@ -27,30 +27,83 @@ const URL_SHORTENERS = new Set([
   "ift.tt",
   "dlvr.it",
   "smarturl.it",
+  // Additional shorteners
+  "t.ly",
+  "v.gd",
+  "clck.ru",
+  "qr.ae",
+  "chilp.it",
+  "bc.vc",
+  "x.co",
+  "snip.ly",
+  "po.st",
+  "bl.ink",
+  "short.io",
+  "rebrand.ly",
+  "switchy.io",
+  "soo.gd",
+  "mcaf.ee",
 ]);
 
 // ── Brand → canonical domain (for squatting detection) ────────────────────
 const KNOWN_BRANDS: Record<string, string> = {
+  // Finance / payment
   paypal: "paypal.com",
   amazon: "amazon.com",
-  apple: "apple.com",
-  microsoft: "microsoft.com",
-  google: "google.com",
-  netflix: "netflix.com",
-  facebook: "facebook.com",
-  instagram: "instagram.com",
-  twitter: "twitter.com",
   ebay: "ebay.com",
   chase: "chase.com",
   wellsfargo: "wellsfargo.com",
   bankofamerica: "bankofamerica.com",
   coinbase: "coinbase.com",
   binance: "binance.com",
-  steam: "steampowered.com",
-  dropbox: "dropbox.com",
+  citibank: "citibank.com",
+  amex: "americanexpress.com",
+  americanexpress: "americanexpress.com",
+  venmo: "venmo.com",
+  robinhood: "robinhood.com",
+  schwab: "schwab.com",
+  fidelity: "fidelity.com",
+  hsbc: "hsbc.com",
+  stripe: "stripe.com",
+  // Tech
+  apple: "apple.com",
+  microsoft: "microsoft.com",
+  google: "google.com",
+  facebook: "facebook.com",
+  instagram: "instagram.com",
+  twitter: "twitter.com",
   linkedin: "linkedin.com",
   yahoo: "yahoo.com",
   whatsapp: "whatsapp.com",
+  netflix: "netflix.com",
+  dropbox: "dropbox.com",
+  adobe: "adobe.com",
+  steam: "steampowered.com",
+  github: "github.com",
+  discord: "discord.com",
+  tiktok: "tiktok.com",
+  reddit: "reddit.com",
+  spotify: "spotify.com",
+  zoom: "zoom.us",
+  twitch: "twitch.tv",
+  shopify: "shopify.com",
+  // Retail / logistics
+  walmart: "walmart.com",
+  target: "target.com",
+  etsy: "etsy.com",
+  airbnb: "airbnb.com",
+  uber: "uber.com",
+  lyft: "lyft.com",
+  doordash: "doordash.com",
+  fedex: "fedex.com",
+  ups: "ups.com",
+  dhl: "dhl.com",
+  usps: "usps.com",
+  // Security
+  norton: "norton.com",
+  mcafee: "mcafee.com",
+  // Government
+  irs: "irs.gov",
 };
 
 // ── Phishing path/query patterns (specific combos, not single words) ───────
@@ -62,7 +115,36 @@ const SUSPICIOUS_PATH_PATTERNS = [
   /account[-_]?(?:has[-_]?been[-_]?)?suspend/i,
   /security[-_]?alert[-_]?(?:click|verify|confirm)/i,
   /(?:click|tap)[-_]?here[-_]?(?:to[-_]?)?(?:verify|confirm|unlock)/i,
+  // Additional phishing templates
+  /recover[-_]?(?:your[-_]?)?account/i,
+  /secure[-_]?login/i,
+  /login[-_]?confirm/i,
+  /unlock[-_]?(?:your[-_]?)?account/i,
+  /limited[-_]?access/i,
+  /unusual[-_]?(?:sign[-_]?in|activity)/i,
 ];
+
+// ── High-abuse TLDs ────────────────────────────────────────────────────────
+// TLDs disproportionately associated with phishing and malware per ICANN and
+// threat intelligence reports. Flagged as a risk signal, not a hard fail.
+const SUSPICIOUS_TLDS = new Set([
+  // Historical Freenom TLDs — legacy abuse remains widespread
+  "tk",
+  "ml",
+  "ga",
+  "cf",
+  "gq",
+  // High-abuse generic TLDs
+  "xyz",
+  "top",
+  "icu",
+  "click",
+  "surf",
+  "cyou",
+  "cfd",
+  "sbs",
+  "dad",
+]);
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -112,6 +194,10 @@ export interface UrlValidationChecks {
   validTld: boolean;
   /** Domain does not impersonate a known brand */
   noBrandSquat: boolean;
+  /** Hostname does not have an unusually deep subdomain structure (< 5 labels) */
+  notExcessiveSubdomains: boolean;
+  /** TLD is not from a set with disproportionately high abuse rates */
+  notSuspiciousTld: boolean;
   /** Google Safe Browsing: true = clean, false = flagged, null = not checked */
   safeBrowsing: boolean | null;
   /** HEAD request: true = resolves, false = NXDOMAIN, null = timeout/skipped */
@@ -168,6 +254,8 @@ export function validateUrlLocal(rawUrl: string): UrlValidationResult {
         notPunycode: false,
         validTld: false,
         noBrandSquat: false,
+        notExcessiveSubdomains: true,
+        notSuspiciousTld: true,
         safeBrowsing: null,
         resolves: null,
       },
@@ -221,6 +309,24 @@ export function validateUrlLocal(rawUrl: string): UrlValidationResult {
   if (!noBrandSquat)
     flags.push("Domain appears to impersonate a well-known brand");
 
+  // Excessive subdomain depth — phishing sites commonly use many subdomain
+  // levels to bury the real registered domain (e.g. paypal.com.verify.evil.com).
+  // Threshold: 5+ labels (3+ subdomains beyond the eTLD+1).
+  const hostLabels = hostname.split(".");
+  const hasExcessiveSubdomains = hostLabels.length >= 5;
+  if (hasExcessiveSubdomains)
+    flags.push(
+      "Unusually deep subdomain structure — a common phishing technique",
+    );
+
+  // High-abuse TLD — not a hard fail but a meaningful risk signal.
+  const tldLower = tldPart.toLowerCase();
+  const hasSuspiciousTld = SUSPICIOUS_TLDS.has(tldLower);
+  if (hasSuspiciousTld)
+    flags.push(
+      `High-risk TLD (.${tldLower}) — disproportionately associated with phishing and malware`,
+    );
+
   const checks: UrlValidationChecks = {
     parseable: true,
     validScheme,
@@ -231,6 +337,8 @@ export function validateUrlLocal(rawUrl: string): UrlValidationResult {
     notPunycode: !hasPunycode,
     validTld,
     noBrandSquat,
+    notExcessiveSubdomains: !hasExcessiveSubdomains,
+    notSuspiciousTld: !hasSuspiciousTld,
     safeBrowsing: null,
     resolves: null,
   };
@@ -263,6 +371,9 @@ function computeScore(checks: UrlValidationChecks): number {
   if (checks.notPunycode) score += 10;
   if (checks.validTld) score += 10;
   if (checks.noBrandSquat) score += 15;
+  // Structural / TLD risk caps — applied before resolve/safeBrowsing
+  if (checks.notExcessiveSubdomains === false) score = Math.min(score, 60);
+  if (checks.notSuspiciousTld === false) score = Math.min(score, 80);
   // resolve bonus / penalty
   if (checks.resolves === true) score = Math.min(score + 5, 100);
   if (checks.resolves === false) score = Math.min(score, 70);
@@ -281,12 +392,16 @@ function buildMessage(safe: boolean, checks: UrlValidationChecks): string {
     return "⚠️ This URL appears to impersonate a trusted brand — classic phishing.";
   if (!checks.notIpAddress)
     return "Suspicious — real websites use domain names, not raw IP addresses.";
+  if (!checks.notExcessiveSubdomains)
+    return "Suspiciously deep subdomain chain — legitimate sites rarely use this many levels.";
   if (!checks.noUserInfo)
     return "The @ in this URL is a known trick to disguise the real destination.";
   if (!checks.notShortener)
     return "URL shortener detected — we can't see where this really leads without following it.";
   if (!checks.notPunycode)
     return "This domain uses Punycode — it may be impersonating another site using lookalike characters.";
+  if (!checks.notSuspiciousTld)
+    return "This TLD is heavily associated with phishing and malware — proceed with extreme caution.";
   if (!checks.noSuspiciousKeywords)
     return "The URL path contains patterns commonly found in phishing pages.";
   if (!checks.validTld)
@@ -312,7 +427,7 @@ export function applyHeadResult(
 ): UrlValidationResult {
   const checks: UrlValidationChecks = { ...result.checks, resolves };
   const score = computeScore(checks);
-  const safe = score >= 70 && checks.safeBrowsing !== false;
+  const safe = score >= 70 && checks.safeBrowsing !== false && checks.notExcessiveSubdomains;
   return {
     ...result,
     safe,
