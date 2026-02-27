@@ -731,3 +731,33 @@ describe("applyRedirectResult", () => {
     expect(result.safe).toBe(true);
   });
 });
+
+// ── Scoring-order regression tests ────────────────────────────────────────
+// These guard specific cap-ordering interactions that were previously buggy.
+
+describe("scoring order regressions", () => {
+  test("typosquat + resolves=true: score stays ≤79 (resolve bonus cannot bypass the cap)", () => {
+    // paypa1.com passes all other local checks but fails notTyposquat.
+    // Cap must hold at ≤79 even after the +5 resolve bonus is applied.
+    const local = validateUrlLocal("https://paypa1.com");
+    expect(local.checks.notTyposquat).toBe(false);
+    const withHead = applyHeadResult(local, true); // +5 resolve bonus
+    expect(withHead.score).toBeLessThanOrEqual(79);
+    expect(withHead.safe).toBe(false);
+  });
+
+  test("typosquat + resolves=null: score stays ≤79", () => {
+    const local = validateUrlLocal("https://paypa1.com");
+    const withHead = applyHeadResult(local, null);
+    expect(withHead.score).toBeLessThanOrEqual(79);
+    expect(withHead.safe).toBe(false);
+  });
+
+  test("typosquat + RDAP old: score stays ≤79", () => {
+    const local = validateUrlLocal("https://ppaypal.com");
+    const withHead = applyHeadResult(local, true);
+    const withRdap = applyRdapResult(withHead, true); // established domain
+    expect(withRdap.score).toBeLessThanOrEqual(79);
+    expect(withRdap.safe).toBe(false);
+  });
+});

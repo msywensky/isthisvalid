@@ -694,21 +694,20 @@ function computeScore(checks: UrlValidationChecks): number {
   if (checks.notPunycode) score += 10;
   if (checks.validTld) score += 10;
   if (checks.noBrandSquat) score += 15;
-  // Typosquat cap — forces into the suspicious zone (< 80) so it can never
-  // be marked Safe regardless of other passing checks.
-  if (!checks.notTyposquat) score = Math.min(score, 79);
   // Excessive hyphens — mild deduction (subtractive; floored at 0).
   if (!checks.notExcessiveHyphens) score = Math.max(score - 8, 0);
-  // Resolve bonus/penalty applied first, then structural caps.
-  // Order matters: the subdomain/TLD caps must come AFTER the resolve bonus so
-  // a +5 resolve bonus cannot push a capped score above the cap ceiling.
+  // Resolve bonus/penalty applied before caps so structural ceilings are final.
   if (checks.resolves === true) score = Math.min(score + 5, 100);
   if (checks.resolves === false) score = Math.min(score, 70);
-  // Structural / TLD / entropy / age caps — applied after resolve bonus
+  // Structural / TLD / entropy / age caps — applied after resolve bonus so the
+  // +5 bonus cannot push a capped score above its ceiling.
   if (checks.notExcessiveSubdomains === false) score = Math.min(score, 60);
   if (checks.notSuspiciousTld === false) score = Math.min(score, 80);
   if (!checks.notHighEntropy) score = Math.min(score, 75);
   if (checks.notNewlyRegistered === false) score = Math.min(score, 70);
+  // Typosquat cap — applied last so the resolve bonus cannot push the score
+  // above 79 and into the "Safe" zone for a typosquatting domain.
+  if (!checks.notTyposquat) score = Math.min(score, 79);
   // Safe Browsing hard-overrides
   if (checks.safeBrowsing === false) score = Math.min(score, 5);
 
