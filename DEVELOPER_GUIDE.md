@@ -538,12 +538,12 @@ All tests live in `__tests__/` and are pure unit tests — no network, no Redis,
 
 **Current suite:**
 
-| File                        | Tests | Pattern                                                                                                                          |
-| --------------------------- | ----- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `email-validator.test.ts`   | 150   | One `describe` per validator concept; explicit bug-regression suites labelled `[Bug N regression]`                               |
+| File                        | Tests | Pattern                                                                                                                                                                                  |
+| --------------------------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `email-validator.test.ts`   | 150   | One `describe` per validator concept; explicit bug-regression suites labelled `[Bug N regression]`                                                                                       |
 | `url-validator.test.ts`     | 110   | One `describe` per check; dedicated suites for `getRegisteredDomain`, `checkBrandSquat`, `checkTyposquat`, `applyRdapResult`, `applyRedirectResult`, entropy, hyphens, and IP edge cases |
-| `debunk-text-route.test.ts` | 35    | Mocked `callClaude` and Redis; covers rate limit, cache hit/miss, bad JSON, injection                                            |
-| `smtp-cache.test.ts`        | 15    | Mocked Redis; covers hash correctness, TTL, local-source no-op, error resilience                                                 |
+| `debunk-text-route.test.ts` | 35    | Mocked `callClaude` and Redis; covers rate limit, cache hit/miss, bad JSON, injection                                                                                                    |
+| `smtp-cache.test.ts`        | 15    | Mocked Redis; covers hash correctness, TTL, local-source no-op, error resilience                                                                                                         |
 
 **To extend tests:** Follow the existing `describe`/`test` pattern. For a new check in `url-validator.ts`, add a new `describe("new check name")` block with: one passing case, one failing case, score assertion, flag-text assertion, and message assertion.
 

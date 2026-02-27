@@ -311,7 +311,11 @@ export function checkBrandSquat(hostname: string): boolean {
     // the check: a brand squatter using an obscure compound suffix like
     // paypal.edu.tk would still be caught.
     const ccTldSuffix = registered.slice(brand.length + 1); // e.g. "co.uk"
-    if (registered.startsWith(`${brand}.`) && CCTLD_SECOND_LEVELS.has(ccTldSuffix)) continue;
+    if (
+      registered.startsWith(`${brand}.`) &&
+      CCTLD_SECOND_LEVELS.has(ccTldSuffix)
+    )
+      continue;
 
     // Brand appears in the hostname under a different registered domain → squat
     return false;

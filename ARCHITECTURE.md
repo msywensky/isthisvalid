@@ -323,26 +323,26 @@ POST /api/validate-url
 
 ### URL Scoring (0–100)
 
-| Check                    | Points / Cap        |
-| ------------------------ | ------------------- |
-| Valid scheme             | +10                 |
-| Not IP address           | +15                 |
-| No user info             | +10                 |
-| Not shortener            | +10                 |
-| No suspicious keywords   | +20                 |
-| Not punycode             | +10                 |
-| Valid TLD                | +10                 |
-| No brand squatting         | +15                              |
-| Not typosquat              | cap ≤79 if violated              |
-| Excessive hyphens          | −8 points if violated            |
-| Not excessive subdomains   | cap ≤60 if violated              |
-| Not suspicious TLD         | cap ≤80 if violated              |
-| High entropy hostname      | cap ≤75 if violated              |
-| Domain not newly registered| cap ≤70 if violated              |
-| Resolves (HEAD bonus)      | +5 (cap at 100)                  |
-| Resolves=false             | cap ≤70                          |
-| Safe Browsing flagged      | cap ≤5                           |
-| **Total (max)**            | **100**                          |
+| Check                       | Points / Cap          |
+| --------------------------- | --------------------- |
+| Valid scheme                | +10                   |
+| Not IP address              | +15                   |
+| No user info                | +10                   |
+| Not shortener               | +10                   |
+| No suspicious keywords      | +20                   |
+| Not punycode                | +10                   |
+| Valid TLD                   | +10                   |
+| No brand squatting          | +15                   |
+| Not typosquat               | cap ≤79 if violated   |
+| Excessive hyphens           | −8 points if violated |
+| Not excessive subdomains    | cap ≤60 if violated   |
+| Not suspicious TLD          | cap ≤80 if violated   |
+| High entropy hostname       | cap ≤75 if violated   |
+| Domain not newly registered | cap ≤70 if violated   |
+| Resolves (HEAD bonus)       | +5 (cap at 100)       |
+| Resolves=false              | cap ≤70               |
+| Safe Browsing flagged       | cap ≤5                |
+| **Total (max)**             | **100**               |
 
 > Score ≥ 80 → Safe (lime) · 50–79 → Suspicious (yellow) · < 50 → Dangerous (rose)  
 > Typosquat cap forces score into Suspicious zone (≤79) even if all other checks pass.  

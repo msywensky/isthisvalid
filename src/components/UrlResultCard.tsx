@@ -160,13 +160,16 @@ export function UrlResultCard({ result }: Props) {
           label="Normal subdomain depth"
           pass={checks.notExcessiveSubdomains}
         />
-        <CheckRow
-          label="Low-risk TLD"
-          pass={checks.notSuspiciousTld}
-        />
+        <CheckRow label="Low-risk TLD" pass={checks.notSuspiciousTld} />
         <CheckRow label="No typosquatting" pass={checks.notTyposquat} />
-        <CheckRow label="Normal domain structure" pass={checks.notHighEntropy} />
-        <CheckRow label="Normal hyphen usage" pass={checks.notExcessiveHyphens} />
+        <CheckRow
+          label="Normal domain structure"
+          pass={checks.notHighEntropy}
+        />
+        <CheckRow
+          label="Normal hyphen usage"
+          pass={checks.notExcessiveHyphens}
+        />
         {hasRdap && (
           <CheckRow
             label="Established domain (≥30 days)"

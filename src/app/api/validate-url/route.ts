@@ -83,10 +83,12 @@ export async function POST(req: NextRequest) {
   // SSRF guard: skip server-side fetch for private/reserved hosts.
   const targetHostname = new URL(localResult.url).hostname;
   const registeredDomain = getRegisteredDomain(targetHostname);
-  const headCheck: Promise<{ resolves: boolean | null; finalUrl: string | null }> =
-    isPrivateHost(targetHostname)
-      ? Promise.resolve({ resolves: null, finalUrl: null })
-      : checkResolves(localResult.url);
+  const headCheck: Promise<{
+    resolves: boolean | null;
+    finalUrl: string | null;
+  }> = isPrivateHost(targetHostname)
+    ? Promise.resolve({ resolves: null, finalUrl: null })
+    : checkResolves(localResult.url);
   const [{ resolves, finalUrl }, isOldDomain] = await Promise.all([
     headCheck,
     checkDomainAge(registeredDomain),
@@ -99,7 +101,11 @@ export async function POST(req: NextRequest) {
       const destHostname = new URL(finalUrl).hostname;
       if (destHostname !== targetHostname) {
         const destLocal = validateUrlLocal(finalUrl);
-        resultWithHead = applyRedirectResult(resultWithHead, destLocal, finalUrl);
+        resultWithHead = applyRedirectResult(
+          resultWithHead,
+          destLocal,
+          finalUrl,
+        );
       }
     } catch {
       // Invalid redirect URL — ignore
