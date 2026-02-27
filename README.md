@@ -68,7 +68,7 @@ A free, no-signup verification hub for checking emails, scanning URLs for threat
 ### Installation
 
 ```bash
-git clone https://github.com/yourusername/isthisvalid.git
+git clone https://github.com/msywensky/isthisvalid.git
 cd isthisvalid
 npm install
 ```
@@ -107,7 +107,7 @@ npm run test -- --watch   # Watch mode
 npm run test -- --coverage  # With coverage report
 ```
 
-**Current:** 83/83 tests passing (27 email + 21 URL + 35 text debunker)
+**Current:** 231/231 tests passing (150 email + 21 URL + 35 text debunker + 15 smtp-cache + 10 other)
 
 ### Production Build
 
@@ -190,11 +190,14 @@ Contextual affiliate recommendations appear on result cards when users get risky
 
 Affiliate links are always labelled with a visible "Affiliate" disclosure. No user data is shared with partners.
 
-To add your tracking URLs:
+To configure your affiliate tracking URLs, set these environment variables in `.env.local` and your Vercel project dashboard:
 
-1. Sign up for [ZeroBounce affiliate](https://www.zerobounce.net/affiliate) and [NordVPN affiliate](https://nordvpn.com/affiliate)
-2. Get your tracking links from each dashboard
-3. Update `src/lib/affiliate-links.ts` (replace PLACEHOLDER values)
+```
+NEXT_PUBLIC_ZEROBOUNCE_AFFILIATE_URL=https://aff.zerobounce.net/your-tracking-link
+NEXT_PUBLIC_NORDVPN_AFFILIATE_URL=https://go.nordvpn.net/aff_c?offer_id=15&aff_id=your-id
+```
+
+The fallback values in `src/lib/affiliate-links.ts` contain PLACEHOLDER values that will display a non-tracking direct link until you set your own.
 
 ---
 
@@ -214,7 +217,8 @@ To add your tracking URLs:
 - **Privacy Policy** (`/privacy`) — GDPR/CCPA-compliant, all 5 subprocessors documented
 - **Terms of Service** (`/terms`) — Liability disclaimers, tool limitations, acceptable use
 - **Cookie Consent** — GDPR-required banner stored in localStorage
-- **No data retention** — Email/URL/text inputs are never stored (except 24h cache hash on text)
+- **No data retention for URLs/text inputs** — URL and text inputs are never stored after the check is complete
+- **Email SMTP cache** — a SHA-256 hash of submitted email addresses may be stored in Redis for up to 7 days to avoid redundant paid API calls; the hash is one-way and cannot be used to reconstruct the original address
 
 ---
 

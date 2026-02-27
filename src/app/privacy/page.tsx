@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 };
 
-const LAST_UPDATED = "February 25, 2026";
+const LAST_UPDATED = "February 26, 2026";
 const CONTACT_EMAIL = "privacy@isthisvalid.com";
 
 export default function PrivacyPage() {
@@ -34,9 +34,14 @@ export default function PrivacyPage() {
           <strong className="text-white">Email addresses you submit.</strong>{" "}
           When you enter an email address into the validation tool, that address
           is sent to our server solely to perform the requested validation
-          check. We do not store, log, or retain submitted email addresses after
-          the check is complete. No email address you enter is ever saved to a
-          database.
+          check. We do not log or permanently store submitted email addresses.
+          However, to avoid redundant calls to paid third-party verification
+          APIs, a cryptographic hash (SHA-256) of a normalised version of the
+          submitted email address may be cached in Upstash Redis for up to 7
+          days. This hash is one-way and cannot be used to reconstruct the
+          original email address. The cache entry stores only the verification
+          result (deliverable / undeliverable / disposable) alongside the hash;
+          the raw address is never written to Redis.
         </p>
         <p>
           <strong className="text-white">URLs you submit.</strong> When you
@@ -154,9 +159,12 @@ export default function PrivacyPage() {
         </p>
         <p>
           <strong className="text-white">Upstash Redis.</strong> We use Upstash
-          Redis to enforce rate limits and to cache AI analysis results (stored
-          as anonymised hashes with a 24-hour TTL). No personally identifiable
-          information is written to Upstash. See the{" "}
+          Redis to enforce rate limits and to cache results for both the email
+          validator and the AI text analysis tool. Email verification results
+          are cached as one-way SHA-256 hashes with a 7-day TTL. AI analysis
+          results are cached as one-way SHA-256 hashes with a 24-hour TTL. No
+          personally identifiable information is written to Upstash in a form
+          that can be reconstructed. See the{" "}
           <a
             href="https://upstash.com/trust/privacy.pdf"
             target="_blank"
@@ -164,6 +172,23 @@ export default function PrivacyPage() {
             className="text-orange-400 hover:underline"
           >
             Upstash Privacy Policy
+          </a>
+          .
+        </p>
+        <p>
+          <strong className="text-white">ZeroBounce API.</strong> When our
+          ZeroBounce integration is enabled (preferred provider), email
+          addresses you submit may be forwarded to the ZeroBounce email
+          verification API solely to perform SMTP deliverability verification.
+          ZeroBounce processes this data as a data processor on our behalf. For
+          details, see the{" "}
+          <a
+            href="https://www.zerobounce.net/privacy-policy/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-orange-400 hover:underline"
+          >
+            ZeroBounce Privacy Policy
           </a>
           .
         </p>
@@ -277,12 +302,15 @@ export default function PrivacyPage() {
       <PolicySection title="7. Data Retention">
         <p>
           We do not permanently store email addresses, URLs, or text messages
-          entered into any of our tools. A short-lived cache entry (24-hour TTL)
-          derived from a one-way hash of submitted messages may be retained in
-          Upstash Redis solely to avoid redundant AI calls; it cannot be used to
-          recover the original text. Server access logs retained by Vercel are
-          deleted within 30 days. Cookie consent preferences stored in your
-          browser persist until you clear your browser storage.
+          entered into any of our tools. Email verification results are cached
+          as one-way SHA-256 hashes in Upstash Redis for up to 7 days to avoid
+          redundant paid API calls; the hash cannot be used to recover the
+          original address. A short-lived cache entry (24-hour TTL) derived
+          from a one-way hash of submitted text messages may also be retained
+          in Upstash Redis solely to avoid redundant AI calls; it cannot be
+          used to recover the original text. Server access logs retained by
+          Vercel are deleted within 30 days. Cookie consent preferences stored
+          in your browser persist until you clear your browser storage.
         </p>
       </PolicySection>
 
@@ -319,7 +347,7 @@ export default function PrivacyPage() {
         </p>
       </PolicySection>
 
-      <PolicySection title="9. Contact">
+      <PolicySection title="10. Contact">
         <p>
           For privacy-related questions or requests, contact us at:{" "}
           <a

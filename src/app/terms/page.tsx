@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 };
 
-const LAST_UPDATED = "February 25, 2026";
+const LAST_UPDATED = "February 26, 2026";
 const CONTACT_EMAIL = "privacy@isthisvalid.com";
 
 export default function TermsPage() {
@@ -170,8 +170,24 @@ export default function TermsPage() {
             .
           </li>
           <li>
-            <strong className="text-white">Emailable</strong> — optionally used
-            for email deliverability checks. See{" "}
+            <strong className="text-white">ZeroBounce</strong> — the preferred
+            provider for email SMTP deliverability checks. Email addresses you
+            submit may be forwarded to ZeroBounce when the integration is
+            enabled. See{" "}
+            <a
+              href="https://www.zerobounce.net/terms-of-service/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-orange-400 hover:underline"
+            >
+              ZeroBounce&apos;s Terms of Service
+            </a>
+            .
+          </li>
+          <li>
+            <strong className="text-white">Emailable</strong> — fallback
+            provider for email deliverability checks (used when ZeroBounce is
+            not configured). See{" "}
             <a
               href="https://emailable.com/terms-of-service/"
               target="_blank"
@@ -228,7 +244,7 @@ export default function TermsPage() {
         </p>
       </PolicySection>
 
-      <PolicySection title="8. Limitation of Liability">
+      <PolicySection title="9. Limitation of Liability">
         <p>
           TO THE FULLEST EXTENT PERMITTED BY APPLICABLE LAW, ISTHISVALID.COM
           SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL,
@@ -239,7 +255,7 @@ export default function TermsPage() {
         </p>
       </PolicySection>
 
-      <PolicySection title="9. Changes to the Service and Terms">
+      <PolicySection title="10. Changes to the Service and Terms">
         <p>
           We reserve the right to modify or discontinue the Service at any time
           without notice. We may update these Terms from time to time; the
@@ -249,7 +265,7 @@ export default function TermsPage() {
         </p>
       </PolicySection>
 
-      <PolicySection title="10. Governing Law">
+      <PolicySection title="11. Governing Law">
         <p>
           These Terms shall be governed by and construed in accordance with the
           laws of the United States, without regard to conflict-of-law
@@ -258,7 +274,7 @@ export default function TermsPage() {
         </p>
       </PolicySection>
 
-      <PolicySection title="11. Contact">
+      <PolicySection title="12. Contact">
         <p>
           Questions about these Terms? Contact us at{" "}
           <a
