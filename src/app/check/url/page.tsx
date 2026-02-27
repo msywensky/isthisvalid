@@ -156,7 +156,7 @@ export default function UrlCheckPage() {
           <li>
             <strong className="text-zinc-200">Parse &amp; validate</strong> —
             structural URL check, TLD verification, and brand-squatting
-            detection across 20 known brands.
+            detection across 54 known brands.
           </li>
           <li>
             <strong className="text-zinc-200">Live reachability</strong> — sends

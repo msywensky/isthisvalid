@@ -148,13 +148,49 @@ const SUSPICIOUS_TLDS = new Set([
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
+// Second-level labels used in ccTLD compound suffixes (e.g. co.uk, com.au).
+// When the final two labels of a hostname match one of these, the registered
+// domain is the last THREE labels — otherwise we'd split paypal.co.uk into
+// "co.uk" and falsely flag it as brand squatting on the legitimate PayPal site.
+const CCTLD_SECOND_LEVELS = new Set([
+  // United Kingdom & Commonwealth
+  "co.uk", "org.uk", "me.uk", "net.uk", "gov.uk", "ltd.uk", "plc.uk",
+  // Australia
+  "com.au", "net.au", "org.au", "edu.au", "gov.au", "asn.au",
+  // Japan
+  "co.jp", "or.jp", "ne.jp", "ac.jp", "go.jp",
+  // New Zealand
+  "co.nz", "net.nz", "org.nz", "govt.nz",
+  // South Africa
+  "co.za", "org.za", "net.za", "gov.za",
+  // India
+  "co.in", "net.in", "org.in", "gov.in",
+  // South Korea
+  "co.kr", "or.kr", "ne.kr",
+  // Brazil
+  "com.br", "net.br", "org.br", "gov.br",
+  // Argentina
+  "com.ar", "net.ar", "org.ar",
+  // Mexico
+  "com.mx", "org.mx", "net.mx",
+  // Other common ones
+  "com.tr", "com.sg", "com.hk", "com.tw", "com.ph",
+  "com.my", "com.ng", "com.pk", "com.cn", "co.id",
+]);
+
 /**
  * Extracts the eTLD+1 (registered domain) from a hostname.
- * Simplified: takes the last two dot-separated parts.
- * Good enough for the brand squatting check.
+ * Handles two-part ccTLD suffixes (co.uk, com.au, etc.) so that
+ * www.paypal.co.uk correctly returns "paypal.co.uk" instead of "co.uk".
  */
 function getRegisteredDomain(hostname: string): string {
   const parts = hostname.split(".");
+  if (parts.length >= 3) {
+    const twoPartTld = parts.slice(-2).join(".");
+    if (CCTLD_SECOND_LEVELS.has(twoPartTld)) {
+      return parts.slice(-3).join(".");
+    }
+  }
   return parts.length >= 2 ? parts.slice(-2).join(".") : hostname;
 }
 
@@ -285,17 +321,27 @@ export function validateUrlLocal(rawUrl: string): UrlValidationResult {
       "Credentials in URL — classic trick to spoof the real destination",
     );
 
-  const isShortener = URL_SHORTENERS.has(hostname);
+  // Strip leading www. before checking the shortener set — www.bit.ly is the
+  // same service as bit.ly but would otherwise be missed.
+  const hostnameNoWww = hostname.startsWith("www.") ? hostname.slice(4) : hostname;
+  const isShortener = URL_SHORTENERS.has(hostnameNoWww);
   if (isShortener)
-    flags.push(`URL shortener (${hostname}) hides the real destination`);
+    flags.push(`URL shortener (${hostnameNoWww}) hides the real destination`);
 
+  // Test only the path and query string — running patterns over the full href
+  // would match hostnames like "secure-login-checker.legit.com" on patterns
+  // like /secure[-_]?login/i, producing false positives.
+  const pathAndQuery = parsed.pathname + parsed.search;
   const hasSuspiciousKeywords = SUSPICIOUS_PATH_PATTERNS.some((p) =>
-    p.test(fullUrl),
+    p.test(pathAndQuery),
   );
   if (hasSuspiciousKeywords)
     flags.push("Phishing-specific keyword pattern in URL path");
 
-  const hasPunycode = hostname.includes("xn--");
+  // Check each label individually — a label must start with "xn--" to be
+  // Punycode. A bare includes("xn--") check would false-positive on hostnames
+  // like "bigxn--data.com" where the string appears mid-label.
+  const hasPunycode = hostname.split(".").some((label) => label.startsWith("xn--"));
   if (hasPunycode)
     flags.push(
       "Punycode domain — may use lookalike characters to impersonate a real site",
@@ -344,7 +390,11 @@ export function validateUrlLocal(rawUrl: string): UrlValidationResult {
   };
 
   const score = computeScore(checks);
-  const safe = score >= 70;
+  // Use ≥80 to align with the UI threshold in UrlResultCard (getSentiment).
+  // Additionally, a suspicious TLD scoring exactly 80 (due to the computeScore
+  // cap) should not be considered Safe — block it explicitly.
+  const safe =
+    score >= 80 && checks.notExcessiveSubdomains && checks.notSuspiciousTld;
 
   return {
     url: parsed.href,
@@ -371,12 +421,14 @@ function computeScore(checks: UrlValidationChecks): number {
   if (checks.notPunycode) score += 10;
   if (checks.validTld) score += 10;
   if (checks.noBrandSquat) score += 15;
-  // Structural / TLD risk caps — applied before resolve/safeBrowsing
-  if (checks.notExcessiveSubdomains === false) score = Math.min(score, 60);
-  if (checks.notSuspiciousTld === false) score = Math.min(score, 80);
-  // resolve bonus / penalty
+  // Resolve bonus/penalty applied first, then structural caps.
+  // Order matters: the subdomain/TLD caps must come AFTER the resolve bonus so
+  // a +5 resolve bonus cannot push a capped score above the cap ceiling.
   if (checks.resolves === true) score = Math.min(score + 5, 100);
   if (checks.resolves === false) score = Math.min(score, 70);
+  // Structural / TLD risk caps — applied after resolve bonus so they can't be bypassed
+  if (checks.notExcessiveSubdomains === false) score = Math.min(score, 60);
+  if (checks.notSuspiciousTld === false) score = Math.min(score, 80);
   // Safe Browsing hard-overrides
   if (checks.safeBrowsing === false) score = Math.min(score, 5);
 
@@ -427,7 +479,11 @@ export function applyHeadResult(
 ): UrlValidationResult {
   const checks: UrlValidationChecks = { ...result.checks, resolves };
   const score = computeScore(checks);
-  const safe = score >= 70 && checks.safeBrowsing !== false && checks.notExcessiveSubdomains;
+  const safe =
+    score >= 80 &&
+    checks.safeBrowsing !== false &&
+    checks.notExcessiveSubdomains &&
+    checks.notSuspiciousTld;
   return {
     ...result,
     safe,
@@ -450,7 +506,11 @@ export function applySafeBrowsingResult(
     safeBrowsing: !isFlagged,
   };
   const score = computeScore(checks);
-  const safe = score >= 70 && !isFlagged;
+  const safe =
+    score >= 80 &&
+    !isFlagged &&
+    checks.notExcessiveSubdomains &&
+    checks.notSuspiciousTld;
   const flags = isFlagged
     ? ["Google Safe Browsing: FLAGGED as malicious", ...result.flags]
     : result.flags;

@@ -76,8 +76,12 @@ export async function POST(req: NextRequest) {
 
   // ── HEAD request ──────────────────────────────────────────────────────────
   // Checks whether the URL actually resolves to a live server.
+  // SSRF guard: skip the server-side fetch for private/reserved hosts.
   // redirect: "manual" — we only check the first hop, not redirect targets.
-  const resolves = await checkResolves(localResult.url);
+  const targetHostname = new URL(localResult.url).hostname;
+  const resolves = isPrivateHost(targetHostname)
+    ? null
+    : await checkResolves(localResult.url);
   const resultWithHead = applyHeadResult(localResult, resolves);
 
   // ── Google Safe Browsing ──────────────────────────────────────────────────
@@ -129,18 +133,23 @@ async function checkResolves(url: string): Promise<boolean | null> {
     // Any status code means a server responded
     return res.status < 600;
   } catch (err: unknown) {
-    if (err instanceof TypeError && err.message) {
-      const msg = err.message.toLowerCase();
-      // Network-level failures that definitively mean the domain doesn't exist
+    if (err instanceof TypeError) {
+      // Inspect the underlying Node.js error code rather than the message
+      // string. Both NXDOMAIN and SSL/TLS failures surface as
+      // TypeError("fetch failed") — matching on the generic message would
+      // incorrectly penalise URLs with cert issues as non-existent domains.
+      const cause = (err as TypeError & { cause?: { code?: string } }).cause;
+      const code = cause?.code ?? "";
       if (
-        msg.includes("enotfound") ||
-        msg.includes("getaddrinfo") ||
-        msg.includes("failed to fetch")
+        code === "ENOTFOUND" ||
+        code === "EAI_NONAME" ||
+        code === "EAI_AGAIN" ||
+        code === "ENOENT"
       ) {
         return false;
       }
     }
-    // Timeout, SSL errors, etc. — treat as unknown
+    // Timeout, SSL errors, connection refused, etc. — treat as unknown
     return null;
   }
 }
@@ -200,4 +209,38 @@ function securityHeaders(): HeadersInit {
     "X-Content-Type-Options": "nosniff",
     "Cache-Control": "no-store",
   };
+}
+
+/**
+ * Returns true if the hostname is in private/reserved address space.
+ * Prevents SSRF by refusing to issue server-side HEAD requests to
+ * loopback, RFC-1918 ranges, link-local, or special-use hostnames.
+ */
+function isPrivateHost(hostname: string): boolean {
+  const h = hostname.toLowerCase();
+
+  // Named special-use hostnames
+  if (h === "localhost" || h.endsWith(".local") || h.endsWith(".internal")) {
+    return true;
+  }
+
+  // IPv6 loopback (URL API stores brackets: [::1])
+  if (h === "[::1]" || h === "::1") return true;
+
+  // Dotted-decimal IPv4 — check against reserved CIDR blocks
+  const m = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (m) {
+    const [a, b] = [Number(m[1]), Number(m[2])];
+    if (a === 0) return true;                          // 0.0.0.0/8
+    if (a === 10) return true;                         // 10.0.0.0/8
+    if (a === 100 && b >= 64 && b <= 127) return true; // 100.64.0.0/10 (shared)
+    if (a === 127) return true;                        // 127.0.0.0/8 loopback
+    if (a === 169 && b === 254) return true;           // 169.254.0.0/16 link-local
+    if (a === 172 && b >= 16 && b <= 31) return true;  // 172.16.0.0/12
+    if (a === 192 && b === 168) return true;           // 192.168.0.0/16
+    if (a === 198 && (b === 18 || b === 19)) return true; // 198.18.0.0/15
+    if (a === 203 && b === 0 && Number(m[3]) === 113) return true; // 203.0.113.0/24 (TEST-NET)
+  }
+
+  return false;
 }

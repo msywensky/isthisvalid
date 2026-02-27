@@ -153,6 +153,14 @@ export function UrlResultCard({ result }: Props) {
         <CheckRow label="No punycode encoding" pass={checks.notPunycode} />
         <CheckRow label="Valid TLD" pass={checks.validTld} />
         <CheckRow label="No brand impersonation" pass={checks.noBrandSquat} />
+        <CheckRow
+          label="Normal subdomain depth"
+          pass={checks.notExcessiveSubdomains}
+        />
+        <CheckRow
+          label="Low-risk TLD"
+          pass={checks.notSuspiciousTld}
+        />
         {hasResolves && (
           <CheckRow
             label="URL resolves (live server)"
