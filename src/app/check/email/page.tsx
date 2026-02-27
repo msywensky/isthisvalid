@@ -116,7 +116,7 @@ export default function EmailCheckPage() {
           </li>
           <li>
             <strong className="text-zinc-200">Disposable-domain check</strong> —
-            flags 3,500+ known throwaway providers.
+            flags 57,000+ known throwaway providers.
           </li>
           <li>
             <strong className="text-zinc-200">API verification</strong>{" "}

@@ -9,12 +9,12 @@ export const FAQ_DATA: { q: string; a: string }[] = [
     a: "Because 'totally@valid.email' passes any regex and still bounces harder than a cheque written in crayon. We layer syntax, TLD verification, disposable-domain detection, and optional live mailbox checking on top — so you get an actual signal, not false confidence.",
   },
   {
-    q: "Is my email stored or shared?",
-    a: "Nope. The address you enter is processed in memory, a result is returned, and it's gone. We don't log it, store it, sell it, or add it to any list. There's no database in this stack.",
+    q: "Is the email address stored or shared?",
+    a: "The address itself is never stored or shared. If we verify it against a third-party SMTP provider (like ZeroBounce), the result is cached for 7 days using a one-way SHA-256 hash of your address as the key — so we can avoid redundant API calls. The hash can't be reversed to recover your email. We don't sell data, add you to any list, or share anything with third parties beyond the SMTP check itself.",
   },
   {
     q: "What's a disposable email address?",
-    a: "A throwaway inbox you spin up in seconds — think Mailinator, Guerrilla Mail, or YOPmail. They're great for avoiding spam yourself, but terrible when someone uses one to sign up for your product and then ghosts you. We flag 3,500+ of these providers.",
+    a: "A throwaway inbox you spin up in seconds — think Mailinator, Guerrilla Mail, or YOPmail. They're great for avoiding spam yourself, but terrible when someone uses one to sign up for your product and then ghosts you. We flag 57,000+ of these providers.",
   },
   {
     q: "What does the score (0–100) mean?",
@@ -34,7 +34,7 @@ export const FAQ_DATA: { q: string; a: string }[] = [
   },
   {
     q: "Can I use this via an API?",
-    a: "Not yet officially, but the POST /api/validate endpoint is open. Bulk checking and an API key system are on the roadmap. For now, go wild responsibly.",
+    a: "Not yet. Bulk checking and an API key system are on the roadmap. For now, go wild responsibly.",
   },
   {
     q: "Can this tool get it wrong?",

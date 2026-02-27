@@ -8,6 +8,7 @@ import {
 } from "@/lib/email-validator";
 import { getSmtpProvider } from "@/lib/smtp-provider";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { getCachedSmtpResult, setCachedSmtpResult } from "@/lib/smtp-cache";
 
 const RequestSchema = z.object({
   email: z
@@ -104,10 +105,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(resultWithMx, { headers: securityHeaders() });
   }
 
+  // ── Redis cache — skip provider call on repeated checks ──────────────────
+  const cached = await getCachedSmtpResult(email);
+  if (cached) {
+    console.log(`[validate] Cache hit for ${email.split("@")[1]}`);
+    return NextResponse.json(cached, { headers: securityHeaders() });
+  }
+
   console.log(`[validate] Using ${provider.name} provider`);
   try {
     const smtpResult = await provider.verify(email);
     const merged = mergeSmtpResult(resultWithMx, smtpResult);
+    // Cache the enriched result — fire-and-forget, don't block response
+    void setCachedSmtpResult(email, merged);
     return NextResponse.json(merged, { headers: securityHeaders() });
   } catch (err) {
     console.error(`[validate] ${provider.name} error:`, err);

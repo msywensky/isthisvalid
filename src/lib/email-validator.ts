@@ -8,36 +8,137 @@ const EMAIL_REGEX =
 
 // Common role-based prefixes that are often unreachable or team inboxes
 const ROLE_PREFIXES = new Set([
+  // System / mail infrastructure
   "admin",
   "administrator",
   "webmaster",
   "hostmaster",
   "postmaster",
+  "mailer-daemon",
+  "mailerdaemon",
+  "bounce",
+  "bounces",
+  "root",
+  "smtp",
+  "imap",
+  "pop",
+  "pop3",
+  "ftp",
+  "dns",
+  "www",
+  "web",
+  "sysadmin",
+
+  // Security / abuse
   "abuse",
   "security",
+  "phishing",
+  "spam",
+  "spamreport",
+
+  // No-reply variants
   "noreply",
   "no-reply",
   "donotreply",
   "do-not-reply",
-  "mailer-daemon",
+  "no_reply",
+  "donot-reply",
+
+  // Support / customer service
   "support",
   "help",
+  "helpdesk",
+  "service",
+  "services",
+  "customerservice",
+  "customer-service",
+  "customercare",
+  "care",
+  "feedback",
+  "enquiries",
+  "enquiry",
+
+  // Contact / general
   "info",
+  "information",
   "contact",
+  "hello",
+  "hi",
+  "general",
+  "reception",
+  "office",
+  "team",
+
+  // Marketing / comms
   "sales",
   "marketing",
+  "newsletter",
+  "newsletters",
+  "news",
+  "press",
+  "media",
+  "pr",
+  "alerts",
+  "alert",
+  "notifications",
+  "notification",
+  "notify",
+  "updates",
+  "unsubscribe",
+  "list",
+  "lists",
+  "mail",
+  "email",
+
+  // Business functions
   "billing",
   "finance",
+  "accounts",
+  "account",
+  "accounting",
+  "payroll",
+  "invoices",
+  "invoice",
+  "orders",
+  "order",
+  "purchasing",
+  "procurement",
+  "payments",
+  "payment",
   "hr",
+  "humanresources",
+  "human-resources",
+  "recruiting",
+  "recruitment",
   "jobs",
   "careers",
+  "hiring",
   "legal",
+  "compliance",
   "privacy",
-  "spam",
-  "root",
+  "gdpr",
+  "it",
   "ops",
   "devops",
-  "team",
+  "operations",
+  "management",
+  "manager",
+
+  // E-commerce
+  "shop",
+  "store",
+  "reservations",
+  "booking",
+  "bookings",
+  "returns",
+  "refunds",
+
+  // Executive (rarely personal inboxes)
+  "ceo",
+  "cfo",
+  "cto",
+  "coo",
+  "founders",
 ]);
 
 export interface ValidationChecks {
@@ -71,27 +172,78 @@ export interface EmailValidationResult {
 
 /** Common free-provider typos and their corrections */
 const TYPO_MAP: Record<string, string> = {
+  // ── Gmail ───────────────────────────────────────────────────────────────
   "gmial.com": "gmail.com",
   "gmai.com": "gmail.com",
   "gmali.com": "gmail.com",
   "gnail.com": "gmail.com",
   "gmail.co": "gmail.com",
   "gamil.com": "gmail.com",
+  "gmaill.com": "gmail.com", // doubled l
+  "gmail.con": "gmail.com", // .con (adjacent to .com on keyboard)
+  "gmail.cmo": "gmail.com", // .cmo (transposed)
+  "gmail.ocm": "gmail.com", // .ocm (transposed)
+  // ── Hotmail ─────────────────────────────────────────────────────────────
   "hotmali.com": "hotmail.com",
   "hotmal.com": "hotmail.com",
+  "hotmaill.com": "hotmail.com", // doubled l
+  "hotmail.con": "hotmail.com",
+  "hotmail.cmo": "hotmail.com",
+  "hotmail.ocm": "hotmail.com",
+  // ── Yahoo ────────────────────────────────────────────────────────────────
   "yahooo.com": "yahoo.com",
   "yaho.com": "yahoo.com",
+  "yhaoo.com": "yahoo.com", // transposed
+  "yahoo.con": "yahoo.com",
+  "yahoo.cmo": "yahoo.com",
+  "yahoo.ocm": "yahoo.com",
+  // ── Outlook ──────────────────────────────────────────────────────────────
   "outook.com": "outlook.com",
   "outlok.com": "outlook.com",
+  "outlookk.com": "outlook.com", // doubled k
+  "outlook.con": "outlook.com",
+  "outlook.cmo": "outlook.com",
+  "outlook.ocm": "outlook.com",
+  // ── iCloud ───────────────────────────────────────────────────────────────
   "iclod.com": "icloud.com",
+  "iclould.com": "icloud.com", // extra l
+  "icolud.com": "icloud.com", // transposed
+  "icloud.con": "icloud.com",
+  "icloud.cmo": "icloud.com",
+  // ── Protonmail ───────────────────────────────────────────────────────────
   "protonmali.com": "protonmail.com",
+  "protonmal.com": "protonmail.com", // missing i
+  "protonmai.com": "protonmail.com", // missing l
+  "protonmail.con": "protonmail.com",
+  "protonmail.cmo": "protonmail.com",
 };
 
-function getTypoSuggestion(domain: string): string | undefined {
-  const lower = domain.toLowerCase();
-  return TYPO_MAP[lower]
-    ? `${lower.split(".")[0]} → ${TYPO_MAP[lower]}`
-    : undefined;
+/**
+ * Returns a full corrected email address (e.g. "user@gmail.com") when the
+ * domain looks like a common typo, or undefined if no match.
+ */
+function getTypoSuggestion(
+  localPart: string,
+  domain: string,
+): string | undefined {
+  const corrected = TYPO_MAP[domain.toLowerCase()];
+  if (!corrected) return undefined;
+  return `${localPart}@${corrected}`;
+}
+
+/**
+ * RFC 5321 constraints on the local part (everything before @):
+ *   - No consecutive dots  (user..name)
+ *   - No leading dot       (.user)
+ *   - No trailing dot      (user.)
+ * The main EMAIL_REGEX allows these accidentally via the broad character class;
+ * this function catches them as an additional syntax gate.
+ */
+function isLocalPartStructurallyValid(localPart: string): boolean {
+  if (!localPart) return false;
+  if (localPart.startsWith(".") || localPart.endsWith(".")) return false;
+  if (localPart.includes("..")) return false;
+  return true;
 }
 
 /**
@@ -101,14 +253,18 @@ export function validateEmailLocal(rawEmail: string): EmailValidationResult {
   const email = rawEmail.trim().toLowerCase();
   const [localPart, domain] = email.split("@");
 
-  const syntaxOk = EMAIL_REGEX.test(email);
+  const syntaxOk =
+    EMAIL_REGEX.test(email) && isLocalPartStructurallyValid(localPart);
   // A domain must have at least one dot AND the final segment must be ≥ 2 chars.
   // This correctly fails "localhost" (no dot) while passing "example.com".
   const tldOk = domain
     ? domain.includes(".") && domain.split(".").at(-1)!.length >= 2
     : false;
   const isDisposable = domain ? DISPOSABLE_DOMAINS.has(domain) : false;
-  const isRole = localPart ? ROLE_PREFIXES.has(localPart) : false;
+  // Strip plus-addressing (+tag) before role check so that
+  // noreply+bounce@company.com is correctly identified as a role address.
+  const roleLocal = localPart ? localPart.split("+")[0] : "";
+  const isRole = roleLocal ? ROLE_PREFIXES.has(roleLocal) : false;
 
   const checks: ValidationChecks = {
     syntax: syntaxOk,
@@ -122,13 +278,23 @@ export function validateEmailLocal(rawEmail: string): EmailValidationResult {
   const score = computeScore(checks);
   const valid = syntaxOk && !isDisposable && tldOk;
 
+  // Typo suggestion: if the domain is a known misspelling, cap the local
+  // score in the "risky" zone (≤65) and use a targeted message so that
+  // gmail.con doesn't show as 90/100 valid with a green ring.
+  const suggestion = domain ? getTypoSuggestion(localPart, domain) : undefined;
+  const finalScore = suggestion ? Math.min(score, 65) : score;
+  const message =
+    suggestion && valid
+      ? `Heads up — that domain looks like a typo. Did you mean ${suggestion}?`
+      : buildMessage(valid, checks, email);
+
   return {
     email,
     valid,
-    score,
+    score: finalScore,
     checks,
-    message: buildMessage(valid, checks, email),
-    suggestion: domain ? getTypoSuggestion(domain) : undefined,
+    message,
+    suggestion,
     source: "local",
   };
 }
@@ -142,9 +308,10 @@ function computeScore(checks: ValidationChecks): number {
   // hasMx: confirmed MX = small bonus; no MX = heavy penalty
   if (checks.hasMx === true) score = Math.min(score + 5, 100);
   if (checks.hasMx === false) score = Math.min(score, 15);
-  // apiDeliverable overrides everything
+  // apiDeliverable overrides everything.
+  // Confirmed undeliverable is a stronger signal than no MX (cap ≤10 < ≤15).
   if (checks.apiDeliverable === true) score = Math.min(score + 10, 100);
-  if (checks.apiDeliverable === false) score = Math.min(score, 20);
+  if (checks.apiDeliverable === false) score = Math.min(score, 10);
   return Math.min(score, 100);
 }
 
@@ -180,15 +347,27 @@ export function applyMxResult(
   hasMx: boolean | null,
 ): EmailValidationResult {
   const checks: ValidationChecks = { ...local.checks, hasMx };
-  const score = computeScore(checks);
+  let score = computeScore(checks);
   // hasMx=false means the domain genuinely cannot receive mail
   const valid = local.valid && hasMx !== false;
+
+  // Preserve the typo cap ≤65 until the SMTP provider explicitly confirms
+  // the mailbox exists (apiDeliverable=true in mergeSmtpResult). A real MX
+  // record is not strong enough evidence — a typo domain could still own MX
+  // records. Only lift the cap when we have direct mailbox confirmation.
+  if (local.suggestion) score = Math.min(score, 65);
+
+  const message =
+    local.suggestion && valid
+      ? `Heads up — that domain looks like a typo. Did you mean ${local.suggestion}?`
+      : buildMessage(valid, checks, local.email);
+
   return {
     ...local,
     valid,
     score,
     checks,
-    message: buildMessage(valid, checks, local.email),
+    message,
   };
 }
 
@@ -205,18 +384,35 @@ export function mergeSmtpResult(
   };
 
   const score = computeScore(checks);
+
+  // Bug fix: validTld must be checked independently — when smtp.deliverable is
+  // true the short-circuit previously bypassed local.valid (which includes tldOk).
   const valid =
     local.checks.syntax &&
+    local.checks.validTld &&
     checks.notDisposable &&
     local.checks.hasMx !== false &&
     (smtp.deliverable === true || (!smtp.undeliverable && local.valid));
 
+  // Bug fix: preserve typo cap + message through the SMTP merge.
+  // Mirror applyMxResult logic: lift cap only when the provider explicitly
+  // confirms deliverability (apiDeliverable=true means the domain genuinely
+  // exists); otherwise keep the score in the risky ≤65 zone.
+  const finalScore =
+    local.suggestion && checks.apiDeliverable !== true
+      ? Math.min(score, 65)
+      : score;
+  const message =
+    local.suggestion && valid && checks.apiDeliverable !== true
+      ? `Heads up — that domain looks like a typo. Did you mean ${local.suggestion}?`
+      : buildMessage(valid, checks, local.email);
+
   return {
     ...local,
     valid,
-    score,
+    score: finalScore,
     checks,
-    message: buildMessage(valid, checks, local.email),
+    message,
     source: smtp.source,
   };
 }
