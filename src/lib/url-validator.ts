@@ -354,7 +354,6 @@ export function validateUrlLocal(rawUrl: string): UrlValidationResult {
   }
 
   const hostname = parsed.hostname.toLowerCase();
-  const fullUrl = parsed.href;
 
   // --- individual checks ---
 
@@ -369,9 +368,9 @@ export function validateUrlLocal(rawUrl: string): UrlValidationResult {
   // environments or future parsers that may skip normalisation.
   const isIp =
     /^(\d{1,3}\.){3}\d{1,3}$/.test(hostname) || // dotted-decimal (and normalised forms)
-    hostname.startsWith("[") ||                   // IPv6 / IPv4-mapped IPv6
-    /^\d+$/.test(hostname) ||                     // pure integer, e.g. 2130706433
-    /^0x[0-9a-f]+$/i.test(hostname);              // hex integer, e.g. 0x7f000001
+    hostname.startsWith("[") || // IPv6 / IPv4-mapped IPv6
+    /^\d+$/.test(hostname) || // pure integer, e.g. 2130706433
+    /^0x[0-9a-f]+$/i.test(hostname); // hex integer, e.g. 0x7f000001
   if (isIp) flags.push("Raw IP address — legitimate sites use domain names");
 
   const hasUserInfo = parsed.username.length > 0 || parsed.password.length > 0;

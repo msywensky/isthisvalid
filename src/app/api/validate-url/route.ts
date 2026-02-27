@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
     const degraded: typeof resultWithHead = {
       ...resultWithHead,
       score: cappedScore,
-      safe: cappedScore >= 70 && resultWithHead.safe,
+      safe: cappedScore >= 80 && resultWithHead.safe,
       safeBrowsingError: true,
     };
     return NextResponse.json(degraded, { headers: securityHeaders() });
@@ -143,8 +143,7 @@ async function checkResolves(url: string): Promise<boolean | null> {
       if (
         code === "ENOTFOUND" ||
         code === "EAI_NONAME" ||
-        code === "EAI_AGAIN" ||
-        code === "ENOENT"
+        code === "EAI_AGAIN"
       ) {
         return false;
       }
@@ -226,6 +225,22 @@ function isPrivateHost(hostname: string): boolean {
 
   // IPv6 loopback (URL API stores brackets: [::1])
   if (h === "[::1]" || h === "::1") return true;
+
+  // Other reserved IPv6 ranges (brackets included when from URL API)
+  const ipv6Host = h.startsWith("[") && h.endsWith("]") ? h.slice(1, -1) : h;
+  if (
+    ipv6Host.startsWith("fc") || // fc00::/7 unique-local (fc00–fdff)
+    ipv6Host.startsWith("fd") || // fc00::/7 unique-local
+    ipv6Host.startsWith("fe8") || // fe80::/10 link-local
+    ipv6Host.startsWith("fe9") ||
+    ipv6Host.startsWith("fea") ||
+    ipv6Host.startsWith("feb") ||
+    ipv6Host.startsWith("::ffff:") || // IPv4-mapped IPv6
+    ipv6Host.startsWith("2001:db8:") || // 2001:db8::/32 documentation
+    ipv6Host === "::" // unspecified
+  ) {
+    return true;
+  }
 
   // Dotted-decimal IPv4 — check against reserved CIDR blocks
   const m = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
