@@ -154,28 +154,69 @@ const SUSPICIOUS_TLDS = new Set([
 // "co.uk" and falsely flag it as brand squatting on the legitimate PayPal site.
 const CCTLD_SECOND_LEVELS = new Set([
   // United Kingdom & Commonwealth
-  "co.uk", "org.uk", "me.uk", "net.uk", "gov.uk", "ltd.uk", "plc.uk",
+  "co.uk",
+  "org.uk",
+  "me.uk",
+  "net.uk",
+  "gov.uk",
+  "ltd.uk",
+  "plc.uk",
   // Australia
-  "com.au", "net.au", "org.au", "edu.au", "gov.au", "asn.au",
+  "com.au",
+  "net.au",
+  "org.au",
+  "edu.au",
+  "gov.au",
+  "asn.au",
   // Japan
-  "co.jp", "or.jp", "ne.jp", "ac.jp", "go.jp",
+  "co.jp",
+  "or.jp",
+  "ne.jp",
+  "ac.jp",
+  "go.jp",
   // New Zealand
-  "co.nz", "net.nz", "org.nz", "govt.nz",
+  "co.nz",
+  "net.nz",
+  "org.nz",
+  "govt.nz",
   // South Africa
-  "co.za", "org.za", "net.za", "gov.za",
+  "co.za",
+  "org.za",
+  "net.za",
+  "gov.za",
   // India
-  "co.in", "net.in", "org.in", "gov.in",
+  "co.in",
+  "net.in",
+  "org.in",
+  "gov.in",
   // South Korea
-  "co.kr", "or.kr", "ne.kr",
+  "co.kr",
+  "or.kr",
+  "ne.kr",
   // Brazil
-  "com.br", "net.br", "org.br", "gov.br",
+  "com.br",
+  "net.br",
+  "org.br",
+  "gov.br",
   // Argentina
-  "com.ar", "net.ar", "org.ar",
+  "com.ar",
+  "net.ar",
+  "org.ar",
   // Mexico
-  "com.mx", "org.mx", "net.mx",
+  "com.mx",
+  "org.mx",
+  "net.mx",
   // Other common ones
-  "com.tr", "com.sg", "com.hk", "com.tw", "com.ph",
-  "com.my", "com.ng", "com.pk", "com.cn", "co.id",
+  "com.tr",
+  "com.sg",
+  "com.hk",
+  "com.tw",
+  "com.ph",
+  "com.my",
+  "com.ng",
+  "com.pk",
+  "com.cn",
+  "co.id",
 ]);
 
 /**
@@ -183,7 +224,8 @@ const CCTLD_SECOND_LEVELS = new Set([
  * Handles two-part ccTLD suffixes (co.uk, com.au, etc.) so that
  * www.paypal.co.uk correctly returns "paypal.co.uk" instead of "co.uk".
  */
-function getRegisteredDomain(hostname: string): string {
+/** @internal Exported for unit testing only. */
+export function getRegisteredDomain(hostname: string): string {
   const parts = hostname.split(".");
   if (parts.length >= 3) {
     const twoPartTld = parts.slice(-2).join(".");
@@ -195,16 +237,26 @@ function getRegisteredDomain(hostname: string): string {
 }
 
 /** Returns false if a brand name appears in the hostname on the wrong domain. */
-function checkBrandSquat(hostname: string): boolean {
+/** @internal Exported for unit testing only. */
+export function checkBrandSquat(hostname: string): boolean {
   const lower = hostname.toLowerCase();
   const registered = getRegisteredDomain(lower);
 
   for (const [brand, canonical] of Object.entries(KNOWN_BRANDS)) {
     // Match brand as a word boundary (separated by dot, hyphen, or string edge)
     const pattern = new RegExp(`(^|[.-])${brand}([.-]|$)`, "i");
-    if (pattern.test(lower) && registered !== canonical) {
-      return false; // brand name present but wrong registered domain
-    }
+    if (!pattern.test(lower)) continue;
+
+    // Exact canonical domain — legitimate (paypal.com → paypal.com)
+    if (registered === canonical) continue;
+
+    // Brand is the first label of the registered domain — this is a legitimate
+    // ccTLD registration (e.g. paypal.co.uk, amazon.com.au). The brand owns
+    // that domain; it's not squatting.
+    if (registered.startsWith(`${brand}.`)) continue;
+
+    // Brand appears in the hostname under a different registered domain → squat
+    return false;
   }
   return true;
 }
@@ -310,9 +362,16 @@ export function validateUrlLocal(rawUrl: string): UrlValidationResult {
     parsed.protocol === "https:" || parsed.protocol === "http:";
   if (!validScheme) flags.push(`Unusual scheme: ${parsed.protocol}`);
 
-  // Raw IPv4 (1.2.3.4) or IPv6 ([::1]) in host
+  // Raw IPv4 (1.2.3.4) or IPv6 ([::1]) in host.
+  // The WHATWG URL parser normalises hex (0x7f000001), octal (0177.0.0.1),
+  // and integer (2130706433) IPv4 forms to dotted-decimal, so the dotted
+  // regex covers those after parsing. The additional patterns guard against
+  // environments or future parsers that may skip normalisation.
   const isIp =
-    /^(\d{1,3}\.){3}\d{1,3}$/.test(hostname) || hostname.startsWith("[");
+    /^(\d{1,3}\.){3}\d{1,3}$/.test(hostname) || // dotted-decimal (and normalised forms)
+    hostname.startsWith("[") ||                   // IPv6 / IPv4-mapped IPv6
+    /^\d+$/.test(hostname) ||                     // pure integer, e.g. 2130706433
+    /^0x[0-9a-f]+$/i.test(hostname);              // hex integer, e.g. 0x7f000001
   if (isIp) flags.push("Raw IP address — legitimate sites use domain names");
 
   const hasUserInfo = parsed.username.length > 0 || parsed.password.length > 0;
@@ -323,7 +382,9 @@ export function validateUrlLocal(rawUrl: string): UrlValidationResult {
 
   // Strip leading www. before checking the shortener set — www.bit.ly is the
   // same service as bit.ly but would otherwise be missed.
-  const hostnameNoWww = hostname.startsWith("www.") ? hostname.slice(4) : hostname;
+  const hostnameNoWww = hostname.startsWith("www.")
+    ? hostname.slice(4)
+    : hostname;
   const isShortener = URL_SHORTENERS.has(hostnameNoWww);
   if (isShortener)
     flags.push(`URL shortener (${hostnameNoWww}) hides the real destination`);
@@ -341,7 +402,9 @@ export function validateUrlLocal(rawUrl: string): UrlValidationResult {
   // Check each label individually — a label must start with "xn--" to be
   // Punycode. A bare includes("xn--") check would false-positive on hostnames
   // like "bigxn--data.com" where the string appears mid-label.
-  const hasPunycode = hostname.split(".").some((label) => label.startsWith("xn--"));
+  const hasPunycode = hostname
+    .split(".")
+    .some((label) => label.startsWith("xn--"));
   if (hasPunycode)
     flags.push(
       "Punycode domain — may use lookalike characters to impersonate a real site",

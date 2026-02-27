@@ -2,6 +2,8 @@ import {
   validateUrlLocal,
   applyHeadResult,
   applySafeBrowsingResult,
+  getRegisteredDomain,
+  checkBrandSquat,
 } from "../src/lib/url-validator";
 
 // ── validateUrlLocal ───────────────────────────────────────────────────────
@@ -379,5 +381,98 @@ describe("expanded phishing path detection", () => {
   test("/unusual-signin path is flagged", () => {
     const r = validateUrlLocal("https://example.com/unusual-signin/verify");
     expect(r.checks.noSuspiciousKeywords).toBe(false);
+  });
+});
+
+// ── getRegisteredDomain ───────────────────────────────────────────────────
+
+describe("getRegisteredDomain", () => {
+  test("simple .com domain returns last two parts", () => {
+    expect(getRegisteredDomain("www.example.com")).toBe("example.com");
+  });
+
+  test("bare two-part domain is returned as-is", () => {
+    expect(getRegisteredDomain("example.com")).toBe("example.com");
+  });
+
+  test("co.uk compound suffix returns three parts", () => {
+    expect(getRegisteredDomain("www.paypal.co.uk")).toBe("paypal.co.uk");
+  });
+
+  test("com.au compound suffix returns three parts", () => {
+    expect(getRegisteredDomain("shop.amazon.com.au")).toBe("amazon.com.au");
+  });
+
+  test("com.br compound suffix returns three parts", () => {
+    expect(getRegisteredDomain("www.mercadolibre.com.br")).toBe(
+      "mercadolibre.com.br",
+    );
+  });
+
+  test("deeply nested subdomain with .co.uk still extracts correctly", () => {
+    expect(getRegisteredDomain("a.b.c.example.co.uk")).toBe("example.co.uk");
+  });
+
+  test("hostname with no dots is returned as-is", () => {
+    expect(getRegisteredDomain("localhost")).toBe("localhost");
+  });
+});
+
+// ── checkBrandSquat ───────────────────────────────────────────────────────
+
+describe("checkBrandSquat", () => {
+  test("legitimate paypal.com returns true (not a squat)", () => {
+    expect(checkBrandSquat("paypal.com")).toBe(true);
+  });
+
+  test("paypal-secure.com is flagged as brand squat", () => {
+    expect(checkBrandSquat("paypal-secure.com")).toBe(false);
+  });
+
+  test("www.paypal.co.uk is NOT flagged (ccTLD legitimate)", () => {
+    expect(checkBrandSquat("www.paypal.co.uk")).toBe(true);
+  });
+
+  test("www.amazon.com.au is NOT flagged (ccTLD legitimate)", () => {
+    expect(checkBrandSquat("www.amazon.com.au")).toBe(true);
+  });
+
+  test("paypal.evil.com is flagged (brand in subdomain, wrong registered domain)", () => {
+    expect(checkBrandSquat("paypal.evil.com")).toBe(false);
+  });
+
+  test("microsoft-login.net is flagged as brand squat", () => {
+    expect(checkBrandSquat("microsoft-login.net")).toBe(false);
+  });
+
+  test("unrelated domain is not flagged", () => {
+    expect(checkBrandSquat("totallynormal.com")).toBe(true);
+  });
+});
+
+// ── IP address detection (hex / integer forms) ───────────────────────────
+
+describe("IP address detection edge cases", () => {
+  test("dotted-decimal IPv4 is flagged", () => {
+    const r = validateUrlLocal("http://192.168.1.1/admin");
+    expect(r.checks.notIpAddress).toBe(false);
+  });
+
+  test("pure integer IPv4 (2130706433 = 127.0.0.1) is flagged", () => {
+    // WHATWG URL parser normalises 2130706433 to 127.0.0.1 (dotted-decimal),
+    // which the dotted regex then catches.
+    const r = validateUrlLocal("http://2130706433/");
+    expect(r.checks.notIpAddress).toBe(false);
+  });
+
+  test("hex integer IPv4 (0x7f000001 = 127.0.0.1) is flagged", () => {
+    // WHATWG normalises 0x7f000001 to 127.0.0.1 (dotted-decimal).
+    const r = validateUrlLocal("http://0x7f000001/");
+    expect(r.checks.notIpAddress).toBe(false);
+  });
+
+  test("IPv6 loopback is flagged", () => {
+    const r = validateUrlLocal("http://[::1]/admin");
+    expect(r.checks.notIpAddress).toBe(false);
   });
 });
