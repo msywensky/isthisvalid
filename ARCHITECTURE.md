@@ -73,24 +73,31 @@ Browser  →  POST /api/validate-url { url }
   │     ├── Punycode — xn-- homograph detection
   │     ├── TLD — must have a dot + ≥2-char suffix
   │     ├── Brand squatting — 54 brands × word-boundary regex vs eTLD+1
+  │     ├── Typosquat — Levenshtein ≤1 + digit/symbol substitution vs 54 brands
   │     ├── Excessive subdomain depth — ≥5 labels flagged (score cap ≤60)
-  │     └── Suspicious TLD — 15 high-abuse TLDs flagged (score cap ≤80)
+  │     ├── Suspicious TLD — 15 high-abuse TLDs flagged (score cap ≤80)
+  │     ├── High-entropy hostname — DGA/random label ≥12 chars, entropy >3.8 (score cap ≤75)
+  │     └── Excessive hyphens — ≥3 hyphens in one label (−8 points)
   │
   ├─► Early exit if URL is unparseable
   │
   ├─► isPrivateHost() — SSRF guard (RFC-1918, loopback, .local, .internal, private IPv6)
   │     └── 400 Bad Request if host is private or reserved
   │
-  ├─► checkResolves() — HEAD request, 5 s timeout
-  │     ├── true  → any HTTP response (server is alive)
-  │     ├── false → NXDOMAIN / ENOTFOUND (domain doesn't exist)
-  │     └── null  → timeout / SSL error (don't penalise)
+  ├─► checkResolves() + checkDomainAge() — HEAD + RDAP, run in parallel
+  │     ├── HEAD follows up to 5 redirects; cross-domain destination → validateUrlLocal() + merge
+  │     ├── resolves: true / false / null
+  │     └── isOldDomain: true (≥30 days) / false (<30 days → score cap ≤70) / null (RDAP unavailable)
   │
-  ├─► applyHeadResult() — merges resolves into score
+  ├─► applyHeadResult() + applyRedirectResult() + applyRdapResult()
   │     ├── resolves=true  → +5 bonus (capped at 100)
-  │     └── resolves=false → score capped at 70
+  │     ├── resolves=false → score capped at 70
+  │     ├── redirect to different domain → destination flags merged
+  │     └── new domain (<30 days) → score capped at 70, safe=false
   │
   ├─► Early exit if no GOOGLE_SAFE_BROWSING_API_KEY set
+  ├─► Early exit if score < 50 (already clearly dangerous — skip Google quota)
+  │
   │
   └─► Google Safe Browsing v4 Lookup API — POST threatMatches:find
         ├── success → applySafeBrowsingResult()
@@ -198,9 +205,10 @@ src/
     ├── smtp-cache.ts                # Redis SMTP result cache: getCachedSmtpResult / setCachedSmtpResult; sha256 key, 7-day TTL, local-only results excluded
     ├── smtp-provider.ts             # Pluggable SMTP provider abstraction: SmtpProvider interface, EmailableProvider, ZeroBounceProvider, getSmtpProvider() factory
     ├── faq-data.ts                  # FAQ Q&A for email tool — consumed by FAQ.tsx + FAQPage JSON-LD
-    ├── url-validator.ts             # Core logic: validateUrlLocal, applyHeadResult, applySafeBrowsingResult;
+    ├── url-validator.ts             # Core logic: validateUrlLocal, applyHeadResult, applySafeBrowsingResult,
+    │                                #   applyRdapResult, applyRedirectResult;
     │                                #   CCTLD_SECOND_LEVELS (~100+ compound ccTLDs: co.uk, com.au, co.jp, co.in …);
-    │                                #   getRegisteredDomain / checkBrandSquat exported @internal for testability
+    │                                #   getRegisteredDomain / checkBrandSquat / checkTyposquat exported @internal
     ├── url-faq-data.ts              # FAQ Q&A for URL tool — consumed by UrlFAQ.tsx + FAQPage JSON-LD
     ├── text-debunker.ts             # Types + Zod schema for TextDebunkResult
     ├── text-faq-data.ts             # FAQ Q&A for text tool — consumed by TextFAQ.tsx + FAQPage JSON-LD
@@ -211,10 +219,9 @@ __tests__/
 ├── debunk-text-route.test.ts        # Jest unit tests: POST /api/debunk/text route (35 tests)
 ├── email-validator.test.ts          # Jest unit tests: validateEmailLocal, applyMxResult, mergeSmtpResult, mergeEmailableResult, role prefixes, plus-addressed role check, expanded typo map, RFC 5321 dot rules, typo score cap, exact scoring, case normalization, DISPOSABLE_DOMAINS (150 tests)
 ├── smtp-cache.test.ts               # Jest unit tests: getCachedSmtpResult, setCachedSmtpResult — Redis mocked (15 tests)
-└── url-validator.test.ts            # Jest unit tests: validateUrlLocal, applyHeadResult, applySafeBrowsingResult;
-    #   getRegisteredDomain (13 tests), checkBrandSquat (10+ tests), IP edge cases;
-    #   expanded shorteners, brands, path patterns, subdomain depth, suspicious TLD,
-    #   ccTLD compound suffix coverage (80 tests)
+└── url-validator.test.ts            # Jest unit tests: validateUrlLocal, applyHeadResult, applySafeBrowsingResult,
+    #   applyRdapResult, applyRedirectResult; getRegisteredDomain, checkBrandSquat, checkTyposquat;
+    #   notHighEntropy, notExcessiveHyphens, IP edge cases, ccTLD coverage (110 tests)
 ```
 
 ## Environment Variables
@@ -266,8 +273,11 @@ POST /api/validate-url
   │     ├── Punycode — xn-- homograph detection
   │     ├── TLD — must have a dot + ≥2-char suffix
   │     ├── Brand squatting — 54 brands × word-boundary regex vs eTLD+1
+  │     ├── Typosquat — Levenshtein ≤1 + digit/symbol substitution vs 54 brands
   │     ├── Excessive subdomain depth — ≥5 labels flagged (score cap ≤60)
-  │     └── Suspicious TLD — 15 high-abuse TLDs (.tk, .ml, .xyz, .top …) flagged (score cap ≤80)
+  │     ├── Suspicious TLD — 15 high-abuse TLDs (.tk, .ml, .xyz, .top …) flagged (score cap ≤80)
+  │     ├── High-entropy hostname — DGA/random label ≥12 chars, entropy >3.8 (score cap ≤75)
+  │     └── Excessive hyphens — ≥3 hyphens in one label (−8 points)
   │
   ├─► Early exit if !parseable
   │
@@ -276,16 +286,25 @@ POST /api/validate-url
   │           shared-use (100.64/10), test-net (203.0.113/24), .local/.internal,
   │           or private IPv6 (::1, fc00::/7, fe80::/10, ::ffff:, 2001:db8::)
   │
-  ├─► checkResolves() — HEAD request, 5 s timeout
-  │     ├── true  → any HTTP response (200, 4xx, 5xx — server alive)
-  │     ├── false → NXDOMAIN / ENOTFOUND (domain doesn't exist)
-  │     └── null  → timeout / SSL error / private IP (don't penalise)
+  ├─► checkResolves() + checkDomainAge() — run in parallel, 5 s / 4 s timeouts
+  │     ├── HEAD follows up to 5 redirect hops; cross-domain destination → validateUrlLocal() + merge
+  │     ├── resolves: true (server alive) / false (NXDOMAIN) / null (timeout or private IP)
+  │     └── isOldDomain: true (≥30 days) / false (<30 days) / null (RDAP unavailable)
   │
   ├─► applyHeadResult() — merges resolves into score
   │     ├── resolves=true  → +5 bonus (capped at 100)
   │     └── resolves=false → score capped at 70
   │
+  ├─► applyRedirectResult() — merges cross-domain redirect destination checks
+  │     └── destination flags prefixed "Redirect destination:" + min(orig, dest) score
+  │
+  ├─► applyRdapResult() — merges RDAP domain-age result
+  │     ├── isOld=true  → no penalty
+  │     ├── isOld=false → score capped at 70, safe=false, flag prepended
+  │     └── isOld=null  → no penalty (RDAP unavailable)
+  │
   ├─► Google Safe Browsing v4 Lookup API (optional, only if GOOGLE_SAFE_BROWSING_API_KEY set)
+  │     ├── Skipped entirely if score < 50 (already clearly dangerous — saves quota)
   │     └── POST threatMatches:find — checks against malware, phishing, and unwanted software databases
   │     │
   │     ├── API success → applySafeBrowsingResult()
@@ -313,18 +332,26 @@ POST /api/validate-url
 | No suspicious keywords   | +20                 |
 | Not punycode             | +10                 |
 | Valid TLD                | +10                 |
-| No brand squatting       | +15                 |
-| Not excessive subdomains | cap ≤60 if violated |
-| Not suspicious TLD       | cap ≤80 if violated |
-| Resolves (HEAD bonus)    | +5 (cap at 100)     |
-| Resolves=false           | cap ≤70             |
-| Safe Browsing flagged    | cap ≤5              |
-| **Total (max)**          | **100**             |
+| No brand squatting         | +15                              |
+| Not typosquat              | cap ≤79 if violated              |
+| Excessive hyphens          | −8 points if violated            |
+| Not excessive subdomains   | cap ≤60 if violated              |
+| Not suspicious TLD         | cap ≤80 if violated              |
+| High entropy hostname      | cap ≤75 if violated              |
+| Domain not newly registered| cap ≤70 if violated              |
+| Resolves (HEAD bonus)      | +5 (cap at 100)                  |
+| Resolves=false             | cap ≤70                          |
+| Safe Browsing flagged      | cap ≤5                           |
+| **Total (max)**            | **100**                          |
 
 > Score ≥ 80 → Safe (lime) · 50–79 → Suspicious (yellow) · < 50 → Dangerous (rose)  
+> Typosquat cap forces score into Suspicious zone (≤79) even if all other checks pass.  
 > Excessive subdomain depth caps at ≤60 regardless of other checks.  
 > Suspicious TLD caps at ≤80 regardless of other checks.  
-> Safe Browsing flagged → score hard-capped at 5.
+> High-entropy hostname caps at ≤75 regardless of other checks.  
+> Newly-registered domain (<30 days) caps at ≤70 and sets safe=false.  
+> Safe Browsing flagged → score hard-capped at 5.  
+> Score <50 after local+RDAP: Safe Browsing API call is skipped entirely (quota saving).
 
 ## Email Validation Pipeline
 
