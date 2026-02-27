@@ -159,6 +159,7 @@ const CCTLD_SECOND_LEVELS = new Set([
   "me.uk",
   "net.uk",
   "gov.uk",
+  "ac.uk",
   "ltd.uk",
   "plc.uk",
   // Australia
@@ -168,55 +169,109 @@ const CCTLD_SECOND_LEVELS = new Set([
   "edu.au",
   "gov.au",
   "asn.au",
+  "id.au",
   // Japan
   "co.jp",
   "or.jp",
   "ne.jp",
   "ac.jp",
   "go.jp",
+  "gr.jp",
   // New Zealand
   "co.nz",
   "net.nz",
   "org.nz",
   "govt.nz",
+  "ac.nz",
   // South Africa
   "co.za",
   "org.za",
   "net.za",
   "gov.za",
+  "ac.za",
   // India
   "co.in",
   "net.in",
   "org.in",
   "gov.in",
+  "ac.in",
   // South Korea
   "co.kr",
   "or.kr",
   "ne.kr",
+  "ac.kr",
+  "go.kr",
   // Brazil
   "com.br",
   "net.br",
   "org.br",
   "gov.br",
+  "edu.br",
   // Argentina
   "com.ar",
   "net.ar",
   "org.ar",
+  "gov.ar",
   // Mexico
   "com.mx",
   "org.mx",
   "net.mx",
-  // Other common ones
+  "gob.mx",
+  // Colombia
+  "com.co",
+  "net.co",
+  "org.co",
+  // Peru
+  "com.pe",
+  "net.pe",
+  "org.pe",
+  // Venezuela
+  "com.ve",
+  "net.ve",
+  "org.ve",
+  // Israel
+  "co.il",
+  "net.il",
+  "org.il",
+  "ac.il",
+  // Kenya
+  "co.ke",
+  "or.ke",
+  "ac.ke",
+  // Ghana
+  "com.gh",
+  "org.gh",
+  // Nigeria
+  "com.ng",
+  "org.ng",
+  "net.ng",
+  // Tanzania
+  "co.tz",
+  "or.tz",
+  "ac.tz",
+  // Egypt
+  "com.eg",
+  "org.eg",
+  "net.eg",
+  // Other widely-used compound TLDs
   "com.tr",
   "com.sg",
   "com.hk",
   "com.tw",
   "com.ph",
   "com.my",
-  "com.ng",
   "com.pk",
   "com.cn",
+  "net.cn",
+  "org.cn",
   "co.id",
+  "com.vn",
+  "net.vn",
+  "com.ua",
+  "net.ua",
+  "org.ua",
+  "com.bd",
+  "net.bd",
 ]);
 
 /**
@@ -250,10 +305,13 @@ export function checkBrandSquat(hostname: string): boolean {
     // Exact canonical domain — legitimate (paypal.com → paypal.com)
     if (registered === canonical) continue;
 
-    // Brand is the first label of the registered domain — this is a legitimate
-    // ccTLD registration (e.g. paypal.co.uk, amazon.com.au). The brand owns
-    // that domain; it's not squatting.
-    if (registered.startsWith(`${brand}.`)) continue;
+    // Brand is the first label of the registered domain — verify the suffix
+    // is a compound ccTLD we explicitly recognise (e.g. co.uk, com.au).
+    // This prevents any arbitrary multi-part domain from silently bypassing
+    // the check: a brand squatter using an obscure compound suffix like
+    // paypal.edu.tk would still be caught.
+    const ccTldSuffix = registered.slice(brand.length + 1); // e.g. "co.uk"
+    if (registered.startsWith(`${brand}.`) && CCTLD_SECOND_LEVELS.has(ccTldSuffix)) continue;
 
     // Brand appears in the hostname under a different registered domain → squat
     return false;

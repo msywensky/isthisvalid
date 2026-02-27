@@ -416,6 +416,31 @@ describe("getRegisteredDomain", () => {
   test("hostname with no dots is returned as-is", () => {
     expect(getRegisteredDomain("localhost")).toBe("localhost");
   });
+
+  // Newly added ccTLD entries (issue E)
+  test("co.il compound suffix returns three parts", () => {
+    expect(getRegisteredDomain("www.example.co.il")).toBe("example.co.il");
+  });
+
+  test("com.co compound suffix returns three parts", () => {
+    expect(getRegisteredDomain("www.example.com.co")).toBe("example.com.co");
+  });
+
+  test("co.ke compound suffix returns three parts", () => {
+    expect(getRegisteredDomain("www.example.co.ke")).toBe("example.co.ke");
+  });
+
+  test("com.eg compound suffix returns three parts", () => {
+    expect(getRegisteredDomain("www.example.com.eg")).toBe("example.com.eg");
+  });
+
+  test("net.cn compound suffix returns three parts", () => {
+    expect(getRegisteredDomain("www.example.net.cn")).toBe("example.net.cn");
+  });
+
+  test("ac.uk compound suffix returns three parts", () => {
+    expect(getRegisteredDomain("www.ox.ac.uk")).toBe("ox.ac.uk");
+  });
 });
 
 // ── checkBrandSquat ───────────────────────────────────────────────────────
@@ -447,6 +472,23 @@ describe("checkBrandSquat", () => {
 
   test("unrelated domain is not flagged", () => {
     expect(checkBrandSquat("totallynormal.com")).toBe(true);
+  });
+
+  // Issue F — ccTLD bypass now gated on CCTLD_SECOND_LEVELS membership
+  test("paypal.co.il is not flagged (recognised ccTLD compound suffix)", () => {
+    expect(checkBrandSquat("paypal.co.il")).toBe(true);
+  });
+
+  test("amazon.com.eg is not flagged (recognised ccTLD compound suffix)", () => {
+    expect(checkBrandSquat("amazon.com.eg")).toBe(true);
+  });
+
+  test("paypal on an unrecognised compound suffix IS flagged", () => {
+    // edu.tk is not in CCTLD_SECOND_LEVELS so it is NOT a ccTLD bypass —
+    // getRegisteredDomain returns the last two parts ("edu.tk"), the brand
+    // pattern matches in the subdomain, and registered !== canonical.
+    const r = validateUrlLocal("https://paypal.edu.tk");
+    expect(r.checks.noBrandSquat).toBe(false);
   });
 });
 
