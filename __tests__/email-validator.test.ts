@@ -580,6 +580,17 @@ describe("validateEmailLocal — typo domain score cap", () => {
     expect(withMx.score).toBeLessThanOrEqual(15);
     expect(withMx.valid).toBe(false);
   });
+
+  it("applyMxResult with hasMx=true still holds typo cap at ≤65", () => {
+    // Even when MX records confirm the domain is live, the score must stay ≤65
+    // until the SMTP provider explicitly verifies the mailbox (apiDeliverable=true).
+    // This prevents the no-provider early-exit path in the API route from
+    // returning an inflated score (e.g. 95) for a typo domain.
+    const local = validateEmailLocal("user@gmail.con");
+    const withMx = applyMxResult(local, true);
+    expect(withMx.score).toBeLessThanOrEqual(65);
+    expect(withMx.suggestion).toBeDefined();
+  });
 });
 
 // ── Exact score values ────────────────────────────────────────────────────────
@@ -944,5 +955,32 @@ describe("Bug regression: apiDeliverable=false cap weaker than hasMx=false (Bug 
       source: "zerobounce",
     }).score;
     expect(undeliverableScore).toBeLessThanOrEqual(noMxScore);
+  });
+});
+
+describe("Bug regression: applyMxResult hasMx=true leaked inflated typo score (Bug 5)", () => {
+  // Before fix: applyMxResult only re-applied the ≤65 cap when hasMx===null.
+  // When hasMx===true, computeScore() lifted the score to 95. If no SMTP
+  // provider was configured the API route returned resultWithMx directly,
+  // so a typo domain that happened to have MX records surfaced at score=95
+  // instead of ≤65. Fix: always cap when suggestion is set; lift only in
+  // mergeSmtpResult when apiDeliverable===true.
+  it("hasMx=true does not lift typo score above 65 in applyMxResult", () => {
+    const local = validateEmailLocal("user@gmail.con");
+    expect(local.score).toBeLessThanOrEqual(65);
+    const withMx = applyMxResult(local, true);
+    expect(withMx.score).toBeLessThanOrEqual(65);
+  });
+
+  it("cap is only lifted by mergeSmtpResult with apiDeliverable=true", () => {
+    const withMx = applyMxResult(validateEmailLocal("user@gmail.con"), true);
+    const lifted = mergeSmtpResult(withMx, {
+      deliverable: true,
+      undeliverable: false,
+      disposable: false,
+      source: "zerobounce",
+    });
+    expect(lifted.score).toBeGreaterThan(65);
+    expect(lifted.checks.apiDeliverable).toBe(true);
   });
 });

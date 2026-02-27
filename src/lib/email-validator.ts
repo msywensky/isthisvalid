@@ -351,11 +351,11 @@ export function applyMxResult(
   // hasMx=false means the domain genuinely cannot receive mail
   const valid = local.valid && hasMx !== false;
 
-  // If the domain is a known typo and MX was inconclusive (DNS timeout),
-  // re-apply the cap so the result stays in the risky zone rather than
-  // bouncing back to 90. hasMx=false already caps to 15; hasMx=true means
-  // the domain genuinely exists and we trust it.
-  if (local.suggestion && hasMx === null) score = Math.min(score, 65);
+  // Preserve the typo cap ≤65 until the SMTP provider explicitly confirms
+  // the mailbox exists (apiDeliverable=true in mergeSmtpResult). A real MX
+  // record is not strong enough evidence — a typo domain could still own MX
+  // records. Only lift the cap when we have direct mailbox confirmation.
+  if (local.suggestion) score = Math.min(score, 65);
 
   const message =
     local.suggestion && valid
