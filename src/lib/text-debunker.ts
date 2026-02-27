@@ -10,6 +10,18 @@ export type TextClassification =
   | "suspicious"
   | "legit";
 
+/** Risk score threshold below which a message is considered safe. */
+export const SAFE_RISK_THRESHOLD = 50;
+
+/**
+ * Classifications that are never safe regardless of riskScore.
+ * Prevents a low-confidence AI result from marking a scam as safe.
+ */
+export const DANGEROUS_CLASSIFICATIONS = new Set<TextClassification>([
+  "scam",
+  "smishing",
+]);
+
 export interface TextDebunkResult {
   /** AI classification of the message */
   classification: TextClassification;
@@ -17,7 +29,7 @@ export interface TextDebunkResult {
   confidence: number;
   /** Risk level of the message (0 = safe, 100 = definite scam) */
   riskScore: number;
-  /** True when riskScore < 50 */
+  /** True when riskScore < SAFE_RISK_THRESHOLD and classification is not a dangerous type. */
   safe: boolean;
   /** One-sentence plain-English verdict */
   summary: string;

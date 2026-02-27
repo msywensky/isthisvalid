@@ -24,16 +24,20 @@ if (key) {
 export async function callClaude(
   system: string,
   userMessage: string,
-  maxTokens = 700,
+  maxTokens = 1024,
+  timeoutMs = 30_000,
 ): Promise<string | null> {
   if (!_client) return null;
 
-  const response = await _client.messages.create({
-    model: MODEL,
-    max_tokens: maxTokens,
-    system,
-    messages: [{ role: "user", content: userMessage }],
-  });
+  const response = await _client.messages.create(
+    {
+      model: MODEL,
+      max_tokens: maxTokens,
+      system,
+      messages: [{ role: "user", content: userMessage }],
+    },
+    { signal: AbortSignal.timeout(timeoutMs) },
+  );
 
   const block = response.content[0];
   if (block.type !== "text") return null;

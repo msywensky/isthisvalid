@@ -7,7 +7,11 @@ import {
   checkDailyTextLimit,
   getRedis,
 } from "@/lib/rate-limit";
-import type { TextDebunkResult } from "@/lib/text-debunker";
+import {
+  SAFE_RISK_THRESHOLD,
+  DANGEROUS_CLASSIFICATIONS,
+  type TextDebunkResult,
+} from "@/lib/text-debunker";
 
 const CACHE_TTL_SECONDS = 86_400; // 24 hours
 const CACHE_PREFIX = "itv:cache:text:";
@@ -72,16 +76,41 @@ flags: Extract specific phrases, patterns, or techniques you identify as suspici
 summary: One sentence, direct, e.g. "This looks like a smishing attack impersonating a parcel delivery service."`;
 
 /**
+ * Coerces riskScore into a range consistent with the classification,
+ * preventing contradictory UI signals (e.g. "Scam Detected" with a green ring).
+ *
+ * - scam / smishing → riskScore ≥ 60 (always in the Dangerous zone)
+ * - legit           → riskScore ≤ 40 (always in the Safe zone)
+ * - spam / suspicious → unchanged (wide valid range)
+ */
+function coerceRiskScore(
+  classification: z.infer<typeof DebunkResponseSchema>["classification"],
+  riskScore: number,
+): number {
+  if (classification === "scam" || classification === "smishing") {
+    return Math.max(riskScore, 60);
+  }
+  if (classification === "legit") {
+    return Math.min(riskScore, 40);
+  }
+  return riskScore;
+}
+
+/**
  * POST /api/debunk/text
  *
  * Body: { message: string }
  * Returns: TextDebunkResult
  *
  * Pipeline:
- *   1. Rate limit (Upstash, no-op if unconfigured)
- *   2. Zod validation
- *   3. Claude AI analysis — classify + extract red flags
- *   4. Parse + validate Claude's JSON response
+ *   1. Per-minute rate limit (protects all endpoints)
+ *   2. LLM availability check
+ *   3. Parse + validate body
+ *   4. Cache lookup  ← hits return here, daily budget not consumed
+ *   5. Per-day LLM spend cap
+ *   6. Sanitise + wrap message, call Claude
+ *   7. Parse, coerce, and validate Claude’s JSON response
+ *   8. Cache write
  */
 export async function POST(req: NextRequest) {
   // ── Rate limiting ─────────────────────────────────────────────────────────
@@ -101,25 +130,6 @@ export async function POST(req: NextRequest) {
           "Retry-After": rl.reset
             ? String(Math.ceil((rl.reset - Date.now()) / 1000))
             : "60",
-        },
-      },
-    );
-  }
-
-  // Per-day LLM spend cap (text route only)
-  const daily = await checkDailyTextLimit(ip);
-  if (!daily.success) {
-    return NextResponse.json(
-      {
-        error:
-          "You've reached the daily limit for AI text analysis. Please try again tomorrow.",
-      },
-      {
-        status: 429,
-        headers: {
-          "Retry-After": daily.reset
-            ? String(Math.ceil((daily.reset - Date.now()) / 1000))
-            : "86400",
         },
       },
     );
@@ -150,7 +160,9 @@ export async function POST(req: NextRequest) {
   }
 
   const { message } = parsed.data;
-  // ── Cache lookup ───────────────────────────────────────────────────────
+
+  // ── Cache lookup ────────────────────────────────────────────────────────
+  // Checked before the daily limit so cache hits do not consume LLM budget.
   const redis = getRedis();
   const key = cacheKey(message);
 
@@ -171,9 +183,36 @@ export async function POST(req: NextRequest) {
       console.warn("[debunk/text] Cache read failed:", err);
     }
   }
+
+  // ── Per-day LLM spend cap — only burned on a cache miss ─────────────────
+  const daily = await checkDailyTextLimit(ip);
+  if (!daily.success) {
+    return NextResponse.json(
+      {
+        error:
+          "You've reached the daily limit for AI text analysis. Please try again tomorrow.",
+      },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": daily.reset
+            ? String(Math.ceil((daily.reset - Date.now()) / 1000))
+            : "86400",
+        },
+      },
+    );
+  }
+
+  // ── Build payload ────────────────────────────────────────────────────────
+  // Strip any [MSG]/[/MSG] tags from user input before wrapping — a user
+  // submitting these literals could break the content boundary that the system
+  // prompt uses to isolate untrusted input from instructions.
+  const sanitised = message
+    .replace(/\[MSG\]/gi, "")
+    .replace(/\[\/MSG\]/gi, "");
+  const userPayload = `[MSG]\n${sanitised}\n[/MSG]`;
+
   // ── Call Claude ───────────────────────────────────────────────────────────
-  // Wrap in delimiters so the system prompt can reference [MSG] as the trust boundary.
-  const userPayload = `[MSG]\n${message}\n[/MSG]`;
 
   let rawResponse: string | null;
   try {
@@ -214,9 +253,22 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // ── Cross-field coercion ─────────────────────────────────────────────────
+  // Ensure riskScore is consistent with classification. Claude can return e.g.
+  // classification="scam" with a low riskScore, which would render a green ring
+  // next to a red "Scam Detected" badge — a contradictory signal to the user.
+  const coercedRiskScore = coerceRiskScore(
+    debunkData.classification,
+    debunkData.riskScore,
+  );
   const result: TextDebunkResult = {
     ...debunkData,
-    safe: debunkData.riskScore < 50,
+    riskScore: coercedRiskScore,
+    // safe only when riskScore is low AND the classification isn't inherently
+    // dangerous — prevents a low-confidence scam result from appearing safe.
+    safe:
+      coercedRiskScore < SAFE_RISK_THRESHOLD &&
+      !DANGEROUS_CLASSIFICATIONS.has(debunkData.classification),
     source: "claude",
   };
 
