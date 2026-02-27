@@ -224,7 +224,7 @@ __tests__/
 | `ANTHROPIC_API_KEY`                    | Yes      | Anthropic API key — powers the Text / SMS scam detector (Claude claude-sonnet-4-20250514)                               |
 | `UPSTASH_REDIS_REST_URL`               | Yes      | Upstash Redis URL — rate limiting (20 req/min) + result cache (24 h TTL)                                                |
 | `UPSTASH_REDIS_REST_TOKEN`             | Yes      | Upstash Redis token — required alongside the URL above                                                                  |
-| `GOOGLE_SAFE_BROWSING_API_KEY`         | No       | Google Safe Browsing v4 JSON REST key — enables malware/phishing lookup on URL tool                                               |
+| `GOOGLE_SAFE_BROWSING_API_KEY`         | No       | Google Safe Browsing v4 JSON REST key — enables malware/phishing lookup on URL tool                                     |
 | `ZEROBOUNCE_API_KEY`                   | No       | ZeroBounce API key — preferred SMTP provider (100 free verifications/month recurring)                                   |
 | `EMAILABLE_API_KEY`                    | No       | Emailable API key — fallback SMTP provider (250 one-time free, then paid); used only if `ZEROBOUNCE_API_KEY` is not set |
 | `NEXT_PUBLIC_ADSENSE_ID`               | No       | Google AdSense publisher ID (`ca-pub-...`) — leave blank until approved                                                 |
@@ -304,22 +304,22 @@ POST /api/validate-url
 
 ### URL Scoring (0–100)
 
-| Check                      | Points / Cap                     |
-| -------------------------- | -------------------------------- |
-| Valid scheme               | +10                              |
-| Not IP address             | +15                              |
-| No user info               | +10                              |
-| Not shortener              | +10                              |
-| No suspicious keywords     | +20                              |
-| Not punycode               | +10                              |
-| Valid TLD                  | +10                              |
-| No brand squatting         | +15                              |
-| Not excessive subdomains   | cap ≤60 if violated              |
-| Not suspicious TLD         | cap ≤80 if violated              |
-| Resolves (HEAD bonus)      | +5 (cap at 100)                  |
-| Resolves=false             | cap ≤70                          |
-| Safe Browsing flagged      | cap ≤5                           |
-| **Total (max)**            | **100**                          |
+| Check                    | Points / Cap        |
+| ------------------------ | ------------------- |
+| Valid scheme             | +10                 |
+| Not IP address           | +15                 |
+| No user info             | +10                 |
+| Not shortener            | +10                 |
+| No suspicious keywords   | +20                 |
+| Not punycode             | +10                 |
+| Valid TLD                | +10                 |
+| No brand squatting       | +15                 |
+| Not excessive subdomains | cap ≤60 if violated |
+| Not suspicious TLD       | cap ≤80 if violated |
+| Resolves (HEAD bonus)    | +5 (cap at 100)     |
+| Resolves=false           | cap ≤70             |
+| Safe Browsing flagged    | cap ≤5              |
+| **Total (max)**          | **100**             |
 
 > Score ≥ 80 → Safe (lime) · 50–79 → Suspicious (yellow) · < 50 → Dangerous (rose)  
 > Excessive subdomain depth caps at ≤60 regardless of other checks.  

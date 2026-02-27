@@ -319,6 +319,112 @@ export function checkBrandSquat(hostname: string): boolean {
   return true;
 }
 
+// ── Typosquat / entropy / structural helpers ──────────────────────────────
+
+/** Compute Levenshtein edit distance between two strings (two-row DP). */
+function levenshtein(a: string, b: string): number {
+  const m = a.length;
+  const n = b.length;
+  let prev = Array.from({ length: n + 1 }, (_, j) => j);
+  for (let i = 1; i <= m; i++) {
+    const curr: number[] = [i];
+    for (let j = 1; j <= n; j++) {
+      curr[j] =
+        a[i - 1] === b[j - 1]
+          ? prev[j - 1]
+          : 1 + Math.min(prev[j], curr[j - 1], prev[j - 1]);
+    }
+    prev = curr;
+  }
+  return prev[n];
+}
+
+/**
+ * Normalise a domain label for typosquat comparison.
+ * Substitutes common digit/symbol lookalikes and strips hyphens so that
+ * "paypa1" → "paypal" and "g00gle" → "google" before distance comparison.
+ */
+function normalizeLabel(label: string): string {
+  return label
+    .toLowerCase()
+    .replace(/1/g, "l")
+    .replace(/0/g, "o")
+    .replace(/3/g, "e")
+    .replace(/5/g, "s")
+    .replace(/4/g, "a")
+    .replace(/8/g, "b")
+    .replace(/6/g, "g")
+    .replace(/7/g, "t")
+    .replace(/-/g, "");
+}
+
+/**
+ * Returns false if the registered-domain label closely resembles a known brand
+ * via digit/symbol substitution or Levenshtein edit distance ≤ 1, without
+ * being the legitimate canonical domain.
+ * @internal Exported for unit testing only.
+ */
+export function checkTyposquat(hostname: string): boolean {
+  const lower = hostname.toLowerCase();
+  const registered = getRegisteredDomain(lower);
+  const registeredLabel = registered.split(".")[0];
+  const normalized = normalizeLabel(registeredLabel);
+
+  for (const [brand, canonical] of Object.entries(KNOWN_BRANDS)) {
+    if (registered === canonical) continue;
+    if (brand.length < 4) continue; // too short → too many false positives
+
+    // Exact match after digit/symbol normalisation (e.g. paypa1 → paypal)
+    if (normalized === brand) return false;
+
+    // Levenshtein ≤ 1 after normalisation — only for longer brands (≥ 6 chars)
+    // to avoid false positives on short common words (e.g. "apple" ↔ "maple").
+    if (
+      brand.length >= 6 &&
+      Math.abs(normalized.length - brand.length) <= 2 &&
+      levenshtein(normalized, brand) <= 1
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/** Shannon entropy of a string in bits per character. */
+function shannonEntropy(s: string): number {
+  if (s.length === 0) return 0;
+  const freq: Record<string, number> = {};
+  for (const c of s) freq[c] = (freq[c] ?? 0) + 1;
+  return Object.values(freq).reduce((h, count) => {
+    const p = count / s.length;
+    return h - p * Math.log2(p);
+  }, 0);
+}
+
+/**
+ * Returns true if any hostname label shows high character entropy consistent
+ * with a DGA (Domain Generation Algorithm) or random-string domain.
+ * Only triggered for labels ≥ 12 characters — short labels naturally vary.
+ */
+function hasHighEntropy(hostname: string): boolean {
+  const labels = hostname.split(".");
+  const nonTldLabels = labels.slice(0, -1);
+  return nonTldLabels.some(
+    (label) => label.length >= 12 && shannonEntropy(label) > 3.8,
+  );
+}
+
+/**
+ * Returns true if any single hostname label contains 3 or more hyphens.
+ * Legitimate domains rarely need this; it is a common pattern in phishing
+ * infrastructure (e.g. secure-paypal-login-verify.com).
+ */
+function hasExcessiveHyphens(hostname: string): boolean {
+  return hostname
+    .split(".")
+    .some((label) => (label.match(/-/g) ?? []).length >= 3);
+}
+
 // ── Types ──────────────────────────────────────────────────────────────────
 
 export interface UrlValidationChecks {
@@ -344,6 +450,14 @@ export interface UrlValidationChecks {
   notExcessiveSubdomains: boolean;
   /** TLD is not from a set with disproportionately high abuse rates */
   notSuspiciousTld: boolean;
+  /** Domain label does not closely resemble a known brand (typosquat / digit substitution) */
+  notTyposquat: boolean;
+  /** No hostname label exhibits high character entropy (DGA / random-string domain) */
+  notHighEntropy: boolean;
+  /** No individual hostname label contains 3 or more hyphens */
+  notExcessiveHyphens: boolean;
+  /** Domain was registered ≥ 30 days ago; null = RDAP not yet checked */
+  notNewlyRegistered: boolean | null;
   /** Google Safe Browsing: true = clean, false = flagged, null = not checked */
   safeBrowsing: boolean | null;
   /** HEAD request: true = resolves, false = NXDOMAIN, null = timeout/skipped */
@@ -367,6 +481,8 @@ export interface UrlValidationResult {
    * failed. The result is based on local checks only and may be incomplete.
    */
   safeBrowsingError?: boolean;
+  /** Final URL after following redirects; absent if no redirect occurred */
+  redirectedTo?: string;
 }
 
 // ── Core local validation ──────────────────────────────────────────────────
@@ -402,6 +518,10 @@ export function validateUrlLocal(rawUrl: string): UrlValidationResult {
         noBrandSquat: false,
         notExcessiveSubdomains: true,
         notSuspiciousTld: true,
+        notTyposquat: true,
+        notHighEntropy: true,
+        notExcessiveHyphens: true,
+        notNewlyRegistered: null,
         safeBrowsing: null,
         resolves: null,
       },
@@ -493,6 +613,27 @@ export function validateUrlLocal(rawUrl: string): UrlValidationResult {
       `High-risk TLD (.${tldLower}) — disproportionately associated with phishing and malware`,
     );
 
+  // Typosquat — digit substitution or small-edit match to a known brand
+  const notTyposquat = checkTyposquat(hostname);
+  if (!notTyposquat)
+    flags.push(
+      "Domain closely resembles a known brand — likely a typosquatting attack",
+    );
+
+  // High entropy — random-looking label consistent with DGA / malware C2
+  const notHighEntropy = !hasHighEntropy(hostname);
+  if (!notHighEntropy)
+    flags.push(
+      "Hostname uses a random-looking character pattern — associated with malware and scam infrastructure",
+    );
+
+  // Excessive hyphens — hyphen-stuffed labels used in phishing domain names
+  const notExcessiveHyphens = !hasExcessiveHyphens(hostname);
+  if (!notExcessiveHyphens)
+    flags.push(
+      "Hostname label contains 3+ hyphens — a common phishing domain pattern",
+    );
+
   const checks: UrlValidationChecks = {
     parseable: true,
     validScheme,
@@ -505,6 +646,10 @@ export function validateUrlLocal(rawUrl: string): UrlValidationResult {
     noBrandSquat,
     notExcessiveSubdomains: !hasExcessiveSubdomains,
     notSuspiciousTld: !hasSuspiciousTld,
+    notTyposquat,
+    notHighEntropy,
+    notExcessiveHyphens,
+    notNewlyRegistered: null,
     safeBrowsing: null,
     resolves: null,
   };
@@ -514,7 +659,11 @@ export function validateUrlLocal(rawUrl: string): UrlValidationResult {
   // Additionally, a suspicious TLD scoring exactly 80 (due to the computeScore
   // cap) should not be considered Safe — block it explicitly.
   const safe =
-    score >= 80 && checks.notExcessiveSubdomains && checks.notSuspiciousTld;
+    score >= 80 &&
+    checks.noBrandSquat &&
+    checks.notTyposquat &&
+    checks.notExcessiveSubdomains &&
+    checks.notSuspiciousTld;
 
   return {
     url: parsed.href,
@@ -541,14 +690,21 @@ function computeScore(checks: UrlValidationChecks): number {
   if (checks.notPunycode) score += 10;
   if (checks.validTld) score += 10;
   if (checks.noBrandSquat) score += 15;
+  // Typosquat cap — forces into the suspicious zone (< 80) so it can never
+  // be marked Safe regardless of other passing checks.
+  if (!checks.notTyposquat) score = Math.min(score, 79);
+  // Excessive hyphens — mild deduction (subtractive; floored at 0).
+  if (!checks.notExcessiveHyphens) score = Math.max(score - 8, 0);
   // Resolve bonus/penalty applied first, then structural caps.
   // Order matters: the subdomain/TLD caps must come AFTER the resolve bonus so
   // a +5 resolve bonus cannot push a capped score above the cap ceiling.
   if (checks.resolves === true) score = Math.min(score + 5, 100);
   if (checks.resolves === false) score = Math.min(score, 70);
-  // Structural / TLD risk caps — applied after resolve bonus so they can't be bypassed
+  // Structural / TLD / entropy / age caps — applied after resolve bonus
   if (checks.notExcessiveSubdomains === false) score = Math.min(score, 60);
   if (checks.notSuspiciousTld === false) score = Math.min(score, 80);
+  if (!checks.notHighEntropy) score = Math.min(score, 75);
+  if (checks.notNewlyRegistered === false) score = Math.min(score, 70);
   // Safe Browsing hard-overrides
   if (checks.safeBrowsing === false) score = Math.min(score, 5);
 
@@ -562,6 +718,8 @@ function buildMessage(safe: boolean, checks: UrlValidationChecks): string {
     return "🚨 Google Safe Browsing has flagged this URL as malicious. Do not visit.";
   if (!checks.noBrandSquat)
     return "⚠️ This URL appears to impersonate a trusted brand — classic phishing.";
+  if (!checks.notTyposquat)
+    return "⚠️ This domain closely resembles a known brand — likely a typosquatting attack.";
   if (!checks.notIpAddress)
     return "Suspicious — real websites use domain names, not raw IP addresses.";
   if (!checks.notExcessiveSubdomains)
@@ -574,6 +732,12 @@ function buildMessage(safe: boolean, checks: UrlValidationChecks): string {
     return "This domain uses Punycode — it may be impersonating another site using lookalike characters.";
   if (!checks.notSuspiciousTld)
     return "This TLD is heavily associated with phishing and malware — proceed with extreme caution.";
+  if (checks.notNewlyRegistered === false)
+    return "⚠️ This domain was registered within the last 30 days — a major red flag for phishing.";
+  if (!checks.notHighEntropy)
+    return "This domain uses an unusual random-looking name — a pattern common in malware and scam infrastructure.";
+  if (!checks.notExcessiveHyphens)
+    return "This domain uses multiple hyphens in a single label — a pattern common in phishing URLs.";
   if (!checks.noSuspiciousKeywords)
     return "The URL path contains patterns commonly found in phishing pages.";
   if (!checks.validTld)
@@ -602,8 +766,11 @@ export function applyHeadResult(
   const safe =
     score >= 80 &&
     checks.safeBrowsing !== false &&
+    checks.noBrandSquat &&
+    checks.notTyposquat &&
     checks.notExcessiveSubdomains &&
-    checks.notSuspiciousTld;
+    checks.notSuspiciousTld &&
+    checks.notNewlyRegistered !== false;
   return {
     ...result,
     safe,
@@ -629,8 +796,11 @@ export function applySafeBrowsingResult(
   const safe =
     score >= 80 &&
     !isFlagged &&
+    checks.noBrandSquat &&
+    checks.notTyposquat &&
     checks.notExcessiveSubdomains &&
-    checks.notSuspiciousTld;
+    checks.notSuspiciousTld &&
+    checks.notNewlyRegistered !== false;
   const flags = isFlagged
     ? ["Google Safe Browsing: FLAGGED as malicious", ...result.flags]
     : result.flags;
@@ -642,5 +812,71 @@ export function applySafeBrowsingResult(
     flags,
     message: buildMessage(safe, checks),
     source: "safe-browsing",
+  };
+}
+
+/**
+ * Merge the result of an RDAP domain-age check.
+ * isOld: true  = domain registered ≥ 30 days ago (not suspicious)
+ *        false = domain registered < 30 days ago (high phishing risk)
+ *        null  = RDAP unavailable or timed out (don't penalise)
+ */
+export function applyRdapResult(
+  result: UrlValidationResult,
+  isOld: boolean | null,
+): UrlValidationResult {
+  const notNewlyRegistered: boolean | null = isOld;
+  const checks: UrlValidationChecks = { ...result.checks, notNewlyRegistered };
+  const score = computeScore(checks);
+  const safe =
+    score >= 80 &&
+    checks.safeBrowsing !== false &&
+    checks.noBrandSquat &&
+    checks.notTyposquat &&
+    checks.notExcessiveSubdomains &&
+    checks.notSuspiciousTld &&
+    checks.notNewlyRegistered !== false;
+  const flags =
+    isOld === false
+      ? [
+          "Domain registered within the last 30 days — a strong phishing signal",
+          ...result.flags,
+        ]
+      : result.flags;
+  return {
+    ...result,
+    safe,
+    score,
+    checks,
+    flags,
+    message: buildMessage(safe, checks),
+  };
+}
+
+/**
+ * Merge findings from a cross-domain redirect into the original result.
+ * Called when a HEAD request reveals the submitted URL redirects to a
+ * different domain.  The destination is independently analysed with
+ * validateUrlLocal() and any new flags are surfaced to the user.
+ */
+export function applyRedirectResult(
+  result: UrlValidationResult,
+  destResult: UrlValidationResult,
+  finalUrl: string,
+): UrlValidationResult {
+  const mergedScore = Math.min(result.score, destResult.score);
+  const mergedSafe = result.safe && destResult.safe;
+  const extraFlags = destResult.flags
+    .filter((f) => !result.flags.includes(f))
+    .map((f) => `Redirect destination: ${f}`);
+  const mergedFlags =
+    extraFlags.length > 0 ? [...result.flags, ...extraFlags] : result.flags;
+  return {
+    ...result,
+    redirectedTo: finalUrl,
+    score: mergedScore,
+    safe: mergedSafe,
+    flags: mergedFlags,
+    message: mergedSafe ? result.message : destResult.message,
   };
 }

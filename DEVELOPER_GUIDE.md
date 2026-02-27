@@ -519,12 +519,12 @@ All tests live in `__tests__/` and are pure unit tests — no network, no Redis,
 
 **Current suite:**
 
-| File                        | Tests | Pattern                                                                                            |
-| --------------------------- | ----- | -------------------------------------------------------------------------------------------------- |
-| `email-validator.test.ts`   | 150   | One `describe` per validator concept; explicit bug-regression suites labelled `[Bug N regression]` |
+| File                        | Tests | Pattern                                                                                                                          |
+| --------------------------- | ----- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `email-validator.test.ts`   | 150   | One `describe` per validator concept; explicit bug-regression suites labelled `[Bug N regression]`                               |
 | `url-validator.test.ts`     | 80    | One `describe` per check; one per merge helper; dedicated suites for `getRegisteredDomain`, `checkBrandSquat`, and IP edge cases |
-| `debunk-text-route.test.ts` | 35    | Mocked `callClaude` and Redis; covers rate limit, cache hit/miss, bad JSON, injection              |
-| `smtp-cache.test.ts`        | 15    | Mocked Redis; covers hash correctness, TTL, local-source no-op, error resilience                   |
+| `debunk-text-route.test.ts` | 35    | Mocked `callClaude` and Redis; covers rate limit, cache hit/miss, bad JSON, injection                                            |
+| `smtp-cache.test.ts`        | 15    | Mocked Redis; covers hash correctness, TTL, local-source no-op, error resilience                                                 |
 
 **To extend tests:** Follow the existing `describe`/`test` pattern. For a new check in `url-validator.ts`, add a new `describe("new check name")` block with: one passing case, one failing case, score assertion, flag-text assertion, and message assertion.
 
@@ -571,14 +571,14 @@ feat/* branches → Vercel preview URLs (auto-generated)
 
 ### Known Issues & Technical Debt
 
-| Issue                                               | Severity | Notes                                                                                                                                |
-| --------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| No CI/CD pipeline                                   | Medium   | Manual build+test required before merge; easy to forget                                                                              |
+| Issue                                               | Severity | Notes                                                                                                                                                                                                                                       |
+| --------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| No CI/CD pipeline                                   | Medium   | Manual build+test required before merge; easy to forget                                                                                                                                                                                     |
 | `getRegisteredDomain` is not PSL-aware              | Low      | Uses a curated `CCTLD_SECOND_LEVELS` list (100+ entries: `co.uk`, `com.au`, `co.jp`, `co.in` …) instead of a full PSL. Covers the most common registries; exotic ccTLDs may still be misclassified. Replace with `tldts` for full coverage. |
-| Rate limiter key space is shared                    | Low      | All three tools consume from the same 20/min bucket per IP. Heavy URL checking can block email checking. Consider per-tool prefixes. |
-| No integration tests                                | Low      | All tests are unit; end-to-end API behaviour (including Redis, real DNS) is untested                                                 |
-| Text tool has no streaming                          | Low      | Claude response is buffered. Long messages create latency. SSE streaming would improve UX.                                           |
-| `safe` verdict does not hard-fail on `!validScheme` | Low      | An FTP URL can score ≥80 if all other checks pass; `safe` would be `true`. Should add `checks.validScheme` to the `safe` formula.    |
+| Rate limiter key space is shared                    | Low      | All three tools consume from the same 20/min bucket per IP. Heavy URL checking can block email checking. Consider per-tool prefixes.                                                                                                        |
+| No integration tests                                | Low      | All tests are unit; end-to-end API behaviour (including Redis, real DNS) is untested                                                                                                                                                        |
+| Text tool has no streaming                          | Low      | Claude response is buffered. Long messages create latency. SSE streaming would improve UX.                                                                                                                                                  |
+| `safe` verdict does not hard-fail on `!validScheme` | Low      | An FTP URL can score ≥80 if all other checks pass; `safe` would be `true`. Should add `checks.validScheme` to the `safe` formula.                                                                                                           |
 
 ---
 
