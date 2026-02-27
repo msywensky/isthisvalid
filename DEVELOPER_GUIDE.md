@@ -1,6 +1,6 @@
 # isthisvalid.com — Maintenance-Grade Technical Documentation
 
-**Generated:** February 27, 2026 | **Build:** ✅ clean (16 routes) | **Tests:** ✅ 263/263 | **Branch:** `feat/harden-url-validator`
+**Generated:** February 27, 2026 | **Build:** ✅ clean (16 routes) | **Tests:** ✅ 290/290 | **Branch:** `main`
 
 ---
 
@@ -220,6 +220,10 @@ sequenceDiagram
     alt unparseable
         Route-->>Browser: local result (early exit)
     end
+    Route->>Route: isPrivateHost(host) — SSRF guard
+    alt private/loopback/reserved host
+        Route-->>Browser: 400 Bad Request
+    end
     Route->>Head: fetch(url, {method:"HEAD", redirect:"manual"})
     Head-->>Route: true | false | null (5s timeout)
     Route->>Local: applyHeadResult(local, resolves)
@@ -321,6 +325,8 @@ If `smtp.deliverable === true` short-circuits, `validTld` must still be checked 
 validateUrlLocal(rawUrl: string): UrlValidationResult
 applyHeadResult(result: UrlValidationResult, resolves: boolean | null): UrlValidationResult
 applySafeBrowsingResult(result: UrlValidationResult, isFlagged: boolean): UrlValidationResult
+/** @internal */ getRegisteredDomain(hostname: string): string   // eTLD+1 extractor (CCTLD_SECOND_LEVELS-aware)
+/** @internal */ checkBrandSquat(hostname: string): boolean       // brand squat detector; exported for testability
 ```
 
 **Check priority order (scoring & message precedence):**
@@ -347,7 +353,7 @@ resolves=true                  → score +5
 
 **Suspicious TLD list rationale:** Drawn from ICANN abuse statistics and threat intelligence data. These are _risk signals_, not hard fails — legitimate services exist on these TLDs. The cap at ≤80 prevents a `score=100` clean verdict but does not auto-flag as unsafe.
 
-**Safe Browsing API version note:** The code uses **v4 (JSON REST)**. v5 returns protobuf by default and does not support clean JSON output with the same key. Do not upgrade to v5 without refactoring the parser. A misleading comment in the route refers to "v5" — the actual endpoint is `safebrowsing.googleapis.com/v4/threatMatches:find`.
+**Safe Browsing API version note:** The code uses **v4 (JSON REST)**. v5 returns protobuf by default and does not support clean JSON output with the same key. Do not upgrade to v5 without refactoring the parser. The route is correctly commented with the v4 lookup API URL. Verify it links to `https://developers.google.com/safe-browsing/v4/lookup-api` before any Safe Browsing refactor.
 
 ---
 
@@ -516,7 +522,7 @@ All tests live in `__tests__/` and are pure unit tests — no network, no Redis,
 | File                        | Tests | Pattern                                                                                            |
 | --------------------------- | ----- | -------------------------------------------------------------------------------------------------- |
 | `email-validator.test.ts`   | 150   | One `describe` per validator concept; explicit bug-regression suites labelled `[Bug N regression]` |
-| `url-validator.test.ts`     | 53    | One `describe` per check; one per merge helper                                                     |
+| `url-validator.test.ts`     | 80    | One `describe` per check; one per merge helper; dedicated suites for `getRegisteredDomain`, `checkBrandSquat`, and IP edge cases |
 | `debunk-text-route.test.ts` | 35    | Mocked `callClaude` and Redis; covers rate limit, cache hit/miss, bad JSON, injection              |
 | `smtp-cache.test.ts`        | 15    | Mocked Redis; covers hash correctness, TTL, local-source no-op, error resilience                   |
 
@@ -568,12 +574,11 @@ feat/* branches → Vercel preview URLs (auto-generated)
 | Issue                                               | Severity | Notes                                                                                                                                |
 | --------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | No CI/CD pipeline                                   | Medium   | Manual build+test required before merge; easy to forget                                                                              |
-| `getRegisteredDomain` is not PSL-aware              | Low      | `paypal.co.uk` would not match correctly as the canonical PayPal domain; affects brand squatting precision for ccTLDs                |
-| `safe` threshold in URL route uses score ≥70        | Low      | Arbitrary; a URL scoring exactly 70 is borderline. Consider tightening to ≥75.                                                       |
+| `getRegisteredDomain` is not PSL-aware              | Low      | Uses a curated `CCTLD_SECOND_LEVELS` list (100+ entries: `co.uk`, `com.au`, `co.jp`, `co.in` …) instead of a full PSL. Covers the most common registries; exotic ccTLDs may still be misclassified. Replace with `tldts` for full coverage. |
 | Rate limiter key space is shared                    | Low      | All three tools consume from the same 20/min bucket per IP. Heavy URL checking can block email checking. Consider per-tool prefixes. |
 | No integration tests                                | Low      | All tests are unit; end-to-end API behaviour (including Redis, real DNS) is untested                                                 |
 | Text tool has no streaming                          | Low      | Claude response is buffered. Long messages create latency. SSE streaming would improve UX.                                           |
-| `safe` verdict does not hard-fail on `!validScheme` | Low      | An FTP URL can score >70 if all other checks pass; `safe` would be `true`. Should add `checks.validScheme` to the `safe` formula.    |
+| `safe` verdict does not hard-fail on `!validScheme` | Low      | An FTP URL can score ≥80 if all other checks pass; `safe` would be `true`. Should add `checks.validScheme` to the `safe` formula.    |
 
 ---
 
@@ -665,7 +670,6 @@ git branch -a
 
 ### Documentation Still Needed
 
-- **`ARCHITECTURE.md`** — exists but is stale relative to the new URL validator checks (`notExcessiveSubdomains`, `notSuspiciousTld`). The flow diagrams need updating.
 - **GitHub Actions CI** — a `.github/workflows/ci.yml` running `npm run build && npm test` on every PR would enforce the pre-merge checklist automatically.
 - **Runbook** — no incident response doc exists. Recommend a brief section covering: "ZeroBounce credits exhausted", "Anthropic spend cap hit", "Redis outage", "Safe Browsing quota reached".
 - **`ROADMAP.md`** — exists; verify it still reflects current Phase 2 priorities (image tool).

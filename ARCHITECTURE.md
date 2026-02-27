@@ -78,6 +78,9 @@ Browser  →  POST /api/validate-url { url }
   │
   ├─► Early exit if URL is unparseable
   │
+  ├─► isPrivateHost() — SSRF guard (RFC-1918, loopback, .local, .internal, private IPv6)
+  │     └── 400 Bad Request if host is private or reserved
+  │
   ├─► checkResolves() — HEAD request, 5 s timeout
   │     ├── true  → any HTTP response (server is alive)
   │     ├── false → NXDOMAIN / ENOTFOUND (domain doesn't exist)
@@ -195,7 +198,9 @@ src/
     ├── smtp-cache.ts                # Redis SMTP result cache: getCachedSmtpResult / setCachedSmtpResult; sha256 key, 7-day TTL, local-only results excluded
     ├── smtp-provider.ts             # Pluggable SMTP provider abstraction: SmtpProvider interface, EmailableProvider, ZeroBounceProvider, getSmtpProvider() factory
     ├── faq-data.ts                  # FAQ Q&A for email tool — consumed by FAQ.tsx + FAQPage JSON-LD
-    ├── url-validator.ts             # Core logic: validateUrlLocal, applyHeadResult, applySafeBrowsingResult
+    ├── url-validator.ts             # Core logic: validateUrlLocal, applyHeadResult, applySafeBrowsingResult;
+    │                                #   CCTLD_SECOND_LEVELS (~100+ compound ccTLDs: co.uk, com.au, co.jp, co.in …);
+    │                                #   getRegisteredDomain / checkBrandSquat exported @internal for testability
     ├── url-faq-data.ts              # FAQ Q&A for URL tool — consumed by UrlFAQ.tsx + FAQPage JSON-LD
     ├── text-debunker.ts             # Types + Zod schema for TextDebunkResult
     ├── text-faq-data.ts             # FAQ Q&A for text tool — consumed by TextFAQ.tsx + FAQPage JSON-LD
@@ -207,7 +212,9 @@ __tests__/
 ├── email-validator.test.ts          # Jest unit tests: validateEmailLocal, applyMxResult, mergeSmtpResult, mergeEmailableResult, role prefixes, plus-addressed role check, expanded typo map, RFC 5321 dot rules, typo score cap, exact scoring, case normalization, DISPOSABLE_DOMAINS (150 tests)
 ├── smtp-cache.test.ts               # Jest unit tests: getCachedSmtpResult, setCachedSmtpResult — Redis mocked (15 tests)
 └── url-validator.test.ts            # Jest unit tests: validateUrlLocal, applyHeadResult, applySafeBrowsingResult;
-    #   expanded shorteners, brands, path patterns, subdomain depth, suspicious TLD checks (53 tests)
+    #   getRegisteredDomain (13 tests), checkBrandSquat (10+ tests), IP edge cases;
+    #   expanded shorteners, brands, path patterns, subdomain depth, suspicious TLD,
+    #   ccTLD compound suffix coverage (80 tests)
 ```
 
 ## Environment Variables
@@ -264,10 +271,15 @@ POST /api/validate-url
   │
   ├─► Early exit if !parseable
   │
+  ├─► isPrivateHost(targetHostname) — SSRF guard
+  │     └── 400 Bad Request if host is RFC-1918, loopback, link-local,
+  │           shared-use (100.64/10), test-net (203.0.113/24), .local/.internal,
+  │           or private IPv6 (::1, fc00::/7, fe80::/10, ::ffff:, 2001:db8::)
+  │
   ├─► checkResolves() — HEAD request, 5 s timeout
   │     ├── true  → any HTTP response (200, 4xx, 5xx — server alive)
   │     ├── false → NXDOMAIN / ENOTFOUND (domain doesn't exist)
-  │     └── null  → timeout / SSL error (don't penalise)
+  │     └── null  → timeout / SSL error / private IP (don't penalise)
   │
   ├─► applyHeadResult() — merges resolves into score
   │     ├── resolves=true  → +5 bonus (capped at 100)
