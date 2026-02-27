@@ -2,6 +2,8 @@ import {
   validateUrlLocal,
   applyHeadResult,
   applySafeBrowsingResult,
+  getRegisteredDomain,
+  checkBrandSquat,
 } from "../src/lib/url-validator";
 
 // ── validateUrlLocal ───────────────────────────────────────────────────────
@@ -183,5 +185,336 @@ describe("applySafeBrowsingResult", () => {
     const r = base();
     const after = applySafeBrowsingResult(r, true);
     expect(after.message.toLowerCase()).toContain("safe browsing");
+  });
+});
+
+// ── Excessive subdomain depth ──────────────────────────────────────────────
+
+describe("excessive subdomain depth check", () => {
+  test("5 labels (3 subdomains) is flagged as excessive", () => {
+    const r = validateUrlLocal("https://login.secure.verify.bank.evil.com");
+    expect(r.checks.notExcessiveSubdomains).toBe(false);
+    expect(r.flags.some((f) => f.toLowerCase().includes("subdomain"))).toBe(
+      true,
+    );
+    expect(r.score).toBeLessThanOrEqual(60);
+  });
+
+  test("4 labels (2 subdomains) is acceptable", () => {
+    const r = validateUrlLocal("https://api.shop.example.com");
+    expect(r.checks.notExcessiveSubdomains).toBe(true);
+    expect(r.flags.every((f) => !f.toLowerCase().includes("subdomain"))).toBe(
+      true,
+    );
+  });
+
+  test("3 labels (1 subdomain, e.g. www.example.com) is acceptable", () => {
+    const r = validateUrlLocal("https://www.example.com");
+    expect(r.checks.notExcessiveSubdomains).toBe(true);
+  });
+
+  test("2 labels (no subdomain, e.g. example.com) is acceptable", () => {
+    const r = validateUrlLocal("https://example.com");
+    expect(r.checks.notExcessiveSubdomains).toBe(true);
+  });
+
+  test("classically structured phishing URL is flagged", () => {
+    // paypal.com appears as subdomain; excessive depth hides the real domain
+    const r = validateUrlLocal(
+      "https://paypal.com.secure.verify.attacker.com/login",
+    );
+    expect(r.checks.notExcessiveSubdomains).toBe(false);
+    expect(r.safe).toBe(false);
+  });
+
+  test("excessive subdomain message is specific", () => {
+    const r = validateUrlLocal("https://a.b.c.d.example.com");
+    expect(r.message.toLowerCase()).toMatch(/subdomain/);
+  });
+});
+
+// ── Suspicious / high-abuse TLD ───────────────────────────────────────────
+
+describe("notSuspiciousTld check", () => {
+  test(".tk TLD is flagged as high-risk", () => {
+    const r = validateUrlLocal("https://free-bank.tk");
+    expect(r.checks.notSuspiciousTld).toBe(false);
+    expect(r.flags.some((f) => f.toLowerCase().includes("high-risk tld"))).toBe(
+      true,
+    );
+    expect(r.score).toBeLessThanOrEqual(80);
+  });
+
+  test(".ml TLD is flagged as high-risk", () => {
+    const r = validateUrlLocal("https://prize-winner.ml");
+    expect(r.checks.notSuspiciousTld).toBe(false);
+  });
+
+  test(".xyz TLD is flagged as high-risk", () => {
+    const r = validateUrlLocal("https://crypto-airdrop.xyz");
+    expect(r.checks.notSuspiciousTld).toBe(false);
+    expect(r.score).toBeLessThanOrEqual(80);
+  });
+
+  test(".top TLD is flagged as high-risk", () => {
+    const r = validateUrlLocal("https://download-free.top");
+    expect(r.checks.notSuspiciousTld).toBe(false);
+  });
+
+  test(".com TLD is not flagged", () => {
+    const r = validateUrlLocal("https://example.com");
+    expect(r.checks.notSuspiciousTld).toBe(true);
+  });
+
+  test(".org TLD is not flagged", () => {
+    const r = validateUrlLocal("https://nonprofit.org");
+    expect(r.checks.notSuspiciousTld).toBe(true);
+  });
+
+  test(".net TLD is not flagged", () => {
+    const r = validateUrlLocal("https://backbone.net");
+    expect(r.checks.notSuspiciousTld).toBe(true);
+  });
+
+  test("suspicious TLD message is specific", () => {
+    const r = validateUrlLocal("https://phish.tk");
+    expect(r.message.toLowerCase()).toMatch(/tld|phishing|malware/);
+  });
+});
+
+// ── Expanded URL shorteners ────────────────────────────────────────────────
+
+describe("expanded URL shortener detection", () => {
+  test("t.ly is detected as a shortener", () => {
+    const r = validateUrlLocal("https://t.ly/abc123");
+    expect(r.checks.notShortener).toBe(false);
+  });
+
+  test("v.gd is detected as a shortener", () => {
+    const r = validateUrlLocal("https://v.gd/xyz");
+    expect(r.checks.notShortener).toBe(false);
+  });
+
+  test("rebrand.ly is detected as a shortener", () => {
+    const r = validateUrlLocal("https://rebrand.ly/mylink");
+    expect(r.checks.notShortener).toBe(false);
+  });
+
+  test("snip.ly is detected as a shortener", () => {
+    const r = validateUrlLocal("https://snip.ly/ref");
+    expect(r.checks.notShortener).toBe(false);
+  });
+});
+
+// ── Expanded brand squatting ───────────────────────────────────────────────
+
+describe("expanded brand squatting detection", () => {
+  test("walmart-deals.com is flagged as brand squat", () => {
+    const r = validateUrlLocal("https://walmart-deals.com/checkout");
+    expect(r.checks.noBrandSquat).toBe(false);
+  });
+
+  test("stripe-payment.co is flagged as brand squat", () => {
+    const r = validateUrlLocal("https://stripe-payment.co/invoice");
+    expect(r.checks.noBrandSquat).toBe(false);
+  });
+
+  test("discord-gift.com is flagged as brand squat", () => {
+    const r = validateUrlLocal("https://discord-gift.com/nitro");
+    expect(r.checks.noBrandSquat).toBe(false);
+  });
+
+  test("fedex-tracking.com is flagged as brand squat", () => {
+    const r = validateUrlLocal("https://fedex-tracking.com/package");
+    expect(r.checks.noBrandSquat).toBe(false);
+  });
+
+  test("irs-refund.com is flagged as brand squat", () => {
+    const r = validateUrlLocal("https://irs-refund.com/claim");
+    expect(r.checks.noBrandSquat).toBe(false);
+  });
+
+  test("zoom-meeting.com is flagged as brand squat", () => {
+    const r = validateUrlLocal("https://zoom-meeting.com/join");
+    expect(r.checks.noBrandSquat).toBe(false);
+  });
+
+  test("zoom.us is NOT flagged (legitimate canonical)", () => {
+    const r = validateUrlLocal("https://zoom.us/join/123");
+    expect(r.checks.noBrandSquat).toBe(true);
+  });
+
+  test("github.com is NOT flagged", () => {
+    const r = validateUrlLocal("https://github.com/user/repo");
+    expect(r.checks.noBrandSquat).toBe(true);
+  });
+});
+
+// ── Expanded phishing path patterns ──────────────────────────────────────
+
+describe("expanded phishing path detection", () => {
+  test("/recover-account path is flagged", () => {
+    const r = validateUrlLocal("https://example.com/recover-account/step1");
+    expect(r.checks.noSuspiciousKeywords).toBe(false);
+  });
+
+  test("/secure-login path is flagged", () => {
+    const r = validateUrlLocal("https://example.com/secure-login");
+    expect(r.checks.noSuspiciousKeywords).toBe(false);
+  });
+
+  test("/login-confirm path is flagged", () => {
+    const r = validateUrlLocal("https://example.com/login-confirm");
+    expect(r.checks.noSuspiciousKeywords).toBe(false);
+  });
+
+  test("/unlock-account path is flagged", () => {
+    const r = validateUrlLocal("https://example.com/unlock-account/user");
+    expect(r.checks.noSuspiciousKeywords).toBe(false);
+  });
+
+  test("/limited-access path is flagged", () => {
+    const r = validateUrlLocal("https://bank.phish.com/limited-access");
+    expect(r.checks.noSuspiciousKeywords).toBe(false);
+  });
+
+  test("/unusual-signin path is flagged", () => {
+    const r = validateUrlLocal("https://example.com/unusual-signin/verify");
+    expect(r.checks.noSuspiciousKeywords).toBe(false);
+  });
+});
+
+// ── getRegisteredDomain ───────────────────────────────────────────────────
+
+describe("getRegisteredDomain", () => {
+  test("simple .com domain returns last two parts", () => {
+    expect(getRegisteredDomain("www.example.com")).toBe("example.com");
+  });
+
+  test("bare two-part domain is returned as-is", () => {
+    expect(getRegisteredDomain("example.com")).toBe("example.com");
+  });
+
+  test("co.uk compound suffix returns three parts", () => {
+    expect(getRegisteredDomain("www.paypal.co.uk")).toBe("paypal.co.uk");
+  });
+
+  test("com.au compound suffix returns three parts", () => {
+    expect(getRegisteredDomain("shop.amazon.com.au")).toBe("amazon.com.au");
+  });
+
+  test("com.br compound suffix returns three parts", () => {
+    expect(getRegisteredDomain("www.mercadolibre.com.br")).toBe(
+      "mercadolibre.com.br",
+    );
+  });
+
+  test("deeply nested subdomain with .co.uk still extracts correctly", () => {
+    expect(getRegisteredDomain("a.b.c.example.co.uk")).toBe("example.co.uk");
+  });
+
+  test("hostname with no dots is returned as-is", () => {
+    expect(getRegisteredDomain("localhost")).toBe("localhost");
+  });
+
+  // Newly added ccTLD entries (issue E)
+  test("co.il compound suffix returns three parts", () => {
+    expect(getRegisteredDomain("www.example.co.il")).toBe("example.co.il");
+  });
+
+  test("com.co compound suffix returns three parts", () => {
+    expect(getRegisteredDomain("www.example.com.co")).toBe("example.com.co");
+  });
+
+  test("co.ke compound suffix returns three parts", () => {
+    expect(getRegisteredDomain("www.example.co.ke")).toBe("example.co.ke");
+  });
+
+  test("com.eg compound suffix returns three parts", () => {
+    expect(getRegisteredDomain("www.example.com.eg")).toBe("example.com.eg");
+  });
+
+  test("net.cn compound suffix returns three parts", () => {
+    expect(getRegisteredDomain("www.example.net.cn")).toBe("example.net.cn");
+  });
+
+  test("ac.uk compound suffix returns three parts", () => {
+    expect(getRegisteredDomain("www.ox.ac.uk")).toBe("ox.ac.uk");
+  });
+});
+
+// ── checkBrandSquat ───────────────────────────────────────────────────────
+
+describe("checkBrandSquat", () => {
+  test("legitimate paypal.com returns true (not a squat)", () => {
+    expect(checkBrandSquat("paypal.com")).toBe(true);
+  });
+
+  test("paypal-secure.com is flagged as brand squat", () => {
+    expect(checkBrandSquat("paypal-secure.com")).toBe(false);
+  });
+
+  test("www.paypal.co.uk is NOT flagged (ccTLD legitimate)", () => {
+    expect(checkBrandSquat("www.paypal.co.uk")).toBe(true);
+  });
+
+  test("www.amazon.com.au is NOT flagged (ccTLD legitimate)", () => {
+    expect(checkBrandSquat("www.amazon.com.au")).toBe(true);
+  });
+
+  test("paypal.evil.com is flagged (brand in subdomain, wrong registered domain)", () => {
+    expect(checkBrandSquat("paypal.evil.com")).toBe(false);
+  });
+
+  test("microsoft-login.net is flagged as brand squat", () => {
+    expect(checkBrandSquat("microsoft-login.net")).toBe(false);
+  });
+
+  test("unrelated domain is not flagged", () => {
+    expect(checkBrandSquat("totallynormal.com")).toBe(true);
+  });
+
+  // Issue F — ccTLD bypass now gated on CCTLD_SECOND_LEVELS membership
+  test("paypal.co.il is not flagged (recognised ccTLD compound suffix)", () => {
+    expect(checkBrandSquat("paypal.co.il")).toBe(true);
+  });
+
+  test("amazon.com.eg is not flagged (recognised ccTLD compound suffix)", () => {
+    expect(checkBrandSquat("amazon.com.eg")).toBe(true);
+  });
+
+  test("paypal on an unrecognised compound suffix IS flagged", () => {
+    // edu.tk is not in CCTLD_SECOND_LEVELS so it is NOT a ccTLD bypass —
+    // getRegisteredDomain returns the last two parts ("edu.tk"), the brand
+    // pattern matches in the subdomain, and registered !== canonical.
+    const r = validateUrlLocal("https://paypal.edu.tk");
+    expect(r.checks.noBrandSquat).toBe(false);
+  });
+});
+
+// ── IP address detection (hex / integer forms) ───────────────────────────
+
+describe("IP address detection edge cases", () => {
+  test("dotted-decimal IPv4 is flagged", () => {
+    const r = validateUrlLocal("http://192.168.1.1/admin");
+    expect(r.checks.notIpAddress).toBe(false);
+  });
+
+  test("pure integer IPv4 (2130706433 = 127.0.0.1) is flagged", () => {
+    // WHATWG URL parser normalises 2130706433 to 127.0.0.1 (dotted-decimal),
+    // which the dotted regex then catches.
+    const r = validateUrlLocal("http://2130706433/");
+    expect(r.checks.notIpAddress).toBe(false);
+  });
+
+  test("hex integer IPv4 (0x7f000001 = 127.0.0.1) is flagged", () => {
+    // WHATWG normalises 0x7f000001 to 127.0.0.1 (dotted-decimal).
+    const r = validateUrlLocal("http://0x7f000001/");
+    expect(r.checks.notIpAddress).toBe(false);
+  });
+
+  test("IPv6 loopback is flagged", () => {
+    const r = validateUrlLocal("http://[::1]/admin");
+    expect(r.checks.notIpAddress).toBe(false);
   });
 });

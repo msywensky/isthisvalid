@@ -27,30 +27,83 @@ const URL_SHORTENERS = new Set([
   "ift.tt",
   "dlvr.it",
   "smarturl.it",
+  // Additional shorteners
+  "t.ly",
+  "v.gd",
+  "clck.ru",
+  "qr.ae",
+  "chilp.it",
+  "bc.vc",
+  "x.co",
+  "snip.ly",
+  "po.st",
+  "bl.ink",
+  "short.io",
+  "rebrand.ly",
+  "switchy.io",
+  "soo.gd",
+  "mcaf.ee",
 ]);
 
 // ── Brand → canonical domain (for squatting detection) ────────────────────
 const KNOWN_BRANDS: Record<string, string> = {
+  // Finance / payment
   paypal: "paypal.com",
   amazon: "amazon.com",
-  apple: "apple.com",
-  microsoft: "microsoft.com",
-  google: "google.com",
-  netflix: "netflix.com",
-  facebook: "facebook.com",
-  instagram: "instagram.com",
-  twitter: "twitter.com",
   ebay: "ebay.com",
   chase: "chase.com",
   wellsfargo: "wellsfargo.com",
   bankofamerica: "bankofamerica.com",
   coinbase: "coinbase.com",
   binance: "binance.com",
-  steam: "steampowered.com",
-  dropbox: "dropbox.com",
+  citibank: "citibank.com",
+  amex: "americanexpress.com",
+  americanexpress: "americanexpress.com",
+  venmo: "venmo.com",
+  robinhood: "robinhood.com",
+  schwab: "schwab.com",
+  fidelity: "fidelity.com",
+  hsbc: "hsbc.com",
+  stripe: "stripe.com",
+  // Tech
+  apple: "apple.com",
+  microsoft: "microsoft.com",
+  google: "google.com",
+  facebook: "facebook.com",
+  instagram: "instagram.com",
+  twitter: "twitter.com",
   linkedin: "linkedin.com",
   yahoo: "yahoo.com",
   whatsapp: "whatsapp.com",
+  netflix: "netflix.com",
+  dropbox: "dropbox.com",
+  adobe: "adobe.com",
+  steam: "steampowered.com",
+  github: "github.com",
+  discord: "discord.com",
+  tiktok: "tiktok.com",
+  reddit: "reddit.com",
+  spotify: "spotify.com",
+  zoom: "zoom.us",
+  twitch: "twitch.tv",
+  shopify: "shopify.com",
+  // Retail / logistics
+  walmart: "walmart.com",
+  target: "target.com",
+  etsy: "etsy.com",
+  airbnb: "airbnb.com",
+  uber: "uber.com",
+  lyft: "lyft.com",
+  doordash: "doordash.com",
+  fedex: "fedex.com",
+  ups: "ups.com",
+  dhl: "dhl.com",
+  usps: "usps.com",
+  // Security
+  norton: "norton.com",
+  mcafee: "mcafee.com",
+  // Government
+  irs: "irs.gov",
 };
 
 // ── Phishing path/query patterns (specific combos, not single words) ───────
@@ -62,31 +115,206 @@ const SUSPICIOUS_PATH_PATTERNS = [
   /account[-_]?(?:has[-_]?been[-_]?)?suspend/i,
   /security[-_]?alert[-_]?(?:click|verify|confirm)/i,
   /(?:click|tap)[-_]?here[-_]?(?:to[-_]?)?(?:verify|confirm|unlock)/i,
+  // Additional phishing templates
+  /recover[-_]?(?:your[-_]?)?account/i,
+  /secure[-_]?login/i,
+  /login[-_]?confirm/i,
+  /unlock[-_]?(?:your[-_]?)?account/i,
+  /limited[-_]?access/i,
+  /unusual[-_]?(?:sign[-_]?in|activity)/i,
 ];
+
+// ── High-abuse TLDs ────────────────────────────────────────────────────────
+// TLDs disproportionately associated with phishing and malware per ICANN and
+// threat intelligence reports. Flagged as a risk signal, not a hard fail.
+const SUSPICIOUS_TLDS = new Set([
+  // Historical Freenom TLDs — legacy abuse remains widespread
+  "tk",
+  "ml",
+  "ga",
+  "cf",
+  "gq",
+  // High-abuse generic TLDs
+  "xyz",
+  "top",
+  "icu",
+  "click",
+  "surf",
+  "cyou",
+  "cfd",
+  "sbs",
+  "dad",
+]);
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
+// Second-level labels used in ccTLD compound suffixes (e.g. co.uk, com.au).
+// When the final two labels of a hostname match one of these, the registered
+// domain is the last THREE labels — otherwise we'd split paypal.co.uk into
+// "co.uk" and falsely flag it as brand squatting on the legitimate PayPal site.
+const CCTLD_SECOND_LEVELS = new Set([
+  // United Kingdom & Commonwealth
+  "co.uk",
+  "org.uk",
+  "me.uk",
+  "net.uk",
+  "gov.uk",
+  "ac.uk",
+  "ltd.uk",
+  "plc.uk",
+  // Australia
+  "com.au",
+  "net.au",
+  "org.au",
+  "edu.au",
+  "gov.au",
+  "asn.au",
+  "id.au",
+  // Japan
+  "co.jp",
+  "or.jp",
+  "ne.jp",
+  "ac.jp",
+  "go.jp",
+  "gr.jp",
+  // New Zealand
+  "co.nz",
+  "net.nz",
+  "org.nz",
+  "govt.nz",
+  "ac.nz",
+  // South Africa
+  "co.za",
+  "org.za",
+  "net.za",
+  "gov.za",
+  "ac.za",
+  // India
+  "co.in",
+  "net.in",
+  "org.in",
+  "gov.in",
+  "ac.in",
+  // South Korea
+  "co.kr",
+  "or.kr",
+  "ne.kr",
+  "ac.kr",
+  "go.kr",
+  // Brazil
+  "com.br",
+  "net.br",
+  "org.br",
+  "gov.br",
+  "edu.br",
+  // Argentina
+  "com.ar",
+  "net.ar",
+  "org.ar",
+  "gov.ar",
+  // Mexico
+  "com.mx",
+  "org.mx",
+  "net.mx",
+  "gob.mx",
+  // Colombia
+  "com.co",
+  "net.co",
+  "org.co",
+  // Peru
+  "com.pe",
+  "net.pe",
+  "org.pe",
+  // Venezuela
+  "com.ve",
+  "net.ve",
+  "org.ve",
+  // Israel
+  "co.il",
+  "net.il",
+  "org.il",
+  "ac.il",
+  // Kenya
+  "co.ke",
+  "or.ke",
+  "ac.ke",
+  // Ghana
+  "com.gh",
+  "org.gh",
+  // Nigeria
+  "com.ng",
+  "org.ng",
+  "net.ng",
+  // Tanzania
+  "co.tz",
+  "or.tz",
+  "ac.tz",
+  // Egypt
+  "com.eg",
+  "org.eg",
+  "net.eg",
+  // Other widely-used compound TLDs
+  "com.tr",
+  "com.sg",
+  "com.hk",
+  "com.tw",
+  "com.ph",
+  "com.my",
+  "com.pk",
+  "com.cn",
+  "net.cn",
+  "org.cn",
+  "co.id",
+  "com.vn",
+  "net.vn",
+  "com.ua",
+  "net.ua",
+  "org.ua",
+  "com.bd",
+  "net.bd",
+]);
+
 /**
  * Extracts the eTLD+1 (registered domain) from a hostname.
- * Simplified: takes the last two dot-separated parts.
- * Good enough for the brand squatting check.
+ * Handles two-part ccTLD suffixes (co.uk, com.au, etc.) so that
+ * www.paypal.co.uk correctly returns "paypal.co.uk" instead of "co.uk".
  */
-function getRegisteredDomain(hostname: string): string {
+/** @internal Exported for unit testing only. */
+export function getRegisteredDomain(hostname: string): string {
   const parts = hostname.split(".");
+  if (parts.length >= 3) {
+    const twoPartTld = parts.slice(-2).join(".");
+    if (CCTLD_SECOND_LEVELS.has(twoPartTld)) {
+      return parts.slice(-3).join(".");
+    }
+  }
   return parts.length >= 2 ? parts.slice(-2).join(".") : hostname;
 }
 
 /** Returns false if a brand name appears in the hostname on the wrong domain. */
-function checkBrandSquat(hostname: string): boolean {
+/** @internal Exported for unit testing only. */
+export function checkBrandSquat(hostname: string): boolean {
   const lower = hostname.toLowerCase();
   const registered = getRegisteredDomain(lower);
 
   for (const [brand, canonical] of Object.entries(KNOWN_BRANDS)) {
     // Match brand as a word boundary (separated by dot, hyphen, or string edge)
     const pattern = new RegExp(`(^|[.-])${brand}([.-]|$)`, "i");
-    if (pattern.test(lower) && registered !== canonical) {
-      return false; // brand name present but wrong registered domain
-    }
+    if (!pattern.test(lower)) continue;
+
+    // Exact canonical domain — legitimate (paypal.com → paypal.com)
+    if (registered === canonical) continue;
+
+    // Brand is the first label of the registered domain — verify the suffix
+    // is a compound ccTLD we explicitly recognise (e.g. co.uk, com.au).
+    // This prevents any arbitrary multi-part domain from silently bypassing
+    // the check: a brand squatter using an obscure compound suffix like
+    // paypal.edu.tk would still be caught.
+    const ccTldSuffix = registered.slice(brand.length + 1); // e.g. "co.uk"
+    if (registered.startsWith(`${brand}.`) && CCTLD_SECOND_LEVELS.has(ccTldSuffix)) continue;
+
+    // Brand appears in the hostname under a different registered domain → squat
+    return false;
   }
   return true;
 }
@@ -112,6 +340,10 @@ export interface UrlValidationChecks {
   validTld: boolean;
   /** Domain does not impersonate a known brand */
   noBrandSquat: boolean;
+  /** Hostname does not have an unusually deep subdomain structure (< 5 labels) */
+  notExcessiveSubdomains: boolean;
+  /** TLD is not from a set with disproportionately high abuse rates */
+  notSuspiciousTld: boolean;
   /** Google Safe Browsing: true = clean, false = flagged, null = not checked */
   safeBrowsing: boolean | null;
   /** HEAD request: true = resolves, false = NXDOMAIN, null = timeout/skipped */
@@ -168,6 +400,8 @@ export function validateUrlLocal(rawUrl: string): UrlValidationResult {
         notPunycode: false,
         validTld: false,
         noBrandSquat: false,
+        notExcessiveSubdomains: true,
+        notSuspiciousTld: true,
         safeBrowsing: null,
         resolves: null,
       },
@@ -178,7 +412,6 @@ export function validateUrlLocal(rawUrl: string): UrlValidationResult {
   }
 
   const hostname = parsed.hostname.toLowerCase();
-  const fullUrl = parsed.href;
 
   // --- individual checks ---
 
@@ -186,9 +419,16 @@ export function validateUrlLocal(rawUrl: string): UrlValidationResult {
     parsed.protocol === "https:" || parsed.protocol === "http:";
   if (!validScheme) flags.push(`Unusual scheme: ${parsed.protocol}`);
 
-  // Raw IPv4 (1.2.3.4) or IPv6 ([::1]) in host
+  // Raw IPv4 (1.2.3.4) or IPv6 ([::1]) in host.
+  // The WHATWG URL parser normalises hex (0x7f000001), octal (0177.0.0.1),
+  // and integer (2130706433) IPv4 forms to dotted-decimal, so the dotted
+  // regex covers those after parsing. The additional patterns guard against
+  // environments or future parsers that may skip normalisation.
   const isIp =
-    /^(\d{1,3}\.){3}\d{1,3}$/.test(hostname) || hostname.startsWith("[");
+    /^(\d{1,3}\.){3}\d{1,3}$/.test(hostname) || // dotted-decimal (and normalised forms)
+    hostname.startsWith("[") || // IPv6 / IPv4-mapped IPv6
+    /^\d+$/.test(hostname) || // pure integer, e.g. 2130706433
+    /^0x[0-9a-f]+$/i.test(hostname); // hex integer, e.g. 0x7f000001
   if (isIp) flags.push("Raw IP address — legitimate sites use domain names");
 
   const hasUserInfo = parsed.username.length > 0 || parsed.password.length > 0;
@@ -197,17 +437,31 @@ export function validateUrlLocal(rawUrl: string): UrlValidationResult {
       "Credentials in URL — classic trick to spoof the real destination",
     );
 
-  const isShortener = URL_SHORTENERS.has(hostname);
+  // Strip leading www. before checking the shortener set — www.bit.ly is the
+  // same service as bit.ly but would otherwise be missed.
+  const hostnameNoWww = hostname.startsWith("www.")
+    ? hostname.slice(4)
+    : hostname;
+  const isShortener = URL_SHORTENERS.has(hostnameNoWww);
   if (isShortener)
-    flags.push(`URL shortener (${hostname}) hides the real destination`);
+    flags.push(`URL shortener (${hostnameNoWww}) hides the real destination`);
 
+  // Test only the path and query string — running patterns over the full href
+  // would match hostnames like "secure-login-checker.legit.com" on patterns
+  // like /secure[-_]?login/i, producing false positives.
+  const pathAndQuery = parsed.pathname + parsed.search;
   const hasSuspiciousKeywords = SUSPICIOUS_PATH_PATTERNS.some((p) =>
-    p.test(fullUrl),
+    p.test(pathAndQuery),
   );
   if (hasSuspiciousKeywords)
     flags.push("Phishing-specific keyword pattern in URL path");
 
-  const hasPunycode = hostname.includes("xn--");
+  // Check each label individually — a label must start with "xn--" to be
+  // Punycode. A bare includes("xn--") check would false-positive on hostnames
+  // like "bigxn--data.com" where the string appears mid-label.
+  const hasPunycode = hostname
+    .split(".")
+    .some((label) => label.startsWith("xn--"));
   if (hasPunycode)
     flags.push(
       "Punycode domain — may use lookalike characters to impersonate a real site",
@@ -221,6 +475,24 @@ export function validateUrlLocal(rawUrl: string): UrlValidationResult {
   if (!noBrandSquat)
     flags.push("Domain appears to impersonate a well-known brand");
 
+  // Excessive subdomain depth — phishing sites commonly use many subdomain
+  // levels to bury the real registered domain (e.g. paypal.com.verify.evil.com).
+  // Threshold: 5+ labels (3+ subdomains beyond the eTLD+1).
+  const hostLabels = hostname.split(".");
+  const hasExcessiveSubdomains = hostLabels.length >= 5;
+  if (hasExcessiveSubdomains)
+    flags.push(
+      "Unusually deep subdomain structure — a common phishing technique",
+    );
+
+  // High-abuse TLD — not a hard fail but a meaningful risk signal.
+  const tldLower = tldPart.toLowerCase();
+  const hasSuspiciousTld = SUSPICIOUS_TLDS.has(tldLower);
+  if (hasSuspiciousTld)
+    flags.push(
+      `High-risk TLD (.${tldLower}) — disproportionately associated with phishing and malware`,
+    );
+
   const checks: UrlValidationChecks = {
     parseable: true,
     validScheme,
@@ -231,12 +503,18 @@ export function validateUrlLocal(rawUrl: string): UrlValidationResult {
     notPunycode: !hasPunycode,
     validTld,
     noBrandSquat,
+    notExcessiveSubdomains: !hasExcessiveSubdomains,
+    notSuspiciousTld: !hasSuspiciousTld,
     safeBrowsing: null,
     resolves: null,
   };
 
   const score = computeScore(checks);
-  const safe = score >= 70;
+  // Use ≥80 to align with the UI threshold in UrlResultCard (getSentiment).
+  // Additionally, a suspicious TLD scoring exactly 80 (due to the computeScore
+  // cap) should not be considered Safe — block it explicitly.
+  const safe =
+    score >= 80 && checks.notExcessiveSubdomains && checks.notSuspiciousTld;
 
   return {
     url: parsed.href,
@@ -263,9 +541,14 @@ function computeScore(checks: UrlValidationChecks): number {
   if (checks.notPunycode) score += 10;
   if (checks.validTld) score += 10;
   if (checks.noBrandSquat) score += 15;
-  // resolve bonus / penalty
+  // Resolve bonus/penalty applied first, then structural caps.
+  // Order matters: the subdomain/TLD caps must come AFTER the resolve bonus so
+  // a +5 resolve bonus cannot push a capped score above the cap ceiling.
   if (checks.resolves === true) score = Math.min(score + 5, 100);
   if (checks.resolves === false) score = Math.min(score, 70);
+  // Structural / TLD risk caps — applied after resolve bonus so they can't be bypassed
+  if (checks.notExcessiveSubdomains === false) score = Math.min(score, 60);
+  if (checks.notSuspiciousTld === false) score = Math.min(score, 80);
   // Safe Browsing hard-overrides
   if (checks.safeBrowsing === false) score = Math.min(score, 5);
 
@@ -281,12 +564,16 @@ function buildMessage(safe: boolean, checks: UrlValidationChecks): string {
     return "⚠️ This URL appears to impersonate a trusted brand — classic phishing.";
   if (!checks.notIpAddress)
     return "Suspicious — real websites use domain names, not raw IP addresses.";
+  if (!checks.notExcessiveSubdomains)
+    return "Suspiciously deep subdomain chain — legitimate sites rarely use this many levels.";
   if (!checks.noUserInfo)
     return "The @ in this URL is a known trick to disguise the real destination.";
   if (!checks.notShortener)
     return "URL shortener detected — we can't see where this really leads without following it.";
   if (!checks.notPunycode)
     return "This domain uses Punycode — it may be impersonating another site using lookalike characters.";
+  if (!checks.notSuspiciousTld)
+    return "This TLD is heavily associated with phishing and malware — proceed with extreme caution.";
   if (!checks.noSuspiciousKeywords)
     return "The URL path contains patterns commonly found in phishing pages.";
   if (!checks.validTld)
@@ -312,7 +599,11 @@ export function applyHeadResult(
 ): UrlValidationResult {
   const checks: UrlValidationChecks = { ...result.checks, resolves };
   const score = computeScore(checks);
-  const safe = score >= 70 && checks.safeBrowsing !== false;
+  const safe =
+    score >= 80 &&
+    checks.safeBrowsing !== false &&
+    checks.notExcessiveSubdomains &&
+    checks.notSuspiciousTld;
   return {
     ...result,
     safe,
@@ -335,7 +626,11 @@ export function applySafeBrowsingResult(
     safeBrowsing: !isFlagged,
   };
   const score = computeScore(checks);
-  const safe = score >= 70 && !isFlagged;
+  const safe =
+    score >= 80 &&
+    !isFlagged &&
+    checks.notExcessiveSubdomains &&
+    checks.notSuspiciousTld;
   const flags = isFlagged
     ? ["Google Safe Browsing: FLAGGED as malicious", ...result.flags]
     : result.flags;
