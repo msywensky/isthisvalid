@@ -8,7 +8,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 
 // Model and token cap are overridable via env vars so you can switch to a
-// cheaper/faster model (e.g. Haiku) or reduce tokens in dev without a code change.
+// cheaper/faster model (e.g. Haiku 4.5) or reduce tokens in dev without a code change.
 //   ANTHROPIC_MODEL      — defaults to claude-sonnet-4-20250514
 //   ANTHROPIC_MAX_TOKENS — defaults to 1024
 const MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-20250514";
