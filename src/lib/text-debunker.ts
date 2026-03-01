@@ -39,4 +39,6 @@ export interface TextDebunkResult {
   explanation: string;
   /** Data source identifier */
   source: "claude";
+  /** Human-readable label for the model that produced this result */
+  modelLabel?: string;
 }

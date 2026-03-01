@@ -1,6 +1,6 @@
 # IsThisValid.com — Architecture Guide
 
-**Last updated: February 27, 2026**
+**Last updated: March 1, 2026**
 
 ## High-Level Flow
 
@@ -117,42 +117,53 @@ Browser  →  POST /api/debunk/text { message }
   ├─► Rate limit check (Upstash, 20 req/min per IP)
   │     └── 429 if exceeded
   │
-  ├─► Daily spend cap check (Upstash, 20 req/day per IP)
-  │     └── 429 if exceeded
-  │
   ├─► LLM availability check (ANTHROPIC_API_KEY configured?)
   │     └── 503 if not configured
   │
   ├─► Zod validation (10–5 000 chars)
   │
   ├─► Redis cache lookup (SHA-256 of normalised message, 24 h TTL)
-  │     ├── HIT  → return cached result (X-Cache: HIT), skip Claude
+  │     ├── HIT  → return cached result (X-Cache: HIT) ← daily limit NOT consumed
   │     └── MISS → continue
   │
-  ├─► callClaude() — Anthropic claude-sonnet-4-20250514, non-streaming
+  ├─► Daily spend cap check (Upstash, 20 req/day per IP) ← only reached on cache miss
+  │     └── 429 if exceeded
+  │
+  ├─► Sanitise input — strip [MSG]/[/MSG] tags from user content
+  │     └── Prevents delimiter injection attacks on the trust boundary
+  │
+  ├─► callClaude() — model from ANTHROPIC_MODEL env var (default: claude-sonnet-4-20250514)
   │     ├── System prompt: scam detection expert + prompt injection rules
-  │     └── User payload: [MSG]{message}[/MSG]  ← trust boundary delimiter
+  │     ├── User payload: [MSG]{sanitised message}[/MSG]  ← trust boundary delimiter
+  │     ├── maxTokens from ANTHROPIC_MAX_TOKENS env var (default: 1024)
+  │     └── AbortSignal.timeout(30 000 ms) — prevents hanging on slow/overloaded API
   │
   ├─► API error → 502
   ├─► null response → 503
   │
   ├─► Strip markdown code fences from response
   │
-  ├─► Parse + Zod-validate Claude's JSON response
+  ├─► Parse + Zod-validate Claude’s JSON response
   │     └── Parse failure → 502
   │
-  ├─► Derive safe = riskScore < 50
+  ├─► coerceRiskScore() — enforce cross-field consistency
+  │     ├── scam / smishing → riskScore = Math.max(riskScore, 60)
+  │     ├── legit          → riskScore = Math.min(riskScore, 40)
+  │     └── spam / suspicious → unchanged
+  │
+  ├─► Derive safe — riskScore < SAFE_RISK_THRESHOLD (50) AND classification not in DANGEROUS_CLASSIFICATIONS
   │
   ├─► Write result to Redis cache (fire-and-forget)
   │
   └─► JSON response → TextDebunkResult (X-Cache: MISS)
         ├── classification: scam | smishing | spam | suspicious | legit
         ├── confidence: 0–100
-        ├── riskScore: 0–100
+        ├── riskScore: 0–100 (coerced for consistency with classification)
         ├── safe: boolean
         ├── summary: one-sentence verdict
         ├── flags: string[]
-        └── explanation: 2–3 sentence breakdown
+        ├── explanation: 2–3 sentence breakdown
+        └── modelLabel: human-readable model name (e.g. "Claude Sonnet 4", "Claude Haiku 4.5")
 ```
 
 ## File Structure
@@ -228,7 +239,9 @@ __tests__/
 
 | Variable                               | Required | Description                                                                                                             |
 | -------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `ANTHROPIC_API_KEY`                    | Yes      | Anthropic API key — powers the Text / SMS scam detector (Claude claude-sonnet-4-20250514)                               |
+| `ANTHROPIC_API_KEY`                    | Yes      | Anthropic API key — powers the Text / SMS scam detector                                                                 |
+| `ANTHROPIC_MODEL`                      | No       | Claude model to use (default: `claude-sonnet-4-20250514`; use `claude-haiku-4-5-20251001` for cheaper dev testing)      |
+| `ANTHROPIC_MAX_TOKENS`                 | No       | Max output tokens for Claude (default: `1024`; set lower e.g. `300` to reduce cost during testing)                      |
 | `UPSTASH_REDIS_REST_URL`               | Yes      | Upstash Redis URL — rate limiting (20 req/min) + result cache (24 h TTL)                                                |
 | `UPSTASH_REDIS_REST_TOKEN`             | Yes      | Upstash Redis token — required alongside the URL above                                                                  |
 | `GOOGLE_SAFE_BROWSING_API_KEY`         | No       | Google Safe Browsing v4 JSON REST key — enables malware/phishing lookup on URL tool                                     |

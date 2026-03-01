@@ -1,7 +1,7 @@
 import { createHash } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { callClaude, isLlmConfigured } from "@/lib/llm-client";
+import { callClaude, isLlmConfigured, getModelLabel } from "@/lib/llm-client";
 import {
   checkRateLimit,
   checkDailyTextLimit,
@@ -207,9 +207,7 @@ export async function POST(req: NextRequest) {
   // Strip any [MSG]/[/MSG] tags from user input before wrapping — a user
   // submitting these literals could break the content boundary that the system
   // prompt uses to isolate untrusted input from instructions.
-  const sanitised = message
-    .replace(/\[MSG\]/gi, "")
-    .replace(/\[\/MSG\]/gi, "");
+  const sanitised = message.replace(/\[MSG\]/gi, "").replace(/\[\/MSG\]/gi, "");
   const userPayload = `[MSG]\n${sanitised}\n[/MSG]`;
 
   // ── Call Claude ───────────────────────────────────────────────────────────
@@ -270,6 +268,7 @@ export async function POST(req: NextRequest) {
       coercedRiskScore < SAFE_RISK_THRESHOLD &&
       !DANGEROUS_CLASSIFICATIONS.has(debunkData.classification),
     source: "claude",
+    modelLabel: getModelLabel(),
   };
 
   // ── Cache write ────────────────────────────────────────────────────────

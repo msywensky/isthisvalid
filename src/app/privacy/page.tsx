@@ -305,12 +305,12 @@ export default function PrivacyPage() {
           entered into any of our tools. Email verification results are cached
           as one-way SHA-256 hashes in Upstash Redis for up to 7 days to avoid
           redundant paid API calls; the hash cannot be used to recover the
-          original address. A short-lived cache entry (24-hour TTL) derived
-          from a one-way hash of submitted text messages may also be retained
-          in Upstash Redis solely to avoid redundant AI calls; it cannot be
-          used to recover the original text. Server access logs retained by
-          Vercel are deleted within 30 days. Cookie consent preferences stored
-          in your browser persist until you clear your browser storage.
+          original address. A short-lived cache entry (24-hour TTL) derived from
+          a one-way hash of submitted text messages may also be retained in
+          Upstash Redis solely to avoid redundant AI calls; it cannot be used to
+          recover the original text. Server access logs retained by Vercel are
+          deleted within 30 days. Cookie consent preferences stored in your
+          browser persist until you clear your browser storage.
         </p>
       </PolicySection>
 
