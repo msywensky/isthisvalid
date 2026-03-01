@@ -1,6 +1,6 @@
 # isthisvalid.com — Maintenance-Grade Technical Documentation
 
-**Generated:** February 27, 2026 | **Build:** ✅ clean (16 routes) | **Tests:** ✅ 320/320 | **Branch:** `feat/reduce-google-dependency`
+**Generated:** March 1, 2026 | **Build:** ✅ clean (16 routes) | **Tests:** ✅ 333/333 | **Branch:** `main`
 
 ---
 
@@ -106,17 +106,19 @@ npm run build
 
 ### Environment Variables
 
-| Variable                               | Required?                   | Default / Fallback            | Notes                                        |
-| -------------------------------------- | --------------------------- | ----------------------------- | -------------------------------------------- |
-| `ANTHROPIC_API_KEY`                    | For text tool               | Tool returns error if absent  | Set spend cap in Anthropic console first     |
-| `ZEROBOUNCE_API_KEY`                   | Preferred SMTP              | Local+MX only if absent       | 100 free verifications/month                 |
-| `EMAILABLE_API_KEY`                    | SMTP fallback               | Ignored if ZeroBounce present | 250 one-time free                            |
-| `UPSTASH_REDIS_REST_URL`               | For rate limiting + caching | No-op if absent               | Create at [upstash.com](https://upstash.com) |
-| `UPSTASH_REDIS_REST_TOKEN`             | For rate limiting + caching | No-op if absent               | Paired with URL above                        |
-| `GOOGLE_SAFE_BROWSING_API_KEY`         | For URL threat check        | Skipped if absent             | 10,000 req/day free                          |
-| `NEXT_PUBLIC_ADSENSE_ID`               | For ad revenue              | Ads hidden if blank           | Leave blank until AdSense approved           |
-| `NEXT_PUBLIC_ZEROBOUNCE_AFFILIATE_URL` | For affiliate nudge         | Placeholder shown             | Set when affiliate link obtained             |
-| `NEXT_PUBLIC_NORDVPN_AFFILIATE_URL`    | For affiliate nudge         | Placeholder shown             | Set when affiliate link obtained             |
+| Variable                               | Required?                   | Default / Fallback            | Notes                                                           |
+| -------------------------------------- | --------------------------- | ----------------------------- | --------------------------------------------------------------- |
+| `ANTHROPIC_API_KEY`                    | For text tool               | Tool returns error if absent  | Set spend cap in Anthropic console first                        |
+| `ANTHROPIC_MODEL`                      | No                          | `claude-sonnet-4-20250514`    | Override to `claude-haiku-4-5-20251001` for cheaper dev testing |
+| `ANTHROPIC_MAX_TOKENS`                 | No                          | `1024`                        | Set lower (e.g. `300`) to reduce cost in dev                    |
+| `ZEROBOUNCE_API_KEY`                   | Preferred SMTP              | Local+MX only if absent       | 100 free verifications/month                                    |
+| `EMAILABLE_API_KEY`                    | SMTP fallback               | Ignored if ZeroBounce present | 250 one-time free                                               |
+| `UPSTASH_REDIS_REST_URL`               | For rate limiting + caching | No-op if absent               | Create at [upstash.com](https://upstash.com)                    |
+| `UPSTASH_REDIS_REST_TOKEN`             | For rate limiting + caching | No-op if absent               | Paired with URL above                                           |
+| `GOOGLE_SAFE_BROWSING_API_KEY`         | For URL threat check        | Skipped if absent             | 10,000 req/day free                                             |
+| `NEXT_PUBLIC_ADSENSE_ID`               | For ad revenue              | Ads hidden if blank           | Leave blank until AdSense approved                              |
+| `NEXT_PUBLIC_ZEROBOUNCE_AFFILIATE_URL` | For affiliate nudge         | Placeholder shown             | Set when affiliate link obtained                                |
+| `NEXT_PUBLIC_NORDVPN_AFFILIATE_URL`    | For affiliate nudge         | Placeholder shown             | Set when affiliate link obtained                                |
 
 ### Commands
 
@@ -247,19 +249,21 @@ sequenceDiagram
 
     Browser->>Route: { message }
     Route->>Route: Rate limit — 20/min/IP (burst)
-    Route->>Route: Rate limit — 20/day/IP (spend cap)
-    Route->>Route: Zod validation (10–5000 chars)
     Route->>Route: isLlmConfigured() check
+    Route->>Route: Zod validation (10–5000 chars)
     Route->>Redis: GET cacheKey(sha256(normalised message))
-    alt cache hit (24h TTL)
+    alt cache hit (24h TTL) — daily limit NOT consumed
         Redis-->>Route: TextDebunkResult
-        Route-->>Browser: cached result
+        Route-->>Browser: cached result (X-Cache: HIT)
     end
-    Route->>Claude: callClaude(SYSTEM_PROMPT, [MSG]...[/MSG])
+    Route->>Route: Rate limit — 20/day/IP (spend cap, only on cache miss)
+    Route->>Route: Strip [MSG]/[/MSG] from user input (delimiter injection guard)
+    Route->>Claude: callClaude(SYSTEM_PROMPT, [MSG]sanitised[/MSG], timeout=30s)
     Claude-->>Route: raw JSON string
     Route->>Route: JSON.parse + Zod validate (DebunkResponseSchema)
+    Route->>Route: coerceRiskScore() — enforce classification/score consistency
     Route->>Redis: SET cacheKey → result (TTL 86400s) [fire-and-forget]
-    Route-->>Browser: TextDebunkResult
+    Route-->>Browser: TextDebunkResult (includes modelLabel)
 ```
 
 ---
@@ -452,9 +456,28 @@ catch-all/unknown → deliverable=null, undeliverable=false
 
 **Responsibility:** Thin singleton wrapper around the Anthropic SDK.
 
-**Model pin:** `claude-sonnet-4-20250514`. To upgrade, change this constant. Always re-run text tests after a model upgrade — output format can subtly change.
+**Model and token configuration:** Both are overridable via environment variables — no code change needed to switch models or adjust cost during development:
+
+```
+ANTHROPIC_MODEL      — default: claude-sonnet-4-20250514
+ANTHROPIC_MAX_TOKENS — default: 1024 (lower to ~300 for cheap dev testing)
+```
+
+To use a cheaper model locally, set `ANTHROPIC_MODEL=claude-haiku-4-5-20251001` and `ANTHROPIC_MAX_TOKENS=300` in `.env.local`. The `.env.example` has commented examples.
+
+**`getModelLabel()`** derives a human-readable name from the model string for display in the result card:
+
+```
+claude-sonnet-4-20250514  → "Claude Sonnet 4"
+claude-haiku-4-5-20251001 → "Claude Haiku 4.5"
+claude-3-5-sonnet-20241022 → "Claude 3.5 Sonnet"
+```
+
+Algorithm: strip `claude-` prefix, strip trailing date (`-YYYYMMDD`), merge consecutive digit segments with `.`, capitalise non-numeric parts.
 
 **`callClaude` returns `null` when unconfigured** — the text route handles this with an error response. Never throws for "no key" — only for API/network failures.
+
+**30-second timeout:** `AbortSignal.timeout(30_000)` is passed to every Claude call. If Claude doesn’t respond within 30 s the request is aborted and the route returns 502.
 
 ---
 
@@ -462,11 +485,38 @@ catch-all/unknown → deliverable=null, undeliverable=false
 
 **Responsibility:** Text/SMS scam detection API. The most operationally expensive route (LLM calls).
 
-**Prompt injection hardening:** User content is wrapped in `[MSG]...[/MSG]` delimiters. The system prompt explicitly instructs Claude to ignore instructions inside those delimiters. If injection is detected, classify as `suspicious` or `scam`.
+**Pipeline order (critical):**
 
-**Cache normalisation:** The cache key hashes `lowercase + whitespace-collapsed` text. "FREE PRIZE!!!" and "free prize!!!" map to the same key — important for viral scam messages copied with minor formatting differences.
+1. Per-minute rate limit
+2. LLM configured check
+3. Zod validation
+4. **Cache lookup** ← cache hits return here; daily spend cap is NOT consumed
+5. Per-day LLM spend cap (only reached on cache miss)
+6. Delimiter sanitisation — strip `[MSG]`/`[/MSG]` from user input
+7. Wrap in `[MSG]...{/MSG]` and call Claude (30 s timeout)
+8. Parse + Zod validate Claude JSON
+9. `coerceRiskScore()` — enforce cross-field consistency
+10. Cache write (fire-and-forget)
+11. Return result with `modelLabel`
 
-**Zod validation of Claude's response:** Claude's JSON output is validated against `DebunkResponseSchema`. If Claude returns malformed JSON or missing fields, the route returns 502. This prevents schema drift from silently serving bad data to the UI.
+**Prompt injection hardening:** `[MSG]`/`[/MSG]` tags are stripped from the user’s input _before_ wrapping. A user submitting those literal strings cannot break the trust boundary that the system prompt uses to isolate untrusted input from instructions.
+
+**`coerceRiskScore`:** Ensures `classification` and `riskScore` are consistent. Claude can return a conflicting pair (e.g. `scam` with `riskScore: 30`). The coercer fixes this:
+
+- `scam` / `smishing` → `Math.max(riskScore, 60)`
+- `legit` → `Math.min(riskScore, 40)`
+- `spam` / `suspicious` → unchanged
+
+**`safe` guard uses two conditions:**
+
+- `riskScore < SAFE_RISK_THRESHOLD` (50, exported constant from `text-debunker.ts`)
+- `classification` not in `DANGEROUS_CLASSIFICATIONS` (Set: `{"scam", "smishing"}`)
+
+Both must be true for `safe = true`. This prevents `safe=true` being returned for a scam with a borderline risk score.
+
+**Cache normalisation:** The cache key hashes `lowercase + whitespace-collapsed` text. Viral scam messages copied with minor formatting differences map to the same cache key.
+
+**Zod validation of Claude’s response:** If Claude returns malformed JSON or missing fields, the route returns 502. This prevents schema drift from silently serving bad data to the UI.
 
 > ⚠️ **Spend cap reminder:** The Anthropic console spend cap is the _only_ hard stop on LLM costs. The per-day Redis rate limit (20/IP) reduces exposure but rotating IPs can bypass it. Set the cap in the Anthropic console before going viral.
 
@@ -538,12 +588,12 @@ All tests live in `__tests__/` and are pure unit tests — no network, no Redis,
 
 **Current suite:**
 
-| File                        | Tests | Pattern                                                                                                                                                                                  |
-| --------------------------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `email-validator.test.ts`   | 150   | One `describe` per validator concept; explicit bug-regression suites labelled `[Bug N regression]`                                                                                       |
-| `url-validator.test.ts`     | 110   | One `describe` per check; dedicated suites for `getRegisteredDomain`, `checkBrandSquat`, `checkTyposquat`, `applyRdapResult`, `applyRedirectResult`, entropy, hyphens, and IP edge cases |
-| `debunk-text-route.test.ts` | 35    | Mocked `callClaude` and Redis; covers rate limit, cache hit/miss, bad JSON, injection                                                                                                    |
-| `smtp-cache.test.ts`        | 15    | Mocked Redis; covers hash correctness, TTL, local-source no-op, error resilience                                                                                                         |
+| File                        | Tests | Pattern                                                                                                                                                                                                             |
+| --------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `email-validator.test.ts`   | 150   | One `describe` per validator concept; explicit bug-regression suites labelled `[Bug N regression]`                                                                                                                  |
+| `url-validator.test.ts`     | 113   | One `describe` per check; dedicated suites for `getRegisteredDomain`, `checkBrandSquat`, `checkTyposquat`, `applyRdapResult`, `applyRedirectResult`, entropy, hyphens, IP edge cases, and scoring-order regressions |
+| `debunk-text-route.test.ts` | 45    | Mocked `callClaude` and Redis; covers rate limit, cache hit/miss, bad JSON, injection, delimiter sanitisation, coerceRiskScore, safe guard, cache-bypasses-daily-limit                                              |
+| `smtp-cache.test.ts`        | 15    | Mocked Redis; covers hash correctness, TTL, local-source no-op, error resilience                                                                                                                                    |
 
 **To extend tests:** Follow the existing `describe`/`test` pattern. For a new check in `url-validator.ts`, add a new `describe("new check name")` block with: one passing case, one failing case, score assertion, flag-text assertion, and message assertion.
 
@@ -584,7 +634,9 @@ feat/* branches → Vercel preview URLs (auto-generated)
 - [ ] `npm test` — all tests pass
 - [ ] `npm run lint` — no new errors
 - [ ] New env vars added to Vercel project settings + `.env.example`
-- [ ] Branch protection: never push directly to `main` — PR only, wait for approval before pushing
+- [ ] Branch protection: **`main` = PRODUCTION — never push directly to `main`**. All changes (including docs, chores, and formatting) must go through a feature branch and PR. Wait for approval before merging.
+
+> ℹ️ Formatting is handled automatically by the pre-commit hook — you do not need to run Prettier manually before merging.
 
 **CI:** No formal CI pipeline is currently configured. `npm run build` and `npm test` are the manual gate. **This is a known gap** — a GitHub Actions workflow running both on PR would close it.
 
@@ -592,7 +644,7 @@ feat/* branches → Vercel preview URLs (auto-generated)
 
 | Issue                                               | Severity | Notes                                                                                                                                                                                                                                       |
 | --------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| No CI/CD pipeline                                   | Medium   | Manual build+test required before merge; easy to forget                                                                                                                                                                                     |
+| No CI/CD pipeline                                   | Medium   | Manual build+test required before merge; easy to forget. A GitHub Actions workflow running `npm run build && npm test` on every PR would close this gap.                                                                                    |
 | `getRegisteredDomain` is not PSL-aware              | Low      | Uses a curated `CCTLD_SECOND_LEVELS` list (100+ entries: `co.uk`, `com.au`, `co.jp`, `co.in` …) instead of a full PSL. Covers the most common registries; exotic ccTLDs may still be misclassified. Replace with `tldts` for full coverage. |
 | Rate limiter key space is shared                    | Low      | All three tools consume from the same 20/min bucket per IP. Heavy URL checking can block email checking. Consider per-tool prefixes.                                                                                                        |
 | No integration tests                                | Low      | All tests are unit; end-to-end API behaviour (including Redis, real DNS) is untested                                                                                                                                                        |
@@ -623,6 +675,7 @@ feat/* branches → Vercel preview URLs (auto-generated)
 - Trailing commas everywhere
 - Double quotes in JSX attributes
 - Tailwind class order: layout → spacing → colour → state modifiers
+- **Prettier enforced via pre-commit hook** — `husky` + `lint-staged` run `prettier --write` on staged files before every commit. Config in `.prettierrc`. No manual formatting steps required; never manually reformat a file without committing the result.
 
 ### ESLint
 
