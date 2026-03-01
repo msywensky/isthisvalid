@@ -67,9 +67,8 @@ export function isLlmConfigured(): boolean {
  *   claude-3-5-sonnet-20241022 → "Claude 3.5 Sonnet"
  */
 export function getModelLabel(): string {
-  const stripped = MODEL
-    .replace(/^claude-/i, "")   // remove "claude-" prefix
-    .replace(/-\d{8}$/, "");    // remove trailing date e.g. -20250514
+  const stripped = MODEL.replace(/^claude-/i, "") // remove "claude-" prefix
+    .replace(/-\d{8}$/, ""); // remove trailing date e.g. -20250514
 
   // Merge consecutive digit-only segments with "." (e.g. "3","5" → "3.5")
   const parts = stripped.split("-");
