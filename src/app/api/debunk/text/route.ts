@@ -1,7 +1,7 @@
 import { createHash } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { callClaude, isLlmConfigured } from "@/lib/llm-client";
+import { callClaude, isLlmConfigured, getModelLabel } from "@/lib/llm-client";
 import {
   checkRateLimit,
   checkDailyTextLimit,
@@ -270,6 +270,7 @@ export async function POST(req: NextRequest) {
       coercedRiskScore < SAFE_RISK_THRESHOLD &&
       !DANGEROUS_CLASSIFICATIONS.has(debunkData.classification),
     source: "claude",
+    modelLabel: getModelLabel(),
   };
 
   // ── Cache write ────────────────────────────────────────────────────────

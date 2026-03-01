@@ -11,8 +11,7 @@ import Anthropic from "@anthropic-ai/sdk";
 // cheaper/faster model (e.g. Haiku) or reduce tokens in dev without a code change.
 //   ANTHROPIC_MODEL      — defaults to claude-sonnet-4-20250514
 //   ANTHROPIC_MAX_TOKENS — defaults to 1024
-const MODEL =
-  process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-20250514";
+const MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-20250514";
 const ENV_MAX_TOKENS = process.env.ANTHROPIC_MAX_TOKENS
   ? parseInt(process.env.ANTHROPIC_MAX_TOKENS, 10)
   : null;
@@ -58,4 +57,37 @@ export async function callClaude(
 /** True when ANTHROPIC_API_KEY is set and the client is initialised. */
 export function isLlmConfigured(): boolean {
   return _client !== null;
+}
+
+/**
+ * Derives a human-readable display label from the active model string.
+ * Examples:
+ *   claude-sonnet-4-20250514   → "Claude Sonnet 4"
+ *   claude-3-5-haiku-20241022  → "Claude 3.5 Haiku"
+ *   claude-3-5-sonnet-20241022 → "Claude 3.5 Sonnet"
+ */
+export function getModelLabel(): string {
+  const stripped = MODEL
+    .replace(/^claude-/i, "")   // remove "claude-" prefix
+    .replace(/-\d{8}$/, "");    // remove trailing date e.g. -20250514
+
+  // Merge consecutive digit-only segments with "." (e.g. "3","5" → "3.5")
+  const parts = stripped.split("-");
+  const merged: string[] = [];
+  let numericGroup: string[] = [];
+
+  for (const part of parts) {
+    if (/^\d+$/.test(part)) {
+      numericGroup.push(part);
+    } else {
+      if (numericGroup.length > 0) {
+        merged.push(numericGroup.join("."));
+        numericGroup = [];
+      }
+      merged.push(part.charAt(0).toUpperCase() + part.slice(1));
+    }
+  }
+  if (numericGroup.length > 0) merged.push(numericGroup.join("."));
+
+  return "Claude " + merged.join(" ");
 }
