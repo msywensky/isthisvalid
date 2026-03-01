@@ -7,8 +7,15 @@
  */
 import Anthropic from "@anthropic-ai/sdk";
 
-// Pin the model — update here when upgrading
-const MODEL = "claude-sonnet-4-20250514";
+// Model and token cap are overridable via env vars so you can switch to a
+// cheaper/faster model (e.g. Haiku) or reduce tokens in dev without a code change.
+//   ANTHROPIC_MODEL      — defaults to claude-sonnet-4-20250514
+//   ANTHROPIC_MAX_TOKENS — defaults to 1024
+const MODEL =
+  process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-20250514";
+const ENV_MAX_TOKENS = process.env.ANTHROPIC_MAX_TOKENS
+  ? parseInt(process.env.ANTHROPIC_MAX_TOKENS, 10)
+  : null;
 
 const key = process.env.ANTHROPIC_API_KEY;
 let _client: Anthropic | null = null;
@@ -29,10 +36,14 @@ export async function callClaude(
 ): Promise<string | null> {
   if (!_client) return null;
 
+  // ENV_MAX_TOKENS overrides the caller-supplied default when set, allowing
+  // a cheap/low-token config in dev without touching call sites.
+  const effectiveMaxTokens = ENV_MAX_TOKENS ?? maxTokens;
+
   const response = await _client.messages.create(
     {
       model: MODEL,
-      max_tokens: maxTokens,
+      max_tokens: effectiveMaxTokens,
       system,
       messages: [{ role: "user", content: userMessage }],
     },
