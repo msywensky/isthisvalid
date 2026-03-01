@@ -207,9 +207,7 @@ export async function POST(req: NextRequest) {
   // Strip any [MSG]/[/MSG] tags from user input before wrapping — a user
   // submitting these literals could break the content boundary that the system
   // prompt uses to isolate untrusted input from instructions.
-  const sanitised = message
-    .replace(/\[MSG\]/gi, "")
-    .replace(/\[\/MSG\]/gi, "");
+  const sanitised = message.replace(/\[MSG\]/gi, "").replace(/\[\/MSG\]/gi, "");
   const userPayload = `[MSG]\n${sanitised}\n[/MSG]`;
 
   // ── Call Claude ───────────────────────────────────────────────────────────
