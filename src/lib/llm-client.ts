@@ -8,7 +8,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 
 // Model and token cap are overridable via env vars so you can switch to a
-// cheaper/faster model (e.g. Haiku) or reduce tokens in dev without a code change.
+// cheaper/faster model (e.g. Haiku 4.5) or reduce tokens in dev without a code change.
 //   ANTHROPIC_MODEL      — defaults to claude-sonnet-4-20250514
 //   ANTHROPIC_MAX_TOKENS — defaults to 1024
 const MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-20250514";
@@ -67,9 +67,8 @@ export function isLlmConfigured(): boolean {
  *   claude-3-5-sonnet-20241022 → "Claude 3.5 Sonnet"
  */
 export function getModelLabel(): string {
-  const stripped = MODEL
-    .replace(/^claude-/i, "")   // remove "claude-" prefix
-    .replace(/-\d{8}$/, "");    // remove trailing date e.g. -20250514
+  const stripped = MODEL.replace(/^claude-/i, "") // remove "claude-" prefix
+    .replace(/-\d{8}$/, ""); // remove trailing date e.g. -20250514
 
   // Merge consecutive digit-only segments with "." (e.g. "3","5" → "3.5")
   const parts = stripped.split("-");
