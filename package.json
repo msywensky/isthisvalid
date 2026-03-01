@@ -10,7 +10,8 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "generate-og": "node scripts/generate-og.mjs"
+    "generate-og": "node scripts/generate-og.mjs",
+    "prepare": "husky"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
@@ -32,12 +33,18 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
+    "husky": "^9.1.7",
     "jest": "^30.2.0",
     "jest-environment-node": "^30.2.0",
+    "lint-staged": "^16.3.1",
+    "prettier": "^3.8.1",
     "sharp": "^0.34.5",
     "tailwindcss": "^4",
     "ts-jest": "^29.4.6",
     "ts-node": "^10.9.2",
     "typescript": "^5"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,mjs,json,css,md}": "prettier --write"
   }
 }
