@@ -24,21 +24,31 @@ A free, no-signup verification hub for checking emails, scanning URLs for threat
 
 - Structural validation (scheme, IP, credentials, shorteners)
 - Punycode homograph detection
-- Brand-squatting detection (20 major brands)
-- Live HEAD request verification
-- Google Safe Browsing v5 integration
+- Brand-squatting detection (54 major brands)
+- Typosquat detection (Levenshtein + digit/symbol substitution)
+- High-entropy hostname detection (DGA/random label heuristic)
+- Excessive hyphen detection
+- Excessive subdomain depth detection
+- Suspicious TLD detection (15 high-abuse TLDs)
+- Live HEAD request + 5-hop redirect chain analysis
+- RDAP domain age check (newly registered domains flagged)
+- Google Safe Browsing v4 integration
 - Phishing keyword pattern detection
 
 **Result:** 0–100 safety score with granular check details
 
 ### 💬 Text / SMS Scam Detector
 
-- AI-powered classification using Claude Sonnet
+- AI-powered classification using Claude (model configurable via env var)
 - Detects smishing, impersonation, urgency tricks, advance-fee scams
-- Prompt injection hardening
+- Prompt injection hardening ([MSG]/[/MSG] delimiter sanitisation)
+- Cross-field risk score coercion (scam/smishing ≥60; legit ≤40)
 - Per-IP rate limiting (20/min) + daily spend cap (20/day)
+- Cache check runs before daily limit — cache hits never burn quota
+- 30-second API timeout on Claude calls
 - 24-hour result caching to minimize API costs
 - Pre-baked example for zero-cost demo
+- Model name shown in result badge (e.g. "Claude Haiku 4.5 · AI Analysis")
 
 **Result:** Classification (scam/smishing/spam/suspicious/legit) with confidence score and flagged red flags
 
@@ -56,6 +66,7 @@ A free, no-signup verification hub for checking emails, scanning URLs for threat
 - **Hosting:** Vercel
 - **Analytics:** Vercel Analytics
 - **Monetisation:** Google AdSense + affiliate links (ZeroBounce, NordVPN)
+- **Code Formatting:** Prettier + husky pre-commit hook (auto-formats on every commit)
 
 ---
 
@@ -82,6 +93,8 @@ cp .env.example .env.local
 Then edit `.env.local` and add your API keys:
 
 - `ANTHROPIC_API_KEY` — Claude API (required for text debunker)
+- `ANTHROPIC_MODEL` — Claude model override (optional; default: `claude-sonnet-4-20250514`; use `claude-haiku-4-5-20251001` for cheaper dev testing)
+- `ANTHROPIC_MAX_TOKENS` — Claude max output tokens (optional; default: `1024`; set lower e.g. `300` during testing)
 - `UPSTASH_REDIS_REST_URL` — Redis for rate limiting (required)
 - `UPSTASH_REDIS_REST_TOKEN` — Redis token (required)
 - `GOOGLE_SAFE_BROWSING_API_KEY` — Safe Browsing API (optional)
@@ -107,7 +120,7 @@ npm run test -- --watch   # Watch mode
 npm run test -- --coverage  # With coverage report
 ```
 
-**Current:** 231/231 tests passing (150 email + 21 URL + 35 text debunker + 15 smtp-cache + 10 other)
+**Current:** 333/333 tests passing (150 email + 113 URL + 45 text debunker + 15 smtp-cache + 10 other)
 
 ### Production Build
 
@@ -161,7 +174,11 @@ Vercel auto-detects Next.js and handles everything else.
 
 ### Environment Variables in Production
 
-Set all required env vars (ANTHROPIC_API_KEY, UPSTASH_REDIS_REST_URL/TOKEN, GOOGLE_SAFE_BROWSING_API_KEY) in your Vercel project dashboard before deploying.
+Set all required env vars in your Vercel project dashboard before deploying:
+
+- `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` (default: `claude-sonnet-4-20250514`), `ANTHROPIC_MAX_TOKENS` (default: `1024`)
+- `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`
+- `GOOGLE_SAFE_BROWSING_API_KEY` (optional)
 
 ---
 
