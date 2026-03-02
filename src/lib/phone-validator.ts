@@ -142,6 +142,36 @@ function coerceLineType(raw: string | undefined): LineType {
 
 // ── Score computation ─────────────────────────────────────────────────────────
 
+/**
+ * Returns the score delta for a given line type.
+ * Exported so applyCarrierResult can swap out the libphonenumber guess
+ * for the API-provided type without rerunning the full score pipeline.
+ */
+export function getLineTypeBonus(lineType: LineType | null): number {
+  switch (lineType) {
+    case "MOBILE":
+    case "FIXED_LINE":
+      return 15;
+    case "FIXED_LINE_OR_MOBILE":
+      return 10;
+    case "TOLL_FREE":
+      return 5;
+    case "PERSONAL_NUMBER":
+      return 3;
+    case "SHARED_COST":
+      return -5;
+    case "VOIP":
+      return -20;
+    case "PAGER":
+    case "UAN":
+      return -10;
+    case "PREMIUM_RATE":
+      return -35;
+    default:
+      return 0;
+  }
+}
+
 function computeScore(
   parseable: boolean,
   isValid: boolean,
@@ -154,42 +184,14 @@ function computeScore(
   let score = isValid ? 60 : isPossible ? 35 : 20;
 
   if (countryDetected) score += 5;
-
-  switch (lineType) {
-    case "MOBILE":
-    case "FIXED_LINE":
-      score += 15;
-      break;
-    case "FIXED_LINE_OR_MOBILE":
-      score += 10;
-      break;
-    case "TOLL_FREE":
-      score += 5;
-      break;
-    case "PERSONAL_NUMBER":
-      score += 3;
-      break;
-    case "SHARED_COST":
-      score -= 5;
-      break;
-    case "VOIP":
-      score -= 20;
-      break;
-    case "PAGER":
-    case "UAN":
-      score -= 10;
-      break;
-    case "PREMIUM_RATE":
-      score -= 35;
-      break;
-  }
+  score += getLineTypeBonus(lineType);
 
   return Math.max(0, Math.min(100, score));
 }
 
 // ── Label & message generation ────────────────────────────────────────────────
 
-function buildLabel(
+export function buildLabel(
   parseable: boolean,
   isValid: boolean,
   isPossible: boolean,
@@ -227,7 +229,7 @@ function buildLabel(
   }
 }
 
-function buildMessage(
+export function buildMessage(
   parseable: boolean,
   isValid: boolean,
   isPossible: boolean,
@@ -276,7 +278,10 @@ function buildMessage(
 
 // ── Flags ─────────────────────────────────────────────────────────────────────
 
-function buildFlags(lineType: LineType | null, isValid: boolean): string[] {
+export function buildFlags(
+  lineType: LineType | null,
+  isValid: boolean,
+): string[] {
   const flags: string[] = [];
 
   if (!isValid) {
@@ -420,21 +425,60 @@ export function applyCarrierResult(
   result: PhoneValidationResult,
   data: CarrierData,
 ): PhoneValidationResult {
-  const scoreBonus = data.active ? (data.scoreBonus ?? 15) : 0;
-  const newScore = Math.min(100, result.score + scoreBonus);
-
   const carrierLineType = coerceLineType(data.lineType.toUpperCase());
-  // Prefer API line type when it disagrees with local (API has real-time data)
+  // Prefer API line type when it disagrees with libphonenumber (API has real-time carrier data)
   const resolvedLineType =
     carrierLineType !== "UNKNOWN" ? carrierLineType : result.lineType;
+
+  // Recompute the score by swapping out the old line-type contribution and
+  // substituting the API-provided one. Without this step a VOIP number that
+  // libphonenumber guesses as FIXED_LINE_OR_MOBILE (+10) would carry the
+  // wrong base score and the API bonus would push it even higher instead
+  // of correctly penalising it (VOIP = −20).
+  const oldLineTypeBonus = getLineTypeBonus(result.lineType);
+  const newLineTypeBonus = getLineTypeBonus(resolvedLineType);
+  const apiBonus = data.active ? (data.scoreBonus ?? 15) : 0;
+  const newScore = Math.max(
+    0,
+    Math.min(
+      100,
+      result.score - oldLineTypeBonus + newLineTypeBonus + apiBonus,
+    ),
+  );
+
+  // Regenerate label, message and flags with the corrected line type so the
+  // UI reflects what the carrier API actually told us.
+  const lineTypeChanged = resolvedLineType !== result.lineType;
+  const label = lineTypeChanged
+    ? buildLabel(
+        result.checks.parseable,
+        result.valid,
+        result.checks.possibleNumber,
+        resolvedLineType,
+      )
+    : result.label;
+  const message = lineTypeChanged
+    ? buildMessage(
+        result.checks.parseable,
+        result.valid,
+        result.checks.possibleNumber,
+        resolvedLineType,
+        result.countryName,
+      )
+    : result.message;
+  const flags = lineTypeChanged
+    ? buildFlags(resolvedLineType, result.valid)
+    : result.flags;
 
   return {
     ...result,
     score: newScore,
+    label,
+    message,
+    flags,
     lineType: resolvedLineType,
     carrier: data.carrier || null,
     lineActive: data.active,
     ported: data.ported,
-    source: "numverify",
   };
 }

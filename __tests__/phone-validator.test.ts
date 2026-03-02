@@ -356,14 +356,34 @@ describe("applyCarrierResult", () => {
     expect(enriched.ported).toBe(true);
   });
 
-  test("source becomes numverify after enrichment", () => {
-    const enriched = applyCarrierResult(baseResult(), {
+  test("source is preserved from input — the route sets source, not applyCarrierResult", () => {
+    // The route does: { ...enriched, source: carrier.name } after calling
+    // applyCarrierResult. The function itself must not hardcode a source.
+    const base = baseResult(); // source === "local"
+    const enriched = applyCarrierResult(base, {
       carrier: "EE",
       lineType: "MOBILE",
       ported: false,
       active: true,
     });
-    expect(enriched.source).toBe("numverify");
+    expect(enriched.source).toBe("local");
+  });
+
+  test("VOIP reclassification by API reduces score vs FIXED_LINE_OR_MOBILE local guess", () => {
+    // Simulate: libphonenumber guesses FIXED_LINE_OR_MOBILE (+10 bonus),
+    // carrier API reveals it's actually VOIP (-20). The score must go DOWN,
+    // not up (old bug: API bonus was stacked on top of wrong base score).
+    const local = validatePhoneLocal("+12025551234"); // US number, likely FIXED_LINE_OR_MOBILE
+    const enriched = applyCarrierResult(local, {
+      carrier: "Google Voice",
+      lineType: "VOIP",
+      ported: false,
+      active: true,
+      scoreBonus: 10,
+    });
+    // VOIP score should be well below the "valid" threshold of 70
+    expect(enriched.score).toBeLessThan(70);
+    expect(enriched.lineType).toBe("VOIP");
   });
 
   test("API lineType overrides local when not UNKNOWN", () => {
