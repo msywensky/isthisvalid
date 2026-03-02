@@ -33,11 +33,10 @@ export default function HeroAnimatedWord() {
 
   return (
     <span
-      className={`inline-block text-left transition-opacity ${colorClass}`}
+      className={`transition-opacity ${colorClass}`}
       style={{
         opacity: visible ? 1 : 0,
         transitionDuration: `${FADE_MS}ms`,
-        width: "10ch",
       }}
     >
       {text}
