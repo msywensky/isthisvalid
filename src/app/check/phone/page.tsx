@@ -5,6 +5,7 @@ import type { PhoneValidationResult } from "@/lib/phone-validator";
 import CheckShell from "@/components/CheckShell";
 import PhoneForm from "@/components/PhoneForm";
 import PhoneResultCard from "@/components/PhoneResultCard";
+import PhoneFAQ from "@/components/PhoneFAQ";
 import AdSenseBanner from "@/components/AdSenseBanner";
 
 type State =
@@ -126,6 +127,9 @@ export default function PhoneCheckPage() {
           </li>
         </ol>
       </section>
+
+      {/* FAQ */}
+      <PhoneFAQ />
     </CheckShell>
   );
 }
