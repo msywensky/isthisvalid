@@ -10,15 +10,16 @@
  *
  * Data source:
  *   https://github.com/ravisorg/Area-Code-Geolocation-Database
- *   CSV columns: NPA,City,Province,Country,Lat,Lon,Accuracy,Type
- *   - NPA      = 3-digit area code
- *   - Province = 2-letter US state/territory abbreviation
- *   - Country  = "US" | "CA" | ...
+ *   File: us-area-code-cities.csv
+ *   Columns (no header row): NPA,City,"State",Country,Lat,Lon
+ *   - NPA     = 3-digit area code
+ *   - State   = full US state name (quoted)
+ *   - Country = "US" | "CA" | ...
  *
  * The script:
  *   1. Fetches the CSV from GitHub raw content
- *   2. Filters to US geographic area codes only (Country === "US", Type === "Geographic")
- *   3. Deduplicates — uses the first record per NPA (they all share the same province)
+ *   2. Filters to US rows only (column 3 === "US")
+ *   3. Deduplicates — uses the first record per NPA (all rows for a given NPA share the same state)
  *   4. Writes src/data/us-area-codes.json (sorted by area code)
  *
  * If the fetch fails, the existing JSON is left untouched.
@@ -32,67 +33,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUTPUT_PATH = join(__dirname, "..", "src", "data", "us-area-codes.json");
 
 const CSV_URL =
-  "https://raw.githubusercontent.com/ravisorg/Area-Code-Geolocation-Database/master/us-area-code-geo.csv";
-
-// Full state abbreviation → name map (50 states + DC + territories in NANP).
-const STATE_NAMES = {
-  AL: "Alabama",
-  AK: "Alaska",
-  AZ: "Arizona",
-  AR: "Arkansas",
-  CA: "California",
-  CO: "Colorado",
-  CT: "Connecticut",
-  DE: "Delaware",
-  DC: "Washington, D.C.",
-  FL: "Florida",
-  GA: "Georgia",
-  HI: "Hawaii",
-  ID: "Idaho",
-  IL: "Illinois",
-  IN: "Indiana",
-  IA: "Iowa",
-  KS: "Kansas",
-  KY: "Kentucky",
-  LA: "Louisiana",
-  ME: "Maine",
-  MD: "Maryland",
-  MA: "Massachusetts",
-  MI: "Michigan",
-  MN: "Minnesota",
-  MS: "Mississippi",
-  MO: "Missouri",
-  MT: "Montana",
-  NE: "Nebraska",
-  NV: "Nevada",
-  NH: "New Hampshire",
-  NJ: "New Jersey",
-  NM: "New Mexico",
-  NY: "New York",
-  NC: "North Carolina",
-  ND: "North Dakota",
-  OH: "Ohio",
-  OK: "Oklahoma",
-  OR: "Oregon",
-  PA: "Pennsylvania",
-  PR: "Puerto Rico",
-  RI: "Rhode Island",
-  SC: "South Carolina",
-  SD: "South Dakota",
-  TN: "Tennessee",
-  TX: "Texas",
-  UT: "Utah",
-  VT: "Vermont",
-  VA: "Virginia",
-  VI: "US Virgin Islands",
-  WA: "Washington",
-  WV: "West Virginia",
-  WI: "Wisconsin",
-  WY: "Wyoming",
-  GU: "Guam",
-  AS: "American Samoa",
-  MP: "Northern Mariana Islands",
-};
+  "https://raw.githubusercontent.com/ravisorg/Area-Code-Geolocation-Database/master/us-area-code-cities.csv";
 
 async function fetchCsv(url) {
   console.log(`Fetching: ${url}`);
@@ -103,17 +44,27 @@ async function fetchCsv(url) {
   return res.text();
 }
 
-function parseCsv(text) {
-  const lines = text.trim().split("\n");
-  const headers = lines[0]
-    .split(",")
-    .map((h) => h.trim().replace(/^"/, "").replace(/"$/, ""));
-  return lines.slice(1).map((line) => {
-    const values = line
-      .split(",")
-      .map((v) => v.trim().replace(/^"/, "").replace(/"$/, ""));
-    return Object.fromEntries(headers.map((h, i) => [h, values[i] ?? ""]));
-  });
+/**
+ * Parse a CSV line that may contain quoted fields (e.g. "New Jersey").
+ * Returns an array of unquoted field strings.
+ */
+function parseCsvLine(line) {
+  const fields = [];
+  let current = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      inQuotes = !inQuotes;
+    } else if (ch === "," && !inQuotes) {
+      fields.push(current.trim());
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+  fields.push(current.trim());
+  return fields;
 }
 
 async function main() {
@@ -130,41 +81,49 @@ async function main() {
     process.exit(1);
   }
 
-  const rows = parseCsv(csvText);
-  console.log(`Parsed ${rows.length} rows from CSV.`);
+  // File has NO header row. Columns (0-based):
+  //   0: NPA  1: City  2: State (full name)  3: Country  4: Lat  5: Lon
+  const lines = csvText.trim().split("\n");
+  console.log(`Parsed ${lines.length} rows from CSV.`);
 
-  // Build the codes map — US only, geographic type, first record per NPA wins.
+  // Build the codes map — US only, first record per NPA wins.
   const codes = {};
   let skipped = 0;
 
-  for (const row of rows) {
-    const npa = (row["NPA"] || row["Area Code"] || "").trim();
-    const country = (row["Country"] || "").trim().toUpperCase();
-    const province = (row["Province"] || row["State"] || "")
-      .trim()
-      .toUpperCase();
-    const type = (row["Type"] || "").trim();
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    const fields = parseCsvLine(line);
+    const npa = fields[0];
+    const state = fields[2]; // full state name, already unquoted
+    const country = (fields[3] || "").toUpperCase();
 
-    if (!npa || country !== "US") continue;
-
-    // Skip non-geographic types (Toll-Free, Premium-Rate, etc.) — they have no state.
-    if (type && type !== "Geographic") {
+    if (!npa || country !== "US") {
       skipped++;
       continue;
     }
-
     if (npa in codes) continue; // already have this area code
-
-    const stateName = STATE_NAMES[province];
-    if (!stateName) {
-      console.warn(
-        `  Unknown province "${province}" for NPA ${npa} — skipping`,
-      );
+    if (!state) {
+      console.warn(`  Empty state for NPA ${npa} — skipping`);
       skipped++;
       continue;
     }
 
-    codes[npa] = stateName;
+    // Normalise DC name — the CSV uses "District of Columbia"
+    codes[npa] = state === "District of Columbia" ? "Washington, D.C." : state;
+  }
+
+  // The source CSV marks US territories (Puerto Rico, VI, Guam, etc.) with their
+  // own country codes rather than "US". Hard-code NANP territory area codes here
+  // so they're always present regardless of how the upstream CSV categorises them.
+  const TERRITORY_CODES = {
+    340: "US Virgin Islands",
+    671: "Guam",
+    684: "American Samoa",
+    787: "Puerto Rico",
+    939: "Puerto Rico",
+  };
+  for (const [npa, name] of Object.entries(TERRITORY_CODES)) {
+    if (!(npa in codes)) codes[npa] = name;
   }
 
   const count = Object.keys(codes).length;
