@@ -72,6 +72,10 @@ export default function PhoneResultCard({ result }: Props) {
   const sentiment = getSentiment(result);
   const styles = sentimentStyles[sentiment];
 
+  // Pull the Caribbean/NANP warning out for prominent placement.
+  // It's filtered from the generic flags list to avoid showing twice.
+  const nanpFlag = result.flags.find((f) => f.includes("Caribbean"));
+  const otherFlags = result.flags.filter((f) => !f.includes("Caribbean"));
   return (
     <div
       className={`w-full max-w-xl mx-auto rounded-2xl border-2 p-6 space-y-5 ${styles.card} transition-all duration-300`}
@@ -108,6 +112,19 @@ export default function PhoneResultCard({ result }: Props) {
         <p className="text-white text-base font-medium">{result.label}</p>
         <p className="text-zinc-400 text-sm">{result.message}</p>
       </div>
+
+      {/* Caribbean/NANP one-ring scam callout — shown prominently, not buried in flags */}
+      {nanpFlag && (
+        <div className="rounded-xl border border-amber-500/50 bg-amber-950/40 px-4 py-3 flex gap-3">
+          <span
+            aria-hidden="true"
+            className="text-amber-400 text-base mt-0.5 flex-shrink-0"
+          >
+            ⚠️
+          </span>
+          <p className="text-amber-300 text-sm leading-snug">{nanpFlag}</p>
+        </div>
+      )}
 
       {/* Formatted number details */}
       {result.checks.parseable && (
@@ -163,9 +180,9 @@ export default function PhoneResultCard({ result }: Props) {
       </div>
 
       {/* Flags */}
-      {result.flags.length > 0 && (
+      {otherFlags.length > 0 && (
         <ul className="space-y-1">
-          {result.flags.map((flag) => (
+          {otherFlags.map((flag) => (
             <li key={flag} className="text-xs text-yellow-400 flex gap-2">
               <span aria-hidden="true">⚠</span>
               <span>{flag}</span>
