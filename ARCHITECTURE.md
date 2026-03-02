@@ -1,6 +1,6 @@
 # IsThisValid.com — Architecture Guide
 
-**Last updated: March 1, 2026**
+**Last updated: March 2, 2026**
 
 ## High-Level Flow
 
@@ -109,6 +109,62 @@ Browser  →  POST /api/validate-url { url }
               └── UI shows ⚠ yellow warning banner
 ```
 
+### Phone Number Validation (`POST /api/validate-phone`)
+
+```
+Browser  →  POST /api/validate-phone { phone }
+  │
+  ├─► Rate limit check (Upstash, 20 req/min per IP — shared with email/URL)
+  │     └── 429 if exceeded
+  │
+  ├─► Zod validation (5–25 chars)
+  │
+  ├─► validatePhoneLocal() — free, instant, libphonenumber-js
+  │     ├── Normalise: leading "00" → "+"
+  │     ├── Parse with libphonenumber-js/max (Google's numbering plan data)
+  │     ├── US default applied when ≥7 digits with no explicit country code
+  │     ├── isValid() + isPossible() checks
+  │     ├── Country + calling code detection (240+ countries)
+  │     ├── Line type: MOBILE / FIXED_LINE / VOIP / TOLL_FREE / PREMIUM_RATE /
+  │     │             SHARED_COST / PERSONAL_NUMBER / PAGER / UAN / VOICEMAIL / UNKNOWN
+  │     ├── US area-code → state/region lookup (us-area-codes.ts)
+  │     └── Caribbean NANP warning — +1 numbers outside US/CA/PR/GU/VI/AS/MP
+  │
+  ├─► Early exit if !parseable
+  │
+  ├─► getCarrierProvider() — AbstractAPI preferred, NumVerify fallback
+  │     └── null → return local result (no API keys configured)
+  │
+  ├─► Redis carrier cache lookup — sha256(E.164), 30-day TTL
+  │     ├── HIT  → return cached result with input re-stamped (skip API)
+  │     └── MISS → continue
+  │
+  ├─► carrier.lookup(e164) — AbstractAPI or NumVerify, 8 s timeout
+  │     ├── AbstractAPI: GET phoneintelligence.abstractapi.com/v1/
+  │     │     ├── phone_carrier.line_type (overridden by is_voip when true)
+  │     │     ├── phone_validation.line_status → active flag
+  │     │     └── phone_location.region + city → combined location string
+  │     └── NumVerify: GET http://apilayer.net/api/validate  ← HTTP required (free tier)
+  │           ├── line_type → normalised to SCREAMING_SNAKE_CASE
+  │           └── valid → active flag
+  │
+  ├─► applyCarrierResult() — immutable merge
+  │     ├── resolvedLineType = API type (if not UNKNOWN) else local type
+  │     ├── swap old line-type bonus out, new one in, add API active bonus
+  │     ├── rebuild label/message/flags when line type changed
+  │     ├── preserve Caribbean NANP flag through enrichment
+  │     └── override location with API-provided city/state
+  │
+  ├─► setCachedPhoneResult(e164, result) — fire-and-forget
+  │
+  └─► JSON response → PhoneValidationResult
+        ├── valid, score (0–100), label, message, flags
+        ├── phoneE164, countryCode, countryName, nationalFormat, internationalFormat
+        ├── lineType, location, carrier, lineActive, ported
+        ├── checks: { parseable, validLength, validPattern, possibleNumber, countryDetected }
+        └── source: "local" | "abstract" | "numverify"
+```
+
 ### Text / SMS Scam Analysis (`POST /api/debunk/text`)
 
 ```
@@ -208,7 +264,10 @@ src/
 │   ├── TextFAQ.tsx                  # FAQ accordion for the text/SMS tool
 │   ├── TextResultCard.tsx           # Classification badge, risk score, flags, explanation (text) + NordVPN affiliate nudge
 │   ├── UrlFAQ.tsx                   # FAQ accordion for the URL checker tool
-│   └── UrlResultCard.tsx            # Score ring, check grid, flags list (URL) + NordVPN affiliate nudge
+│   ├── UrlResultCard.tsx            # Score ring, check grid, flags list (URL) + NordVPN affiliate nudge
+│   ├── PhoneFAQ.tsx                 # FAQ accordion for the phone validator (teal accent)
+│   ├── PhoneForm.tsx                # Phone number input form (teal accent)
+│   └── PhoneResultCard.tsx          # Score ring, line-type badge, carrier details, NANP callout
 ├── proxy.ts                         # CORS enforcement / middleware (Next.js 16 convention)
 └── lib/
     ├── affiliate-links.ts           # Affiliate partner URLs — reads from NEXT_PUBLIC_* env vars
@@ -223,16 +282,27 @@ src/
     ├── url-faq-data.ts              # FAQ Q&A for URL tool — consumed by UrlFAQ.tsx + FAQPage JSON-LD
     ├── text-debunker.ts             # Types + Zod schema for TextDebunkResult
     ├── text-faq-data.ts             # FAQ Q&A for text tool — consumed by TextFAQ.tsx + FAQPage JSON-LD
+    ├── phone-validator.ts           # Core logic: validatePhoneLocal, applyCarrierResult, getLineTypeBonus,
+    │                                #   buildLabel, buildMessage, buildFlags; NANP_SAFE set; CarrierData interface
+    ├── carrier-provider.ts          # Pluggable carrier API: CarrierProvider interface, AbstractApiProvider,
+    │                                #   NumverifyProvider, getCarrierProvider() factory; normalizeLineType()
+    ├── phone-cache.ts               # Redis carrier result cache: getCachedPhoneResult / setCachedPhoneResult;
+    │                                #   sha256(E.164) key, 30-day TTL, local-only results excluded
+    ├── phone-faq-data.ts            # FAQ Q&A for phone tool — consumed by PhoneFAQ.tsx
+    ├── us-area-codes.ts             # US area-code → state/region lookup table
     ├── llm-client.ts                # Thin Anthropic SDK wrapper: callClaude(systemPrompt, userMsg)
     ├── disposable-domains.ts        # ~57 000+ disposable domains — disposable-email-domains (~3 500) merged with mailchecker (~55 860); combined Set
     └── rate-limit.ts                # Upstash Redis: checkRateLimit (20/min), checkDailyTextLimit (20/day); getRedis() shared client
 __tests__/
-├── debunk-text-route.test.ts        # Jest unit tests: POST /api/debunk/text route (35 tests)
+├── debunk-text-route.test.ts        # Jest unit tests: POST /api/debunk/text route (45 tests)
 ├── email-validator.test.ts          # Jest unit tests: validateEmailLocal, applyMxResult, mergeSmtpResult, mergeEmailableResult, role prefixes, plus-addressed role check, expanded typo map, RFC 5321 dot rules, typo score cap, exact scoring, case normalization, DISPOSABLE_DOMAINS (150 tests)
+├── phone-validator.test.ts          # Jest unit tests: validatePhoneLocal, applyCarrierResult, getLineTypeBonus,
+    #   format parsing, validity, country detection, line-type scoring, flags, Caribbean NANP,
+    #   area-code location, applyCarrierResult score swap, VOIP reclassification (70 tests)
 ├── smtp-cache.test.ts               # Jest unit tests: getCachedSmtpResult, setCachedSmtpResult — Redis mocked (15 tests)
 └── url-validator.test.ts            # Jest unit tests: validateUrlLocal, applyHeadResult, applySafeBrowsingResult,
     #   applyRdapResult, applyRedirectResult; getRegisteredDomain, checkBrandSquat, checkTyposquat;
-    #   notHighEntropy, notExcessiveHyphens, IP edge cases, ccTLD coverage (110 tests)
+    #   notHighEntropy, notExcessiveHyphens, IP edge cases, ccTLD coverage (113 tests)
 ```
 
 ## Environment Variables
@@ -242,11 +312,13 @@ __tests__/
 | `ANTHROPIC_API_KEY`                    | Yes      | Anthropic API key — powers the Text / SMS scam detector                                                                 |
 | `ANTHROPIC_MODEL`                      | No       | Claude model to use (default: `claude-sonnet-4-20250514`; use `claude-haiku-4-5-20251001` for cheaper dev testing)      |
 | `ANTHROPIC_MAX_TOKENS`                 | No       | Max output tokens for Claude (default: `1024`; set lower e.g. `300` to reduce cost during testing)                      |
-| `UPSTASH_REDIS_REST_URL`               | Yes      | Upstash Redis URL — rate limiting (20 req/min) + result cache (24 h TTL)                                                |
+| `UPSTASH_REDIS_REST_URL`               | Yes      | Upstash Redis URL — rate limiting (20 req/min) + result caches (SMTP 7d, phone 30d, text 24h)                           |
 | `UPSTASH_REDIS_REST_TOKEN`             | Yes      | Upstash Redis token — required alongside the URL above                                                                  |
 | `GOOGLE_SAFE_BROWSING_API_KEY`         | No       | Google Safe Browsing v4 JSON REST key — enables malware/phishing lookup on URL tool                                     |
 | `ZEROBOUNCE_API_KEY`                   | No       | ZeroBounce API key — preferred SMTP provider (100 free verifications/month recurring)                                   |
 | `EMAILABLE_API_KEY`                    | No       | Emailable API key — fallback SMTP provider (250 one-time free, then paid); used only if `ZEROBOUNCE_API_KEY` is not set |
+| `ABSTRACT_API_PHONE_KEY`               | No       | AbstractAPI Phone Intelligence key — preferred carrier lookup (250 free/month recurring)                                |
+| `NUMVERIFY_API_KEY`                    | No       | NumVerify API key — fallback carrier lookup (100 free/month); used only if `ABSTRACT_API_PHONE_KEY` is not set          |
 | `NEXT_PUBLIC_ADSENSE_ID`               | No       | Google AdSense publisher ID (`ca-pub-...`) — leave blank until approved                                                 |
 | `NEXT_PUBLIC_ZEROBOUNCE_AFFILIATE_URL` | No       | ZeroBounce affiliate tracking URL — shown on email tool risky results                                                   |
 | `NEXT_PUBLIC_NORDVPN_AFFILIATE_URL`    | No       | NordVPN affiliate tracking URL — shown on URL/text tool unsafe results                                                  |
@@ -407,21 +479,29 @@ POST /api/validate
 
 ## Colour Scheme
 
-The site uses an **always-dark** design (zinc-950 background) with a neon-orange brand
-colour — deliberately distinct from Emailable's corporate blue/teal palette.
+The site uses an **always-dark** design (zinc-950 background). Each tool has its own accent colour:
 
-| Token role            | Tailwind class       | Hex        |
-| --------------------- | -------------------- | ---------- |
-| Brand / CTA button    | `bg-orange-500`      | `#f97316`  |
-| Brand accent / links  | `text-orange-400`    | `#fb923c`  |
-| Focus rings           | `ring-orange-500`    | `#f97316`  |
-| Valid result          | `border-lime-500`    | `#84cc16`  |
-| Risky result          | `border-yellow-500`  | `#eab308`  |
-| Invalid result        | `border-rose-500`    | `#fb7185`  |
-| Score ring — valid    | `#84cc16` (SVG fill) | lime-400   |
-| Score ring — warn     | `#eab308` (SVG fill) | yellow-400 |
-| Score ring — invalid  | `#fb7185` (SVG fill) | rose-400   |
-| Body / secondary text | `text-zinc-400`      | `#a1a1aa`  |
+| Tool     | Accent         | Tailwind class   |
+| -------- | -------------- | ---------------- |
+| Email    | Orange (brand) | `orange-400/500` |
+| URL      | Sky blue       | `sky-400/500`    |
+| Text/SMS | Violet         | `violet-400/500` |
+| Phone    | Teal           | `teal-400/500`   |
+
+| Token role            | Tailwind class                          | Hex        |
+| --------------------- | --------------------------------------- | ---------- |
+| Brand / CTA button    | `bg-orange-500`                         | `#f97316`  |
+| Brand accent / links  | `text-orange-400`                       | `#fb923c`  |
+| Focus rings           | `ring-orange-500`                       | `#f97316`  |
+| Valid result card     | `border-lime-500/50 bg-lime-950/40`     | lime       |
+| Warn result card      | `border-yellow-500/50 bg-yellow-950/40` | yellow     |
+| Invalid result card   | `border-rose-500/50 bg-rose-950/40`     | rose       |
+| Score ring — valid    | `#84cc16` (SVG fill)                    | lime-400   |
+| Score ring — warn     | `#eab308` (SVG fill)                    | yellow-400 |
+| Score ring — invalid  | `#fb7185` (SVG fill)                    | rose-400   |
+| Body / secondary text | `text-zinc-400`                         | `#a1a1aa`  |
+
+> All four result cards (Email, URL, Text, Phone) share the same sentiment-coloured border pattern: lime/yellow/rose for valid/warn/invalid. The URL and Text cards were updated March 2 2026 to match.
 
 > **WCAG AA note:** Secondary and body text uses `zinc-400` (#a1a1aa, ~6:1 contrast on zinc-950) rather than `zinc-500` (#71717a, ~4.1:1 which fails AA). This was audited and corrected Feb 26 2026 across `CheckShell.tsx`, `FAQ.tsx`, `UrlFAQ.tsx`, `TextResultCard.tsx`, `SiteFooter.tsx`, and `check/text/page.tsx`.
 
@@ -491,14 +571,15 @@ if (consent === "accepted") {
 
 This is optional for initial launch but required for strict GDPR compliance.
 
-## Rate Limiting (Production)
+## Rate Limiting & Caching (Production)
 
-All three API routes are protected by Upstash Redis rate limiting:
+All API routes are protected by Upstash Redis rate limiting:
 
-- **Per-IP sliding window** — 20 requests/min shared across `/api/validate` and `/api/validate-url`
+- **Per-IP sliding window** — 20 requests/min shared across `/api/validate`, `/api/validate-url`, and `/api/validate-phone`
 - **Per-IP daily cap** — 20 requests/day on `/api/debunk/text` (LLM cost control)
-- **Text result cache** — SHA-256 of the normalised message used as cache key; 24 h TTL on Upstash. Viral scam texts hit cache on the second request, skipping Claude entirely.
-- **SMTP result cache** — SHA-256 of the lowercased email used as cache key; 7-day TTL on Upstash (`itv:smtp:<hash>`). Repeat checks of the same address skip ZeroBounce/Emailable entirely. Only SMTP-provider results are cached — local-only results are not stored. Implemented in `src/lib/smtp-cache.ts`.
+- **Text result cache** — SHA-256 of the normalised message; 24 h TTL (`itv:text:<hash>`). Viral scam texts hit cache on second request, skipping Claude.
+- **SMTP result cache** — SHA-256 of the lowercased email; 7-day TTL (`itv:smtp:<hash>`). Repeat email checks skip ZeroBounce/Emailable. Only SMTP-provider results are cached.
+- **Phone result cache** — SHA-256 of the E.164 number; 30-day TTL (`itv:phone:<hash>`). Carrier assignments rarely change. Cache hit re-stamps `input` from the current request to avoid echoing the first caller's formatting. Only carrier-API results are cached — local-only results are not stored. Implemented in `src/lib/phone-cache.ts`.
 - All limiters and caches are **no-ops when `UPSTASH_REDIS_REST_URL` is absent** (safe for local dev).
 
 ## Expansion Roadmap
@@ -546,6 +627,7 @@ maximising SEO value and deep-linkability.
 ├── /check/email   ← full working tool
 ├── /check/url     ← full working tool
 ├── /check/text    ← full working tool (Claude-powered)
+├── /check/phone   ← full working tool (libphonenumber + carrier API)
 └── /check/image   ← coming soon placeholder
 ```
 
@@ -554,18 +636,20 @@ for all four `/check/*` pages. Each tool page supplies its own colour accent and
 
 ## Route Map
 
-| Route               | Type    | Purpose                                              |
-| ------------------- | ------- | ---------------------------------------------------- |
-| `/`                 | Static  | Hub — tool picker (2×2 card grid)                    |
-| `/check/email`      | Static  | Full email validator                                 |
-| `/check/url`        | Static  | URL safety checker                                   |
-| `/check/text`       | Static  | SMS / text scam analyser (Claude-powered)            |
-| `/check/image`      | Static  | Image authenticity checker (coming soon placeholder) |
-| `/about`            | Static  | Site description, disclosure, contact                |
-| `/privacy`          | Static  | GDPR/CCPA privacy policy (AdSense required)          |
-| `/terms`            | Static  | Terms of service                                     |
-| `/api/validate`     | Dynamic | POST — email validation                              |
-| `/api/validate-url` | Dynamic | POST — URL safety check                              |
-| `/api/debunk/text`  | Dynamic | POST — text/SMS scam analysis (Claude, cached)       |
-| `/sitemap.xml`      | Static  | Auto-generated sitemap                               |
-| `/robots.txt`       | Static  | Auto-generated robots file                           |
+| Route                 | Type    | Purpose                                              |
+| --------------------- | ------- | ---------------------------------------------------- |
+| `/`                   | Static  | Hub — tool picker (2×2 card grid)                    |
+| `/check/email`        | Static  | Full email validator                                 |
+| `/check/url`          | Static  | URL safety checker                                   |
+| `/check/text`         | Static  | SMS / text scam analyser (Claude-powered)            |
+| `/check/phone`        | Static  | Phone number validator                               |
+| `/check/image`        | Static  | Image authenticity checker (coming soon placeholder) |
+| `/about`              | Static  | Site description, disclosure, contact                |
+| `/privacy`            | Static  | GDPR/CCPA privacy policy (AdSense required)          |
+| `/terms`              | Static  | Terms of service                                     |
+| `/api/validate`       | Dynamic | POST — email validation                              |
+| `/api/validate-url`   | Dynamic | POST — URL safety check                              |
+| `/api/validate-phone` | Dynamic | POST — phone number validation (Node.js runtime)     |
+| `/api/debunk/text`    | Dynamic | POST — text/SMS scam analysis (Claude, cached)       |
+| `/sitemap.xml`        | Static  | Auto-generated sitemap                               |
+| `/robots.txt`         | Static  | Auto-generated robots file                           |
