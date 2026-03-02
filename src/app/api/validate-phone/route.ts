@@ -3,6 +3,7 @@ import { z } from "zod";
 import { validatePhoneLocal, applyCarrierResult } from "@/lib/phone-validator";
 import { getCarrierProvider } from "@/lib/carrier-provider";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { getCachedPhoneResult, setCachedPhoneResult } from "@/lib/phone-cache";
 
 // libphonenumber-js/max bundles ~1.5 MB of metadata that must be evaluated in
 // Node.js. Without this, Next.js may place the route in the Edge runtime where
@@ -92,13 +93,24 @@ export async function POST(req: NextRequest) {
   // No-op when neither key is configured — local result returned directly.
   const carrier = getCarrierProvider();
   if (carrier && localResult.phoneE164) {
+    const e164 = localResult.phoneE164;
+
+    // ── 5a. Cache lookup ── hits avoid consuming monthly API quota ──────────────
+    const cached = await getCachedPhoneResult(e164);
+    if (cached) {
+      return NextResponse.json(cached, { headers: securityHeaders() });
+    }
+
+    // ── 5b. Cache miss — call the carrier API ───────────────────────────────────
     try {
-      const carrierData = await carrier.lookup(localResult.phoneE164);
+      const carrierData = await carrier.lookup(e164);
       const enriched = applyCarrierResult(localResult, carrierData);
-      return NextResponse.json(
-        { ...enriched, source: carrier.name },
-        { headers: securityHeaders() },
-      );
+      const withSource = { ...enriched, source: carrier.name };
+
+      // Fire-and-forget cache write — don't add latency to the hot path
+      void setCachedPhoneResult(e164, withSource);
+
+      return NextResponse.json(withSource, { headers: securityHeaders() });
     } catch (err) {
       // Carrier API failure is non-fatal — return the local result.
       console.warn(
