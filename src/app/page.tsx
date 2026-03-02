@@ -1,6 +1,5 @@
 import Link from "next/link";
 import SiteLogo from "@/components/SiteLogo";
-import HeroAnimatedWord from "@/components/HeroAnimatedWord";
 
 const tools = [
   {
@@ -80,8 +79,8 @@ export default function HubPage() {
         <div className="inline-flex items-center gap-2 text-orange-400 text-sm font-medium tracking-wider uppercase">
           <span aria-hidden="true">🔍</span> Free verification tools
         </div>
-        <h1 className="text-5xl sm:text-6xl font-extrabold tracking-tight">
-          <HeroAnimatedWord />
+        <h1 className="text-5xl sm:text-6xl font-extrabold tracking-tight text-white">
+          Is this <span className="text-orange-400">real</span>?
         </h1>
         <p className="text-zinc-400 text-base sm:text-lg max-w-lg mx-auto leading-relaxed">
           Pick something suspicious. We&apos;ll tell you if it&rsquo;s genuine,
