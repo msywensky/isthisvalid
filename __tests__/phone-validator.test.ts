@@ -78,6 +78,33 @@ describe("format parsing", () => {
     const r = validatePhoneLocal("+14155552671");
     expect(r.input).toBe("+14155552671");
   });
+
+  test("10-digit US number without +1 defaults to US", () => {
+    const r = validatePhoneLocal("4155552671");
+    expect(r.checks.parseable).toBe(true);
+    expect(r.countryCode).toBe("US");
+    expect(r.phoneE164).toBe("+14155552671");
+  });
+
+  test("US number with dashes and no +1 defaults to US", () => {
+    const r = validatePhoneLocal("415-555-2671");
+    expect(r.checks.parseable).toBe(true);
+    expect(r.countryCode).toBe("US");
+  });
+
+  test("US number with parentheses and no +1 defaults to US", () => {
+    const r = validatePhoneLocal("(415) 555-2671");
+    expect(r.checks.parseable).toBe(true);
+    expect(r.countryCode).toBe("US");
+    expect(r.valid).toBe(true);
+  });
+
+  test("explicit +1 prefix still works", () => {
+    const r = validatePhoneLocal("+14155552671");
+    expect(r.checks.parseable).toBe(true);
+    expect(r.countryCode).toBe("US");
+    expect(r.phoneE164).toBe("+14155552671");
+  });
 });
 
 // ── validatePhoneLocal — validity ─────────────────────────────────────────────

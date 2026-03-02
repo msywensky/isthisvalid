@@ -304,8 +304,17 @@ export function validatePhoneLocal(raw: string): PhoneValidationResult {
   const input = raw.trim();
   const normalised = normaliseInput(input);
 
-  // Attempt parse — parsePhoneNumberFromString returns undefined on failure
-  const phone = parsePhoneNumberFromString(normalised);
+  // Attempt parse — if no leading "+" (no explicit country code), default to US.
+  // This lets users enter 10-digit US numbers without the +1 prefix.
+  // Guard: only apply the US default when there are enough digit characters to
+  // form a plausible subscriber number (≥7). Shorter inputs skip the default so
+  // they correctly fail validation instead of partially matching.
+  const hasExplicitCC = normalised.startsWith("+");
+  const digitCount = (normalised.match(/\d/g) ?? []).length;
+  const phone =
+    hasExplicitCC || digitCount < 7
+      ? parsePhoneNumberFromString(normalised)
+      : parsePhoneNumberFromString(normalised, "US");
 
   if (!phone) {
     return {
@@ -313,7 +322,7 @@ export function validatePhoneLocal(raw: string): PhoneValidationResult {
       score: 0,
       label: "Invalid Phone Number",
       message:
-        "This doesn't look like a valid phone number. Check the country code and digit count.",
+        "This doesn't look like a valid phone number. US numbers can be entered without +1 (e.g. 4155552671). For other countries, include the country code (e.g. +44...).",
       input,
       phoneE164: null,
       countryCode: null,
@@ -331,7 +340,9 @@ export function validatePhoneLocal(raw: string): PhoneValidationResult {
       carrier: null,
       lineActive: null,
       ported: null,
-      flags: ["Could not parse — check country code and digit count"],
+      flags: [
+        "Could not parse — for non-US numbers include country code (e.g. +44...)",
+      ],
       source: "local",
     };
   }

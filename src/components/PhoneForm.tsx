@@ -40,7 +40,7 @@ export default function PhoneForm({ onSubmit, isLoading }: Props) {
         autoCapitalize="off"
         autoCorrect="off"
         spellCheck={false}
-        placeholder="+1 415 555 2671"
+        placeholder="4155552671 or +44 7400 123456"
         value={value}
         onChange={(e) => setValue(e.target.value)}
         disabled={isLoading}
