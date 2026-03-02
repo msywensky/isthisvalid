@@ -481,12 +481,12 @@ POST /api/validate
 
 The site uses an **always-dark** design (zinc-950 background). Each tool has its own accent colour:
 
-| Tool     | Accent         | Tailwind class   |
-| -------- | -------------- | ---------------- |
-| Email    | Orange (brand) | `orange-400/500` |
-| URL      | Sky blue       | `sky-400/500`    |
-| Text/SMS | Violet         | `violet-400/500` |
-| Phone    | Teal           | `teal-400/500`   |
+| Tool     | Accent   | Tailwind class   |
+| -------- | -------- | ---------------- |
+| Email    | Amber    | `amber-400/500`  |
+| URL      | Sky blue | `sky-400/500`    |
+| Text/SMS | Violet   | `violet-400/500` |
+| Phone    | Teal     | `teal-400/500`   |
 
 | Token role            | Tailwind class                          | Hex        |
 | --------------------- | --------------------------------------- | ---------- |

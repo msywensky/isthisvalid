@@ -40,7 +40,7 @@ export default function AffiliateNudge({
         href={href}
         target="_blank"
         rel="noopener noreferrer nofollow"
-        className="inline-flex items-center gap-1 text-xs font-semibold text-orange-400 hover:text-orange-300 transition-colors"
+        className="inline-flex items-center gap-1 text-xs font-semibold text-amber-400 hover:text-amber-300 transition-colors"
       >
         {cta}
         <span aria-hidden="true">↗</span>

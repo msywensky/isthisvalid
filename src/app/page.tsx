@@ -1,5 +1,6 @@
 import Link from "next/link";
 import SiteLogo from "@/components/SiteLogo";
+import HeroAnimatedWord from "@/components/HeroAnimatedWord";
 
 const tools = [
   {
@@ -9,8 +10,8 @@ const tools = [
     tagline: "Is this address real?",
     description:
       "Validate syntax, check TLD, flag disposable providers, and verify mailbox delivery.",
-    accentHover: "hover:border-orange-500/60",
-    accentText: "group-hover:text-orange-400",
+    accentHover: "hover:border-amber-500/60",
+    accentText: "group-hover:text-amber-400",
     accentBadge: null,
     cta: "Validate email",
   },
@@ -80,7 +81,7 @@ export default function HubPage() {
           <span aria-hidden="true">🔍</span> Free verification tools
         </div>
         <h1 className="text-5xl sm:text-6xl font-extrabold tracking-tight text-white">
-          Is this <span className="text-orange-400">real</span>?
+          Is this <HeroAnimatedWord />
         </h1>
         <p className="text-zinc-400 text-base sm:text-lg max-w-lg mx-auto leading-relaxed">
           Pick something suspicious. We&apos;ll tell you if it&rsquo;s genuine,
