@@ -17,7 +17,7 @@ export const PHONE_FAQ_DATA: PhoneFaqEntry[] = [
   {
     question: "What is a premium-rate number?",
     answer:
-      "Premium-rate numbers (900 numbers in the US, 09 numbers in the UK) charge above-standard rates that are billed to the caller. They are commonly used in 'missed call' or 'one-ring' callback scams — the scammer calls your number, hangs up immediately, and hopes you call back to rack up charges. Do not call back missed calls from unknown numbers starting with 900, 09, or similar prefixes in your country.",
+      "Premium-rate numbers charge above-standard rates billed to the caller. In the US there are three main types to watch out for: 900 numbers (the most recognised — 1-900-XXX-XXXX); 976 exchange numbers (local 7-digit premium lines historically used for adult content, horoscopes, and chat lines, billed through your local carrier); and Caribbean NANP area codes such as 809, 876, 473, 664, 649, 767, 784, 868, and 869. That last group is the sneakiest — they use the +1 country code so they look like ordinary US calls, but they connect internationally and can cost several dollars per minute. In the UK, 09 numbers are the equivalent. All of these are commonly used in 'one-ring' scams where the scammer calls, hangs up immediately, and hopes you call back.",
   },
   {
     question:
