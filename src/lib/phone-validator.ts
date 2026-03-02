@@ -7,6 +7,7 @@
  * applyCarrierResult merges in async carrier-API enrichment when a key is present.
  */
 import { parsePhoneNumberFromString } from "libphonenumber-js/max";
+import { getAreaCodeLocation } from "./us-area-codes";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -53,6 +54,12 @@ export interface PhoneValidationResult {
   internationalFormat: string | null;
   /** ITU-T line type. Null if unparseable. */
   lineType: LineType | null;
+  /**
+   * Best-effort geographic location derived from the area code (US only).
+   * Reflects the area code's assigned region, not the subscriber's actual location.
+   * Mobile numbers may be used far from the area code's origin.
+   */
+  location: string | null;
 
   // ── Checks ───────────────────────────────────────────────────────────────────
   checks: {
@@ -337,6 +344,7 @@ export function validatePhoneLocal(raw: string): PhoneValidationResult {
         possibleNumber: false,
         countryDetected: false,
       },
+      location: null,
       carrier: null,
       lineActive: null,
       ported: null,
@@ -353,6 +361,10 @@ export function validatePhoneLocal(raw: string): PhoneValidationResult {
   const countryName = countryCode ? getCountryName(countryCode) : null;
   const countryDetected = countryCode !== null;
   const lineType = coerceLineType(phone.getType());
+  const location = getAreaCodeLocation(
+    countryCode,
+    phone.nationalNumber ?? null,
+  );
 
   const score = computeScore(
     true,
@@ -384,6 +396,7 @@ export function validatePhoneLocal(raw: string): PhoneValidationResult {
     nationalFormat: isValid ? phone.formatNational() : null,
     internationalFormat: isValid ? phone.formatInternational() : null,
     lineType,
+    location,
     checks: {
       parseable: true,
       validLength: isValid,

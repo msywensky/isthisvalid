@@ -98,6 +98,13 @@ export default function PhoneResultCard({ result }: Props) {
               value={`${result.countryCode} · ${result.countryName}`}
             />
           )}
+          {result.location && (
+            <Detail
+              label="Area code region"
+              value={result.location}
+              note="Based on area code — mobile numbers may differ"
+            />
+          )}
           {result.carrier && <Detail label="Carrier" value={result.carrier} />}
         </div>
       )}
@@ -147,13 +154,22 @@ export default function PhoneResultCard({ result }: Props) {
   );
 }
 
-function Detail({ label, value }: { label: string; value: string }) {
+function Detail({
+  label,
+  value,
+  note,
+}: {
+  label: string;
+  value: string;
+  note?: string;
+}) {
   return (
     <div className="rounded-lg px-3 py-2 bg-zinc-800/60 space-y-0.5">
       <p className="text-zinc-500 text-[10px] uppercase tracking-wider">
         {label}
       </p>
       <p className="text-zinc-200 font-mono truncate">{value}</p>
+      {note && <p className="text-zinc-500 text-[10px] italic">{note}</p>}
     </div>
   );
 }

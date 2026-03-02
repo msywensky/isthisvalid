@@ -3,6 +3,10 @@ import {
   applyCarrierResult,
   type PhoneValidationResult,
 } from "../src/lib/phone-validator";
+import {
+  getStateByAreaCode,
+  getAreaCodeLocation,
+} from "../src/lib/us-area-codes";
 
 // ── validatePhoneLocal — format parsing ───────────────────────────────────────
 
@@ -404,5 +408,77 @@ describe("scoring regressions", () => {
       const r = validatePhoneLocal(input);
       expect(r.score).toBe(0);
     }
+  });
+});
+
+// ── location (area code) ──────────────────────────────────────────────────────────────────────
+
+describe("getStateByAreaCode", () => {
+  test("known area code returns correct state", () => {
+    expect(getStateByAreaCode("415")).toBe("California");
+    expect(getStateByAreaCode("212")).toBe("New York");
+    expect(getStateByAreaCode("202")).toBe("Washington, D.C.");
+    expect(getStateByAreaCode("312")).toBe("Illinois");
+    expect(getStateByAreaCode("713")).toBe("Texas");
+  });
+
+  test("unknown area code returns null", () => {
+    expect(getStateByAreaCode("000")).toBeNull();
+    expect(getStateByAreaCode("999")).toBeNull();
+  });
+
+  test("US territories are included", () => {
+    expect(getStateByAreaCode("787")).toBe("Puerto Rico");
+    expect(getStateByAreaCode("939")).toBe("Puerto Rico");
+    expect(getStateByAreaCode("340")).toBe("US Virgin Islands");
+    expect(getStateByAreaCode("671")).toBe("Guam");
+  });
+});
+
+describe("getAreaCodeLocation", () => {
+  test("US number returns state", () => {
+    expect(getAreaCodeLocation("US", "4155552671")).toBe("California");
+    expect(getAreaCodeLocation("US", "2125550100")).toBe("New York");
+    expect(getAreaCodeLocation("US", "8005551234")).toBeNull(); // 800 = toll-free, not in table
+  });
+
+  test("non-US number returns null", () => {
+    expect(getAreaCodeLocation("GB", "7400123456")).toBeNull();
+    expect(getAreaCodeLocation("FR", "612345678")).toBeNull();
+  });
+
+  test("null countryCode returns null", () => {
+    expect(getAreaCodeLocation(null, "4155552671")).toBeNull();
+  });
+
+  test("null nationalNumber returns null", () => {
+    expect(getAreaCodeLocation("US", null)).toBeNull();
+  });
+});
+
+describe("validatePhoneLocal — location field", () => {
+  test("US number has location populated", () => {
+    const r = validatePhoneLocal("+14155552671");
+    expect(r.location).toBe("California");
+  });
+
+  test("US number entered without +1 has location populated", () => {
+    const r = validatePhoneLocal("4155552671");
+    expect(r.location).toBe("California");
+  });
+
+  test("non-US number has null location", () => {
+    const r = validatePhoneLocal("+447400123456");
+    expect(r.location).toBeNull();
+  });
+
+  test("unparseable input has null location", () => {
+    const r = validatePhoneLocal("000");
+    expect(r.location).toBeNull();
+  });
+
+  test("DC area code returns Washington D.C.", () => {
+    const r = validatePhoneLocal("+12025550199");
+    expect(r.location).toBe("Washington, D.C.");
   });
 });
