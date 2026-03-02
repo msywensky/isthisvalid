@@ -60,17 +60,15 @@ function normalizeLineType(raw: string | null | undefined): string {
   }
 }
 
-// ── AbstractAPI ───────────────────────────────────────────────────────────────
-// Docs:     https://app.abstractapi.com/api/phone-validation/documentation
-// Endpoint: GET https://phonevalidation.abstractapi.com/v1/?api_key=KEY&phone=E164
+// ── AbstractAPI Phone Intelligence ────────────────────────────────────────────
+// Docs:     https://app.abstractapi.com/api/phone-intelligence/documentation
+// Endpoint: GET https://phoneintelligence.abstractapi.com/v1/?api_key=KEY&phone=DIGITS
 // Free:     250 requests / month
 //
 // Response shape (relevant fields):
 // {
-//   "valid": true,
-//   "type": "mobile" | "landline" | "voip" | "toll_free" | "premium_rate" | ...
-//   "carrier": "AT&T Mobility",
-//   "location": "California"
+//   "phone_carrier":    { "name": "Verizon Wireless", "line_type": "mobile" },
+//   "phone_validation": { "is_valid": true, "line_status": "active", "is_voip": false }
 // }
 
 export class AbstractApiProvider implements CarrierProvider {
@@ -79,10 +77,12 @@ export class AbstractApiProvider implements CarrierProvider {
   constructor(private readonly apiKey: string) {}
 
   async lookup(e164: string): Promise<CarrierData> {
+    // Phone Intelligence API accepts digits-only (no + prefix).
+    const phoneParam = e164.startsWith("+") ? e164.slice(1) : e164;
     const url =
-      `https://phonevalidation.abstractapi.com/v1/` +
+      `https://phoneintelligence.abstractapi.com/v1/` +
       `?api_key=${this.apiKey}` +
-      `&phone=${encodeURIComponent(e164)}`;
+      `&phone=${phoneParam}`;
 
     const res = await fetch(url, {
       signal: AbortSignal.timeout(8_000),
@@ -90,24 +90,42 @@ export class AbstractApiProvider implements CarrierProvider {
     });
 
     if (!res.ok) {
-      throw new Error(`AbstractAPI error: ${res.status} ${res.statusText}`);
+      const body = await res.text().catch(() => "");
+      throw new Error(
+        `AbstractAPI error: ${res.status} ${res.statusText}${body ? ` — ${body.slice(0, 200)}` : ""}`,
+      );
     }
 
     const data = (await res.json()) as Record<string, unknown>;
 
-    const valid = Boolean(data.valid);
-    const rawType = data.type as string | undefined;
-    const carrier =
-      typeof data.carrier === "string" && data.carrier ? data.carrier : "";
+    const carrierObj = data.phone_carrier as
+      | Record<string, unknown>
+      | undefined;
+    const validationObj = data.phone_validation as
+      | Record<string, unknown>
+      | undefined;
+
+    const carrierName =
+      typeof carrierObj?.name === "string" && carrierObj.name
+        ? carrierObj.name
+        : "";
+
+    // is_voip is authoritative — override line_type when true.
+    const isVoip = Boolean(validationObj?.is_voip);
+    const rawLineType = isVoip
+      ? "voip"
+      : (carrierObj?.line_type as string | undefined);
+
+    const isActive =
+      typeof validationObj?.line_status === "string"
+        ? validationObj.line_status === "active"
+        : Boolean(validationObj?.is_valid);
 
     return {
-      carrier,
-      lineType: normalizeLineType(rawType),
-      // AbstractAPI "valid" is structural validity, used as a proxy for reachability.
-      active: valid,
-      // Free tier does not provide porting info.
+      carrier: carrierName,
+      lineType: normalizeLineType(rawLineType),
+      active: isActive,
       ported: false,
-      // Bonus: +10 for API confirmation (less than a live CNAM check warrants).
       scoreBonus: 10,
     };
   }
