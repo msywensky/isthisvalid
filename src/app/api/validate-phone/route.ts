@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { validatePhoneLocal } from "@/lib/phone-validator";
+import { validatePhoneLocal, applyCarrierResult } from "@/lib/phone-validator";
+import { getCarrierProvider } from "@/lib/carrier-provider";
 import { checkRateLimit } from "@/lib/rate-limit";
 
 // libphonenumber-js/max bundles ~1.5 MB of metadata that must be evaluated in
@@ -34,7 +35,7 @@ function securityHeaders(): Record<string, string> {
  *   2. Zod validation
  *   3. validatePhoneLocal() — free, instant, libphonenumber-js
  *   4. Early exit if !parseable
- *   5. (Future) Carrier API enrichment gated on NUMVERIFY_API_KEY
+ *   5. Carrier API enrichment (AbstractAPI → NumVerify fallback, gated on env key)
  */
 export async function POST(req: NextRequest) {
   // ── 1. Rate limit ───────────────────────────────────────────────────────────
@@ -86,9 +87,26 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // ── 5. Carrier API enrichment (future) ───────────────────────────────────────
-  // When NUMVERIFY_API_KEY is set, call the carrier API and applyCarrierResult().
-  // Currently a no-op — local result is returned directly.
+  // ── 5. Carrier API enrichment ────────────────────────────────────────────────
+  // AbstractAPI preferred (250 free/mo), NumVerify fallback (100 free/mo).
+  // No-op when neither key is configured — local result returned directly.
+  const carrier = getCarrierProvider();
+  if (carrier && localResult.phoneE164) {
+    try {
+      const carrierData = await carrier.lookup(localResult.phoneE164);
+      const enriched = applyCarrierResult(localResult, carrierData);
+      return NextResponse.json(
+        { ...enriched, source: carrier.name },
+        { headers: securityHeaders() },
+      );
+    } catch (err) {
+      // Carrier API failure is non-fatal — return the local result.
+      console.warn(
+        `[validate-phone] Carrier API (${carrier.name}) failed:`,
+        err,
+      );
+    }
+  }
 
   return NextResponse.json(localResult, { headers: securityHeaders() });
 }
