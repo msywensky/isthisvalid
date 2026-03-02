@@ -54,7 +54,7 @@ export default function PhoneCheckPage() {
       label="Phone Validator"
       headline={
         <>
-          Is this <span className="text-orange-400">legit</span>?
+          Is this <span className="text-teal-400">legit</span>?
         </>
       }
       sub="Paste any phone number and we'll identify the country, line type, and whether it's a known scam vector. No signup required."
@@ -87,7 +87,7 @@ export default function PhoneCheckPage() {
         {(state.phase === "result" || state.phase === "error") && (
           <button
             onClick={handleReset}
-            className="cursor-pointer text-sm text-orange-400 hover:text-orange-300 underline underline-offset-2 transition-colors"
+            className="cursor-pointer text-sm text-teal-400 hover:text-teal-300 underline underline-offset-2 transition-colors"
           >
             ← Check another number
           </button>

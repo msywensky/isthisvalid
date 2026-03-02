@@ -19,7 +19,7 @@ export default function PhoneFAQ() {
         {PHONE_FAQ_DATA.map(({ question, answer }) => (
           <details
             key={question}
-            className="group rounded-xl border border-zinc-800 bg-zinc-900/50 open:border-orange-500/30 transition-colors duration-150"
+            className="group rounded-xl border border-zinc-800 bg-zinc-900/50 open:border-teal-500/30 transition-colors duration-150"
           >
             <summary className="flex cursor-pointer items-center justify-between gap-4 px-5 py-4 text-sm font-medium text-zinc-200 marker:hidden list-none">
               <span>{question}</span>

@@ -47,7 +47,7 @@ export default function PhoneForm({ onSubmit, isLoading }: Props) {
         className="
           flex-1 rounded-xl border-2 border-zinc-700 bg-zinc-900 px-4 py-3
           text-white placeholder-zinc-500 text-base
-          focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/30
+          focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/30
           disabled:opacity-50 disabled:cursor-not-allowed
           transition-colors duration-150
         "
@@ -56,12 +56,12 @@ export default function PhoneForm({ onSubmit, isLoading }: Props) {
         type="submit"
         disabled={isLoading || !value.trim()}
         className="
-          rounded-xl bg-orange-500 hover:bg-orange-400 active:bg-orange-600
+          rounded-xl bg-teal-600 hover:bg-teal-500 active:bg-teal-700
           disabled:opacity-50 disabled:cursor-not-allowed
           px-6 py-3 font-semibold text-white text-base
           flex items-center justify-center gap-2
           transition-colors duration-150 min-w-32.5
-          focus:outline-none focus:ring-2 focus:ring-orange-400/60
+          focus:outline-none focus:ring-2 focus:ring-teal-400/60
         "
       >
         {isLoading ? (
