@@ -12,6 +12,35 @@ function getSentiment(result: PhoneValidationResult): Sentiment {
   return "warn";
 }
 
+function lineTypeLabel(lineType: string): string {
+  switch (lineType) {
+    case "MOBILE":
+      return "Mobile";
+    case "FIXED_LINE":
+      return "Landline";
+    case "FIXED_LINE_OR_MOBILE":
+      return "Mobile or Landline";
+    case "TOLL_FREE":
+      return "Toll-Free";
+    case "VOIP":
+      return "VoIP";
+    case "PREMIUM_RATE":
+      return "Premium Rate";
+    case "SHARED_COST":
+      return "Shared Cost";
+    case "PAGER":
+      return "Pager";
+    case "UAN":
+      return "Universal Access";
+    case "PERSONAL_NUMBER":
+      return "Personal";
+    case "VOICEMAIL":
+      return "Voicemail";
+    default:
+      return lineType.replace(/_/g, " ");
+  }
+}
+
 const sentimentStyles: Record<
   Sentiment,
   { card: string; badge: string; icon: string }
@@ -62,7 +91,7 @@ export default function PhoneResultCard({ result }: Props) {
           </span>
           {result.lineType && result.lineType !== "UNKNOWN" && (
             <span className="text-xs font-medium px-2 py-1 rounded-full bg-zinc-800 text-zinc-400 border border-zinc-700">
-              {result.lineType.replace(/_/g, " ")}
+              {lineTypeLabel(result.lineType)}
             </span>
           )}
         </div>

@@ -31,9 +31,10 @@ export const PHONE_FAQ_DATA: PhoneFaqEntry[] = [
       "Yes. The checker uses Google's libphonenumber library, which covers numbering plans for every country using the ITU-T standard. Include the country code (e.g. +44 for the UK, +61 for Australia) for non-US numbers. US and Canadian numbers can be entered without a country code.",
   },
   {
-    question: "What does 'FIXED_LINE_OR_MOBILE' mean?",
+    question:
+      "Why does the result show 'Mobile or Landline' instead of a specific type?",
     answer:
-      "Some number ranges are used for both landline and mobile lines, making it impossible to determine the type from the number alone. This is common in the US, where many area codes carry both types. When a carrier API key is configured, the checker resolves this to the actual line type using real carrier data.",
+      "Some number ranges are assigned to both mobile and landline lines, so it's impossible to tell the type from the number alone — this is common in the US and Canada. When a carrier lookup is available (shown in the source badge at the bottom of the result), the checker resolves this to the actual line type using live carrier data.",
   },
   {
     question: "Is the carrier information always accurate?",
