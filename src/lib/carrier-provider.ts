@@ -38,6 +38,8 @@ function normalizeLineType(raw: string | null | undefined): string {
     case "fixedline":
     case "fixed":
       return "FIXED_LINE";
+    case "fixedlineormobile":
+      return "FIXED_LINE_OR_MOBILE";
     case "voip":
       return "VOIP";
     case "tollfree":

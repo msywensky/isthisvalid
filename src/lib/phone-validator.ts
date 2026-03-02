@@ -93,7 +93,7 @@ export interface CarrierData {
   ported: boolean;
   /** Whether the line is confirmed active by the carrier API. */
   active: boolean;
-  /** Score bonus applied by the carrier API confirmation (+15 max). */
+  /** Score bonus applied by the carrier API confirmation (+10 max). */
   scoreBonus?: number;
   /**
    * API-provided geographic location (e.g. "Catasauqua, Pennsylvania").
