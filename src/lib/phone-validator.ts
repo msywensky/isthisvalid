@@ -311,6 +311,26 @@ export function buildFlags(
   return flags;
 }
 
+/**
+ * Caribbean and Pacific island nations share the +1 NANP country code with
+ * the US, so their numbers look like domestic calls. Dialing them from the US
+ * incurs international rates — the mechanic behind one-ring scams.
+ * US territories (PR, GU, VI, AS, MP) are excluded; they share +1 without
+ * international charges.
+ */
+const NANP_SAFE = new Set(["US", "CA", "PR", "GU", "VI", "AS", "MP"]);
+
+function nanpWarningFlag(
+  callingCode: string | undefined,
+  countryCode: string | null,
+  countryName: string | null,
+): string | null {
+  if (callingCode === "1" && countryCode && !NANP_SAFE.has(countryCode)) {
+    return `Caribbean/Pacific NANP number — despite the +1 prefix, calling ${countryName ?? countryCode} from the US incurs international rates. Often used in one-ring callback scams.`;
+  }
+  return null;
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 /**
@@ -394,6 +414,15 @@ export function validatePhoneLocal(raw: string): PhoneValidationResult {
   );
   const flags = buildFlags(lineType, isValid);
 
+  // Warn when a NANP (+1) number belongs to a foreign country — calling it
+  // from the US incurs international charges despite the familiar +1 prefix.
+  const nanpWarn = nanpWarningFlag(
+    phone.countryCallingCode,
+    countryCode,
+    countryName,
+  );
+  if (nanpWarn) flags.push(nanpWarn);
+
   return {
     valid: isValid,
     score,
@@ -474,6 +503,17 @@ export function applyCarrierResult(
   const flags = lineTypeChanged
     ? buildFlags(resolvedLineType, result.valid)
     : result.flags;
+
+  // Preserve the Caribbean/Pacific warning through carrier enrichment —
+  // buildFlags doesn't have access to country data so it can't emit it.
+  // Derive calling code from the E.164 string already in the result.
+  const callingCode = result.phoneE164?.startsWith("+1") ? "1" : undefined;
+  const nanpWarn = nanpWarningFlag(
+    callingCode,
+    result.countryCode,
+    result.countryName,
+  );
+  if (nanpWarn && !flags.includes(nanpWarn)) flags.push(nanpWarn);
 
   return {
     ...result,

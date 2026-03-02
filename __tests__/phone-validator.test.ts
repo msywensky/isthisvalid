@@ -431,6 +431,43 @@ describe("scoring regressions", () => {
   });
 });
 
+// ── Caribbean NANP flag ───────────────────────────────────────────────────────
+
+describe("Caribbean NANP flag", () => {
+  test("809 (Dominican Republic) gets the one-ring scam warning flag", () => {
+    const r = validatePhoneLocal("+18092341111");
+    expect(r.flags.some((f) => f.includes("Caribbean"))).toBe(true);
+  });
+
+  test("876 (Jamaica) gets the one-ring scam warning flag", () => {
+    const r = validatePhoneLocal("+18765551234");
+    expect(r.flags.some((f) => f.includes("Caribbean"))).toBe(true);
+  });
+
+  test("US number does NOT get the NANP warning flag", () => {
+    const r = validatePhoneLocal("+14155552671");
+    expect(r.flags.some((f) => f.includes("Caribbean"))).toBe(false);
+  });
+
+  test("Puerto Rico (PR territory) does NOT get the NANP warning flag", () => {
+    // PR uses +1-787 and +1-939 but is a US territory — no international charge
+    const r = validatePhoneLocal("+17875551234");
+    expect(r.flags.some((f) => f.includes("Caribbean"))).toBe(false);
+  });
+
+  test("Caribbean flag is preserved through applyCarrierResult", () => {
+    const local = validatePhoneLocal("+18092341111");
+    const enriched = applyCarrierResult(local, {
+      carrier: "Claro",
+      lineType: "MOBILE",
+      ported: false,
+      active: true,
+      scoreBonus: 10,
+    });
+    expect(enriched.flags.some((f) => f.includes("Caribbean"))).toBe(true);
+  });
+});
+
 // ── location (area code) ──────────────────────────────────────────────────────────────────────
 
 describe("getStateByAreaCode", () => {
