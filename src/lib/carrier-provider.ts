@@ -68,7 +68,9 @@ function normalizeLineType(raw: string | null | undefined): string {
 // Response shape (relevant fields):
 // {
 //   "phone_carrier":    { "name": "Verizon Wireless", "line_type": "mobile" },
-//   "phone_validation": { "is_valid": true, "line_status": "active", "is_voip": false }
+//   "phone_validation": { "is_valid": true, "line_status": "active", "is_voip": false },
+//   "phone_location":   { "region": "Catasauqua", "city": "Pennsylvania" }
+//                        ↑ confusingly: "region" = city/suburb, "city" = state
 // }
 
 export class AbstractApiProvider implements CarrierProvider {
@@ -104,6 +106,9 @@ export class AbstractApiProvider implements CarrierProvider {
     const validationObj = data.phone_validation as
       | Record<string, unknown>
       | undefined;
+    const locationObj = data.phone_location as
+      | Record<string, unknown>
+      | undefined;
 
     const carrierName =
       typeof carrierObj?.name === "string" && carrierObj.name
@@ -121,12 +126,28 @@ export class AbstractApiProvider implements CarrierProvider {
         ? validationObj.line_status === "active"
         : Boolean(validationObj?.is_valid);
 
+    // AbstractAPI confusingly puts the city/suburb in "region" and the state
+    // in "city". Combine both when present for a useful display string.
+    const apiRegion =
+      typeof locationObj?.region === "string" && locationObj.region
+        ? locationObj.region
+        : null;
+    const apiState =
+      typeof locationObj?.city === "string" && locationObj.city
+        ? locationObj.city
+        : null;
+    const city =
+      apiRegion && apiState
+        ? `${apiRegion}, ${apiState}`
+        : (apiRegion ?? apiState ?? null);
+
     return {
       carrier: carrierName,
       lineType: normalizeLineType(rawLineType),
       active: isActive,
       ported: false,
       scoreBonus: 10,
+      city,
     };
   }
 }

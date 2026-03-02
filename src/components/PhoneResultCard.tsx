@@ -100,9 +100,15 @@ export default function PhoneResultCard({ result }: Props) {
           )}
           {result.location && (
             <Detail
-              label="Area code region"
+              label={
+                result.source === "local" ? "Area code region" : "Location"
+              }
               value={result.location}
-              note="Based on area code — mobile numbers may differ"
+              note={
+                result.source === "local"
+                  ? "Based on area code — mobile numbers may differ"
+                  : undefined
+              }
             />
           )}
           {result.carrier && <Detail label="Carrier" value={result.carrier} />}

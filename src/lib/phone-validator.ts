@@ -95,6 +95,11 @@ export interface CarrierData {
   active: boolean;
   /** Score bonus applied by the carrier API confirmation (+15 max). */
   scoreBonus?: number;
+  /**
+   * API-provided geographic location (e.g. "Catasauqua, Pennsylvania").
+   * When present, replaces the local area-code guess in the result.
+   */
+  city?: string | null;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -480,5 +485,7 @@ export function applyCarrierResult(
     carrier: data.carrier || null,
     lineActive: data.active,
     ported: data.ported,
+    // Replace the area-code guess with the carrier API's actual location when provided.
+    location: data.city ?? result.location,
   };
 }
