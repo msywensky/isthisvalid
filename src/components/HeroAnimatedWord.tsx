@@ -33,13 +33,13 @@ export default function HeroAnimatedWord() {
 
   return (
     <span
-      className={`transition-opacity ${colorClass}`}
+      className="transition-opacity text-white"
       style={{
         opacity: visible ? 1 : 0,
         transitionDuration: `${FADE_MS}ms`,
       }}
     >
-      {text}
+      Is this <span className={colorClass}>{text}</span>
     </span>
   );
 }
