@@ -98,7 +98,12 @@ export async function POST(req: NextRequest) {
     // ── 5a. Cache lookup ── hits avoid consuming monthly API quota ──────────────
     const cached = await getCachedPhoneResult(e164);
     if (cached) {
-      return NextResponse.json(cached, { headers: securityHeaders() });
+      // Re-stamp input from the current request — the cached copy reflects
+      // whatever the first caller typed, which would show wrong text in the UI.
+      return NextResponse.json(
+        { ...cached, input: phone },
+        { headers: securityHeaders() },
+      );
     }
 
     // ── 5b. Cache miss — call the carrier API ───────────────────────────────────

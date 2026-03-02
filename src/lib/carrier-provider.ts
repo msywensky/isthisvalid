@@ -154,7 +154,7 @@ export class AbstractApiProvider implements CarrierProvider {
 
 // ── NumVerify ─────────────────────────────────────────────────────────────────
 // Docs:     https://numverify.com/documentation
-// Endpoint: GET https://apilayer.net/api/validate?access_key=KEY&number=E164
+// Endpoint: GET http://apilayer.net/api/validate?access_key=KEY&number=E164
 // Free:     100 requests / month
 //
 // Response shape (relevant fields):
@@ -164,8 +164,9 @@ export class AbstractApiProvider implements CarrierProvider {
 //   "line_type": "mobile" | "fixed-line" | "voip" | "toll-free" | ...
 // }
 //
-// Note: NumVerify free tier requires HTTP (not HTTPS). The Pro plan adds HTTPS.
-// We use HTTPS regardless and surface a descriptive error if it fails due to tier.
+// IMPORTANT: The NumVerify free tier requires plain HTTP — HTTPS is a paid
+// feature. Using HTTPS on the free plan returns { success: false } with an
+// "https_access_restricted" error. We intentionally use http:// here.
 
 export class NumverifyProvider implements CarrierProvider {
   readonly name = "numverify" as const;
@@ -176,7 +177,7 @@ export class NumverifyProvider implements CarrierProvider {
     // NumVerify strips the leading "+" — pass digits only
     const digits = e164.replace(/^\+/, "");
     const url =
-      `https://apilayer.net/api/validate` +
+      `http://apilayer.net/api/validate` +
       `?access_key=${this.apiKey}` +
       `&number=${encodeURIComponent(digits)}` +
       `&format=1`;

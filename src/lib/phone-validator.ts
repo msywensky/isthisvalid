@@ -471,7 +471,7 @@ export function applyCarrierResult(
   // of correctly penalising it (VOIP = −20).
   const oldLineTypeBonus = getLineTypeBonus(result.lineType);
   const newLineTypeBonus = getLineTypeBonus(resolvedLineType);
-  const apiBonus = data.active ? (data.scoreBonus ?? 15) : 0;
+  const apiBonus = data.active ? (data.scoreBonus ?? 10) : 0;
   const newScore = Math.max(
     0,
     Math.min(
@@ -500,9 +500,10 @@ export function applyCarrierResult(
         result.countryName,
       )
     : result.message;
+  // Always spread to avoid mutating the source result's flags array.
   const flags = lineTypeChanged
     ? buildFlags(resolvedLineType, result.valid)
-    : result.flags;
+    : [...result.flags];
 
   // Preserve the Caribbean/Pacific warning through carrier enrichment —
   // buildFlags doesn't have access to country data so it can't emit it.
