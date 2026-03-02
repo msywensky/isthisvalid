@@ -3,6 +3,11 @@ import { z } from "zod";
 import { validatePhoneLocal } from "@/lib/phone-validator";
 import { checkRateLimit } from "@/lib/rate-limit";
 
+// libphonenumber-js/max bundles ~1.5 MB of metadata that must be evaluated in
+// Node.js. Without this, Next.js may place the route in the Edge runtime where
+// the metadata bundle gets XHR-loaded — blocked as a cross-origin request.
+export const runtime = "nodejs";
+
 const RequestSchema = z.object({
   phone: z
     .string()
