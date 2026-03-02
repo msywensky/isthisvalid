@@ -1,6 +1,6 @@
 # isthisvalid.com — Maintenance-Grade Technical Documentation
 
-**Generated:** March 1, 2026 | **Build:** ✅ clean (16 routes) | **Tests:** ✅ 333/333 | **Branch:** `main`
+**Generated:** March 2, 2026 | **Build:** ✅ clean (18 routes) | **Tests:** ✅ 403/403 | **Branch:** `main`
 
 ---
 
@@ -26,6 +26,8 @@ C4Context
     System_Ext(emailable, "Emailable API", "SMTP fallback")
     System_Ext(safebrowsing, "Google Safe Browsing v4", "Malware/phishing lists")
     System_Ext(claude, "Anthropic Claude Sonnet", "LLM scam detection")
+    System_Ext(abstractapi, "AbstractAPI Phone", "Carrier lookup (preferred)")
+    System_Ext(numverify, "NumVerify", "Carrier lookup (fallback)")
     System_Ext(upstash, "Upstash Redis", "Rate limiting + caching")
     System_Ext(adsense, "Google AdSense", "Ad revenue")
     System_Ext(analytics, "Vercel Analytics", "Page-view telemetry")
@@ -35,6 +37,8 @@ C4Context
     Rel(nextjs, emailable, "REST — fallback")
     Rel(nextjs, safebrowsing, "REST — URL threat lookup")
     Rel(nextjs, claude, "REST — text analysis")
+    Rel(nextjs, abstractapi, "REST — phone carrier lookup")
+    Rel(nextjs, numverify, "REST — carrier fallback")
     Rel(nextjs, upstash, "Redis — rate limits + caches")
     Rel(nextjs, adsense, "Script tag — display ads")
     Rel(nextjs, analytics, "Client beacon — page views")
@@ -42,32 +46,33 @@ C4Context
 
 ### Core Design Patterns & Rationale
 
-| Pattern                             | Where                                                                            | Why                                                                                                                               |
-| ----------------------------------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| **Pipeline / merge pattern**        | email-validator, url-validator                                                   | Cheap local checks first, progressive enrichment with paid APIs. Early exits avoid burning paid credits.                          |
-| **Pluggable provider abstraction**  | smtp-provider.ts                                                                 | Swap ZeroBounce ↔ Emailable by setting/unsetting env vars — no code changes.                                                      |
-| **Progressive scoring (0–100)**     | Both validators                                                                  | Single number powers UI ring + `safe`/`valid` verdict. Caps and floors encode business rules (e.g. `apiDeliverable=false` → ≤10). |
-| **Graceful no-op when keys absent** | rate-limit, llm-client, smtp-cache, smtp-provider                                | Entire tool still works in local dev with zero env vars.                                                                          |
-| **Result-merge functions**          | `applyMxResult`, `mergeSmtpResult`, `applyHeadResult`, `applySafeBrowsingResult` | Each async check returns an enriched copy — no mutation, easy to test in isolation.                                               |
-| **SHA-256 cache keying**            | smtp-cache, text route                                                           | PII-safe: the raw email/text is never stored in Redis.                                                                            |
-| **Layout-scoped JSON-LD**           | Each tool's `layout.tsx`                                                         | FAQPage structured data must appear only on the relevant page. Root layout carries only the site-level `WebApplication` schema.   |
-| **Server Components by default**    | All UI except forms                                                              | Reduces JS bundle; forms that need `useState` are narrow Client Components.                                                       |
+| Pattern                             | Where                                                                                                  | Why                                                                                                                             |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| **Pipeline / merge pattern**        | email-validator, url-validator, phone-validator                                                        | Cheap local checks first, progressive enrichment with paid APIs. Early exits avoid burning paid credits.                        |
+| **Pluggable provider abstraction**  | smtp-provider.ts, carrier-provider.ts                                                                  | Swap ZeroBounce ↔ Emailable or AbstractAPI ↔ NumVerify by setting/unsetting env vars — no code changes.                         |
+| **Progressive scoring (0–100)**     | All three validators                                                                                   | Single number powers UI ring + `safe`/`valid` verdict. Caps and floors encode business rules.                                   |
+| **Graceful no-op when keys absent** | rate-limit, llm-client, smtp-cache, smtp-provider, phone-cache, carrier-provider                       | Entire tool still works in local dev with zero env vars.                                                                        |
+| **Result-merge functions**          | `applyMxResult`, `mergeSmtpResult`, `applyHeadResult`, `applySafeBrowsingResult`, `applyCarrierResult` | Each async check returns an enriched copy — no mutation, easy to test in isolation.                                             |
+| **SHA-256 cache keying**            | smtp-cache, phone-cache, text route                                                                    | PII-safe: the raw email/phone/text is never stored in Redis.                                                                    |
+| **Layout-scoped JSON-LD**           | Each tool's `layout.tsx`                                                                               | FAQPage structured data must appear only on the relevant page. Root layout carries only the site-level `WebApplication` schema. |
+| **Server Components by default**    | All UI except forms                                                                                    | Reduces JS bundle; forms that need `useState` are narrow Client Components.                                                     |
 
 ### Tech Stack
 
-| Technology               | Version | Role                                                         |
-| ------------------------ | ------- | ------------------------------------------------------------ |
-| Next.js                  | 16.1.6  | Framework — App Router, RSC, API routes, static generation   |
-| React                    | 19.2.3  | UI                                                           |
-| TypeScript               | ^5      | Language — strict mode throughout                            |
-| Tailwind CSS             | v4      | Styling — always-dark, utility-first                         |
-| Zod                      | v4.3.6  | Runtime request validation (`z.object`, `safeParse`)         |
-| @upstash/ratelimit       | 2.0.8   | Serverless rate limiting                                     |
-| @upstash/redis           | 1.36.2  | Redis client (REST-based, works in Edge/serverless)          |
-| @anthropic-ai/sdk        | 0.78.0  | Claude API wrapper                                           |
-| disposable-email-domains | 1.0.62  | 57,000+ disposable domain list                               |
-| mailchecker              | 6.0.19  | Additional disposable domain coverage (merged at build time) |
-| Jest + ts-jest           | 30.x    | Unit testing                                                 |
+| Technology               | Version | Role                                                                      |
+| ------------------------ | ------- | ------------------------------------------------------------------------- |
+| Next.js                  | 16.1.6  | Framework — App Router, RSC, API routes, static generation                |
+| React                    | 19.2.3  | UI                                                                        |
+| TypeScript               | ^5      | Language — strict mode throughout                                         |
+| Tailwind CSS             | v4      | Styling — always-dark, utility-first                                      |
+| Zod                      | v4.3.6  | Runtime request validation (`z.object`, `safeParse`)                      |
+| @upstash/ratelimit       | 2.0.8   | Serverless rate limiting                                                  |
+| @upstash/redis           | 1.36.2  | Redis client (REST-based, works in Edge/serverless)                       |
+| @anthropic-ai/sdk        | 0.78.0  | Claude API wrapper                                                        |
+| libphonenumber-js        | latest  | Google's libphonenumber compiled to JS — phone parsing + ITU-T validation |
+| disposable-email-domains | 1.0.62  | 57,000+ disposable domain list                                            |
+| mailchecker              | 6.0.19  | Additional disposable domain coverage (merged at build time)              |
+| Jest + ts-jest           | 30.x    | Unit testing                                                              |
 
 ---
 
@@ -106,19 +111,21 @@ npm run build
 
 ### Environment Variables
 
-| Variable                               | Required?                   | Default / Fallback            | Notes                                                           |
-| -------------------------------------- | --------------------------- | ----------------------------- | --------------------------------------------------------------- |
-| `ANTHROPIC_API_KEY`                    | For text tool               | Tool returns error if absent  | Set spend cap in Anthropic console first                        |
-| `ANTHROPIC_MODEL`                      | No                          | `claude-sonnet-4-20250514`    | Override to `claude-haiku-4-5-20251001` for cheaper dev testing |
-| `ANTHROPIC_MAX_TOKENS`                 | No                          | `1024`                        | Set lower (e.g. `300`) to reduce cost in dev                    |
-| `ZEROBOUNCE_API_KEY`                   | Preferred SMTP              | Local+MX only if absent       | 100 free verifications/month                                    |
-| `EMAILABLE_API_KEY`                    | SMTP fallback               | Ignored if ZeroBounce present | 250 one-time free                                               |
-| `UPSTASH_REDIS_REST_URL`               | For rate limiting + caching | No-op if absent               | Create at [upstash.com](https://upstash.com)                    |
-| `UPSTASH_REDIS_REST_TOKEN`             | For rate limiting + caching | No-op if absent               | Paired with URL above                                           |
-| `GOOGLE_SAFE_BROWSING_API_KEY`         | For URL threat check        | Skipped if absent             | 10,000 req/day free                                             |
-| `NEXT_PUBLIC_ADSENSE_ID`               | For ad revenue              | Ads hidden if blank           | Leave blank until AdSense approved                              |
-| `NEXT_PUBLIC_ZEROBOUNCE_AFFILIATE_URL` | For affiliate nudge         | Placeholder shown             | Set when affiliate link obtained                                |
-| `NEXT_PUBLIC_NORDVPN_AFFILIATE_URL`    | For affiliate nudge         | Placeholder shown             | Set when affiliate link obtained                                |
+| Variable                               | Required?                   | Default / Fallback                | Notes                                                           |
+| -------------------------------------- | --------------------------- | --------------------------------- | --------------------------------------------------------------- |
+| `ANTHROPIC_API_KEY`                    | For text tool               | Tool returns error if absent      | Set spend cap in Anthropic console first                        |
+| `ANTHROPIC_MODEL`                      | No                          | `claude-sonnet-4-20250514`        | Override to `claude-haiku-4-5-20251001` for cheaper dev testing |
+| `ANTHROPIC_MAX_TOKENS`                 | No                          | `1024`                            | Set lower (e.g. `300`) to reduce cost in dev                    |
+| `ZEROBOUNCE_API_KEY`                   | Preferred SMTP              | Local+MX only if absent           | 100 free verifications/month                                    |
+| `EMAILABLE_API_KEY`                    | SMTP fallback               | Ignored if ZeroBounce present     | 250 one-time free                                               |
+| `ABSTRACT_API_PHONE_KEY`               | Preferred carrier API       | Local-only phone result if absent | 250 free lookups/month (AbstractAPI Phone Intelligence)         |
+| `NUMVERIFY_API_KEY`                    | Carrier API fallback        | Ignored if Abstract key present   | 100 free lookups/month; requires HTTP (not HTTPS) on free tier  |
+| `UPSTASH_REDIS_REST_URL`               | For rate limiting + caching | No-op if absent                   | Create at [upstash.com](https://upstash.com)                    |
+| `UPSTASH_REDIS_REST_TOKEN`             | For rate limiting + caching | No-op if absent                   | Paired with URL above                                           |
+| `GOOGLE_SAFE_BROWSING_API_KEY`         | For URL threat check        | Skipped if absent                 | 10,000 req/day free                                             |
+| `NEXT_PUBLIC_ADSENSE_ID`               | For ad revenue              | Ads hidden if blank               | Leave blank until AdSense approved                              |
+| `NEXT_PUBLIC_ZEROBOUNCE_AFFILIATE_URL` | For affiliate nudge         | Placeholder shown                 | Set when affiliate link obtained                                |
+| `NEXT_PUBLIC_NORDVPN_AFFILIATE_URL`    | For affiliate nudge         | Placeholder shown                 | Set when affiliate link obtained                                |
 
 ### Commands
 
@@ -148,19 +155,21 @@ npm run generate-og    # Regenerate OG image (scripts/generate-og.mjs)
 ### Route Map
 
 ```
-/                  → app/page.tsx             Hub — 4 tool cards (SSG)
-/check/email       → check/email/page.tsx     Email tool (SSG shell, CSR form)
-/check/url         → check/url/page.tsx       URL tool (SSG shell, CSR form)
-/check/text        → check/text/page.tsx      Text tool (SSG shell, CSR form)
-/check/image       → check/image/page.tsx     Beta stub (SSG, no API)
-/about             → about/page.tsx           (SSG)
-/privacy           → privacy/page.tsx         (SSG)
-/terms             → terms/page.tsx           (SSG)
-/api/validate      → POST — email validation pipeline
-/api/validate-url  → POST — URL validation pipeline
-/api/debunk/text   → POST — text/SMS scam analysis
-/sitemap.xml       → sitemap.ts               (SSG)
-/robots.txt        → robots.ts                (SSG)
+/                      → app/page.tsx             Hub — tool cards (SSG)
+/check/email           → check/email/page.tsx     Email tool (SSG shell, CSR form)
+/check/url             → check/url/page.tsx       URL tool (SSG shell, CSR form)
+/check/text            → check/text/page.tsx      Text tool (SSG shell, CSR form)
+/check/phone           → check/phone/page.tsx     Phone tool (SSG shell, CSR form)
+/check/image           → check/image/page.tsx     Beta stub (SSG, no API)
+/about                 → about/page.tsx           (SSG)
+/privacy               → privacy/page.tsx         (SSG)
+/terms                 → terms/page.tsx           (SSG)
+/api/validate          → POST — email validation pipeline
+/api/validate-url      → POST — URL validation pipeline
+/api/validate-phone    → POST — phone validation pipeline (Node.js runtime)
+/api/debunk/text       → POST — text/SMS scam analysis
+/sitemap.xml           → sitemap.ts               (SSG)
+/robots.txt            → robots.ts                (SSG)
 ```
 
 ### Email Validation Data Flow
@@ -264,6 +273,44 @@ sequenceDiagram
     Route->>Route: coerceRiskScore() — enforce classification/score consistency
     Route->>Redis: SET cacheKey → result (TTL 86400s) [fire-and-forget]
     Route-->>Browser: TextDebunkResult (includes modelLabel)
+```
+
+---
+
+### Phone Validation Data Flow
+
+```mermaid
+sequenceDiagram
+    participant Browser
+    participant Route as POST /api/validate-phone
+    participant Local as phone-validator.ts
+    participant Redis
+    participant Carrier as AbstractAPI / NumVerify
+
+    Browser->>Route: { phone }
+    Route->>Route: Rate limit — 20/min/IP (shared with email/URL)
+    Route->>Route: Zod validation (5–25 chars)
+    Route->>Local: validatePhoneLocal(phone)
+    Local-->>Route: PhoneValidationResult (source: "local")
+    alt not parseable
+        Route-->>Browser: 200 local-only result (score ≤30)
+    end
+    Route->>Route: getCarrierProvider() — AbstractAPI preferred, NumVerify fallback
+    alt no carrier key configured
+        Route-->>Browser: 200 local-only result
+    end
+    Route->>Redis: GET itv:phone:{sha256(e164)} (30-day TTL)
+    alt cache hit
+        Redis-->>Route: PhoneValidationResult (cached)
+        Route->>Route: re-stamp input from current request
+        Route-->>Browser: cached result (X-Cache: HIT)
+    end
+    Route->>Carrier: carrier.lookup(e164) — 8s timeout
+    Carrier-->>Route: CarrierData { carrier, lineType, active, location }
+    Route->>Local: applyCarrierResult(local, carrierData)
+    Local-->>Route: PhoneValidationResult (source: "abstract"|"numverify")
+    Route->>Redis: SET itv:phone:{sha256(e164)} (TTL 2592000s) [fire-and-forget]
+    Route-->>Browser: PhoneValidationResult
 ```
 
 ---
@@ -435,20 +482,125 @@ catch-all/unknown → deliverable=null, undeliverable=false
 
 ---
 
+### `src/lib/phone-validator.ts`
+
+**Responsibility:** Pure, synchronous local phone number analysis (no network calls) plus the carrier-result merge function.
+
+**Public API:**
+
+```typescript
+validatePhoneLocal(phone: string): PhoneValidationResult
+applyCarrierResult(local: PhoneValidationResult, carrier: CarrierData): PhoneValidationResult
+getLineTypeBonus(lineType: LineType): number
+```
+
+**`validatePhoneLocal` pipeline:**
+
+1. Leading `00` → `+` normalisation (common EU/APAC format)
+2. Parse with `libphonenumber-js/max` (Google's international numbering plan)
+3. US default applied when ≥7 digits present but no explicit country code
+4. `isValid()` + `isPossible()` for ITU-T compliance
+5. Country code + calling-code detection (240+ countries)
+6. `getNumberType()` → `LineType` (`MOBILE`, `FIXED_LINE`, `VOIP`, `TOLL_FREE`, `PREMIUM_RATE`, `PAGER`, etc.)
+7. US area-code → state/region lookup via `us-area-codes.ts`
+8. Caribbean NANP check — +1 numbers where country ∉ `NANP_SAFE` set (US/CA/PR/GU/VI/AS/MP) receive a one-ring scam warning flag
+
+**`applyCarrierResult` invariants:**
+
+- `resolvedLineType` = API line type (when not `UNKNOWN`) else local type from libphonenumber
+- Old line-type score bonus is subtracted, new one added, plus `+10` for API-confirmed active
+- When `lineTypeChanged = true`, `buildLabel`/`buildMessage`/`buildFlags` are called to rebuild the human-readable output
+- The Caribbean NANP flag from local analysis is _always preserved_ through the merge — the carrier API doesn't know about one-ring scam geography
+- `flags` is always a new `[...spread]` array — never mutated from the input result
+
+**`NANP_SAFE`** is a `Set<string>` of two-letter country codes that legitimately share the `+1` prefix. NANP countries outside this set trigger the one-ring warning.
+
+---
+
+### `src/lib/carrier-provider.ts`
+
+**Responsibility:** Pluggable carrier lookup abstraction. Returns carrier name, line type, active status, and location from whichever provider is configured.
+
+**Factory:**
+
+```typescript
+export function getCarrierProvider(): CarrierProvider | null {
+  if (ABSTRACT_API_PHONE_KEY) return new AbstractApiProvider(key);
+  if (NUMVERIFY_API_KEY) return new NumverifyProvider(key);
+  return null;
+}
+```
+
+AbstractAPI is always preferred when both keys are present. Returns `null` when neither key is configured — callers skip the carrier enrichment step entirely.
+
+**AbstractAPI (`phoneintelligence.abstractapi.com/v1/`):**
+
+- `phone_carrier.name` → carrier name
+- `phone_carrier.line_type` + `phone_validation.is_voip` → type (is_voip=true overrides line_type — authoritative VoIP signal)
+- `phone_validation.line_status === "active"` → active flag
+- `phone_location.region` (suburb/city) + `.city` (state/province) combined as location string
+
+**NumVerify (`http://apilayer.net/api/validate`):**
+
+- Free tier requires **HTTP** not HTTPS — code uses `http://apilayer.net` explicitly
+- `line_type` string is normalised via `normalizeLineType()` before returning
+- `valid === true` maps to active flag
+
+**`normalizeLineType(raw: string): LineType`:**
+
+Strips `[-_ ]` from the raw string, lowercases it, then maps via a lookup object to `LineType` enum values. Critical mappings:
+
+| Raw string               | After strip/lower     | Result                   |
+| ------------------------ | --------------------- | ------------------------ |
+| `"fixed-line"`           | `"fixedline"`         | `"FIXED_LINE"`           |
+| `"fixed-line-or-mobile"` | `"fixedlineormobile"` | `"FIXED_LINE_OR_MOBILE"` |
+| `"mobile"`               | `"mobile"`            | `"MOBILE"`               |
+| `"voip"`                 | `"voip"`              | `"VOIP"`                 |
+| unknown strings          | any                   | `"UNKNOWN"`              |
+
+The `FIXED_LINE_OR_MOBILE` case is critical — NumVerify commonly returns this for landlines in many countries. Missing it would silently produce `UNKNOWN` and fall back to the libphonenumber guess.
+
+---
+
+### `src/lib/phone-cache.ts`
+
+**Responsibility:** Redis-backed cache for carrier API results to conserve the low free monthly quotas (250 AbstractAPI / 100 NumVerify).
+
+**Key design:**
+
+- Cache key: `itv:phone:{sha256(e164)}` — E.164 format from libphonenumber is already normalised, no extra stripping needed
+- TTL: 2,592,000 seconds (30 days) — carrier assignments are stable; 30x longer than SMTP cache
+- Only caches results with `source !== "local"` — local-only results have no carrier data worth caching
+- Fully no-op when Redis is unavailable — callers receive `null` on miss
+
+**Usage in `validate-phone/route.ts`:**
+
+```typescript
+const cached = await getCachedPhoneResult(e164);
+if (cached) return NextResponse.json({ ...cached, input: phone }); // re-stamp current input
+
+const enriched = applyCarrierResult(local, carrierData);
+void setCachedPhoneResult(e164, enriched); // fire-and-forget
+```
+
+Re-stamping `input` on a cache hit is critical — without it, the UI echoes the _first_ caller's typed string to _every_ subsequent request that hits the same cache entry.
+
+---
+
 ### `src/lib/rate-limit.ts`
 
 **Responsibility:** Upstash-backed rate limiting for all API routes. Also exports `getRedis()` — the shared Redis client used by `smtp-cache` and the text route cache.
 
 **Limiters:**
 
-| Limiter             | Algorithm      | Limit         | Used by                                                  |
-| ------------------- | -------------- | ------------- | -------------------------------------------------------- |
-| `_limiter`          | Sliding window | 20 req/min/IP | `/api/validate`, `/api/validate-url`, `/api/debunk/text` |
-| `_dailyTextLimiter` | Fixed window   | 20 req/day/IP | `/api/debunk/text` only                                  |
+| Limiter             | Algorithm      | Limit         | Used by                                                                         |
+| ------------------- | -------------- | ------------- | ------------------------------------------------------------------------------- |
+| `_limiter`          | Sliding window | 20 req/min/IP | `/api/validate`, `/api/validate-url`, `/api/validate-phone`, `/api/debunk/text` |
+| `_dailyTextLimiter` | Fixed window   | 20 req/day/IP | `/api/debunk/text` only                                                         |
 
 **Key prefixes:** `itv:rl:{ip}` for per-minute; `itv:daily:text:{ip}` for per-day.
 
-**Shared key space:** The per-minute limiter is shared across all three tools. 20 requests/minute covers combined tool usage per IP — intentional to simplify management.
+**Shared key space:** The per-minute limiter is shared across all four API tools. 20 requests/minute covers combined tool usage per IP — intentional to simplify management.
 
 ---
 
@@ -572,15 +724,21 @@ Each pipeline stage returns an immutable snapshot — you can log any intermedia
 
 **Common failure modes:**
 
-| Symptom                                        | Likely cause                                                                         |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------ |
-| Score is 100 for an address with a `.con` typo | Typo cap escaped in `applyMxResult` or `mergeSmtpResult`                             |
-| `valid: true` on an address with a garbage TLD | `validTld` missing from `mergeSmtpResult`'s valid formula                            |
-| Text tool returns 502                          | Claude returned malformed JSON — check `DebunkResponseSchema` against model response |
-| Text tool returns "not configured"             | `ANTHROPIC_API_KEY` missing or blank in env                                          |
-| Rate limit fires in local dev                  | `UPSTASH_REDIS_*` vars set — either clear them or use a dev Redis DB                 |
-| SMTP cache never hits                          | Email normalisation mismatch, Redis TTL expired, or `result.source === "local"`      |
-| Safe Browsing returns 401                      | API key not enabled for "Safe Browsing API" in Google Cloud Console                  |
+| Symptom                                        | Likely cause                                                                                             |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Score is 100 for an address with a `.con` typo | Typo cap escaped in `applyMxResult` or `mergeSmtpResult`                                                 |
+| `valid: true` on an address with a garbage TLD | `validTld` missing from `mergeSmtpResult`'s valid formula                                                |
+| Text tool returns 502                          | Claude returned malformed JSON — check `DebunkResponseSchema` against model response                     |
+| Text tool returns "not configured"             | `ANTHROPIC_API_KEY` missing or blank in env                                                              |
+| Rate limit fires in local dev                  | `UPSTASH_REDIS_*` vars set — either clear them or use a dev Redis DB                                     |
+| SMTP cache never hits                          | Email normalisation mismatch, Redis TTL expired, or `result.source === "local"`                          |
+| Safe Browsing returns 401                      | API key not enabled for "Safe Browsing API" in Google Cloud Console                                      |
+| Phone tool returns local result only           | `ABSTRACT_API_PHONE_KEY` and `NUMVERIFY_API_KEY` both absent — local-only mode                           |
+| AbstractAPI returns 401                        | Wrong product — key must be for `phoneintelligence.abstractapi.com`, not `phonevalidation`               |
+| NumVerify returns `https_access_restricted`    | Free tier requires HTTP, not HTTPS — the code already uses `http://apilayer.net`; check key is free-tier |
+| VOIP number shown as FIXED_LINE_OR_MOBILE      | Carrier API not called (no key), or `is_voip` field missing from response                                |
+| Phone score wrong after carrier enrichment     | `applyCarrierResult` swaps old line-type bonus out — verify `getLineTypeBonus` returns correct delta     |
+| Phone cache input shows wrong format           | Cache hit must re-stamp `input: phone` from current request — verify route does this                     |
 
 ### Testing Strategy
 
@@ -592,6 +750,7 @@ All tests live in `__tests__/` and are pure unit tests — no network, no Redis,
 | --------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `email-validator.test.ts`   | 150   | One `describe` per validator concept; explicit bug-regression suites labelled `[Bug N regression]`                                                                                                                  |
 | `url-validator.test.ts`     | 113   | One `describe` per check; dedicated suites for `getRegisteredDomain`, `checkBrandSquat`, `checkTyposquat`, `applyRdapResult`, `applyRedirectResult`, entropy, hyphens, IP edge cases, and scoring-order regressions |
+| `phone-validator.test.ts`   | 70    | One `describe` per concept: format parsing, validity, country detection, line-type scoring, flags, `applyCarrierResult` (score swap, VOIP reclassification, immutability), Caribbean NANP, area-code location       |
 | `debunk-text-route.test.ts` | 45    | Mocked `callClaude` and Redis; covers rate limit, cache hit/miss, bad JSON, injection, delimiter sanitisation, coerceRiskScore, safe guard, cache-bypasses-daily-limit                                              |
 | `smtp-cache.test.ts`        | 15    | Mocked Redis; covers hash correctness, TTL, local-source no-op, error resilience                                                                                                                                    |
 
@@ -603,19 +762,25 @@ All tests live in `__tests__/` and are pure unit tests — no network, no Redis,
 
 All logging uses `console.log` / `console.warn` / `console.error` — visible in Vercel function logs.
 
-| Log line                                      | Meaning                                      |
-| --------------------------------------------- | -------------------------------------------- |
-| `[validate] Cache hit for {domain}`           | SMTP Redis cache served the result           |
-| `[validate] Using {provider.name} provider`   | Which SMTP provider was invoked              |
-| `[validate] {provider.name} error: ...`       | SMTP API call failed; fell back to MX result |
-| `[validate-url] Safe Browsing API error: ...` | GSB call failed; result capped at ≤75        |
-| `[debunk/text] Cache read failed: ...`        | Redis error on text cache GET; non-fatal     |
-| `[smtp-cache] get/set error: ...`             | Redis error on SMTP cache; non-fatal         |
+| Log line                                          | Meaning                                                     |
+| ------------------------------------------------- | ----------------------------------------------------------- |
+| `[validate] Cache hit for {domain}`               | SMTP Redis cache served the result                          |
+| `[validate] Using {provider.name} provider`       | Which SMTP provider was invoked                             |
+| `[validate] {provider.name} error: ...`           | SMTP API call failed; fell back to MX result                |
+| `[validate-url] Safe Browsing API error: ...`     | GSB call failed; result capped at ≤75                       |
+| `[debunk/text] Cache read failed: ...`            | Redis error on text cache GET; non-fatal                    |
+| `[smtp-cache] get/set error: ...`                 | Redis error on SMTP cache; non-fatal                        |
+| `[validate-phone] Cache hit for {e164}`           | Phone carrier Redis cache served the result                 |
+| `[validate-phone] Using {provider.name} provider` | Which carrier provider was invoked                          |
+| `[validate-phone] carrier lookup error: ...`      | Carrier API call failed; result returned without enrichment |
+| `[phone-cache] get/set error: ...`                | Redis error on phone cache; non-fatal                       |
 
 **Monitoring to set up:**
 
 - **ZeroBounce dashboard:** Track monthly free credit consumption (100/month)
-- **Upstash dashboard:** SMTP cache hit/miss ratio — high hit rate saves credits
+- **AbstractAPI dashboard:** Track monthly phone lookup credit consumption (250/month)
+- **NumVerify dashboard:** Track monthly fallback credit consumption if used (100/month)
+- **Upstash dashboard:** SMTP + phone cache hit/miss ratio — high hit rate saves credits
 - **Anthropic dashboard:** Daily token spend — should be well below the $20 cap
 - **Vercel function logs:** Watch for 429s (rate limit hits) and 502s (Claude schema failures)
 

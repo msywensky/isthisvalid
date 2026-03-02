@@ -39,6 +39,18 @@ const tools = [
     cta: "Analyse text",
   },
   {
+    href: "/check/phone",
+    icon: "📞",
+    name: "Phone",
+    tagline: "Scam call?",
+    description:
+      "Identify country, line type, and flag premium-rate or VoIP numbers used in callback scams.",
+    accentHover: "hover:border-teal-500/60",
+    accentText: "group-hover:text-teal-400",
+    accentBadge: null,
+    cta: "Check number",
+  },
+  {
     href: "/check/image",
     icon: "🖼️",
     name: "Image",

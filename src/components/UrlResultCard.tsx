@@ -16,6 +16,7 @@ function getSentiment(score: number) {
       bg: "bg-lime-400/15",
       text: "text-lime-400",
       ring: "#a3e635",
+      card: "border-lime-500/50 bg-lime-950/40",
     };
   if (score >= 50)
     return {
@@ -23,12 +24,14 @@ function getSentiment(score: number) {
       bg: "bg-yellow-400/15",
       text: "text-yellow-400",
       ring: "#facc15",
+      card: "border-yellow-500/50 bg-yellow-950/40",
     };
   return {
     label: "Dangerous",
     bg: "bg-rose-500/15",
     text: "text-rose-400",
     ring: "#f43f5e",
+    card: "border-rose-500/50 bg-rose-950/40",
   };
 }
 
@@ -82,7 +85,9 @@ export function UrlResultCard({ result }: Props) {
       : "local checks";
 
   return (
-    <div className="mt-8 w-full rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur">
+    <div
+      className={`mt-8 w-full rounded-2xl border-2 p-6 backdrop-blur transition-all duration-300 ${s.card}`}
+    >
       {/* Header row — score ring + sentiment */}
       <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-start">
         {/* Score ring */}

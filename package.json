@@ -19,6 +19,7 @@
     "@upstash/redis": "^1.36.2",
     "@vercel/analytics": "^1.6.1",
     "disposable-email-domains": "^1.0.62",
+    "libphonenumber-js": "^1.12.38",
     "mailchecker": "^6.0.19",
     "next": "16.1.6",
     "react": "19.2.3",

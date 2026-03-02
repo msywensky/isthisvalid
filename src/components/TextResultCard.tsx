@@ -14,6 +14,7 @@ const CLASS_CONFIG: Record<
     ringColor: string;
     badgeColor: string;
     badgeBg: string;
+    cardClass: string;
   }
 > = {
   scam: {
@@ -22,6 +23,7 @@ const CLASS_CONFIG: Record<
     ringColor: "#ef4444",
     badgeColor: "text-red-400",
     badgeBg: "bg-red-950/40 border-red-800/50",
+    cardClass: "border-rose-500/50 bg-rose-950/40",
   },
   smishing: {
     label: "Smishing Detected",
@@ -29,6 +31,7 @@ const CLASS_CONFIG: Record<
     ringColor: "#ef4444",
     badgeColor: "text-red-400",
     badgeBg: "bg-red-950/40 border-red-800/50",
+    cardClass: "border-rose-500/50 bg-rose-950/40",
   },
   spam: {
     label: "Spam",
@@ -36,6 +39,7 @@ const CLASS_CONFIG: Record<
     ringColor: "#eab308",
     badgeColor: "text-yellow-400",
     badgeBg: "bg-yellow-950/40 border-yellow-800/50",
+    cardClass: "border-yellow-500/50 bg-yellow-950/40",
   },
   suspicious: {
     label: "Suspicious",
@@ -43,6 +47,7 @@ const CLASS_CONFIG: Record<
     ringColor: "#eab308",
     badgeColor: "text-yellow-400",
     badgeBg: "bg-yellow-950/40 border-yellow-800/50",
+    cardClass: "border-yellow-500/50 bg-yellow-950/40",
   },
   legit: {
     label: "Looks Legit",
@@ -50,6 +55,7 @@ const CLASS_CONFIG: Record<
     ringColor: "#4ade80",
     badgeColor: "text-green-400",
     badgeBg: "bg-green-950/30 border-green-800/40",
+    cardClass: "border-lime-500/50 bg-lime-950/40",
   },
 };
 
@@ -66,7 +72,9 @@ export default function TextResultCard({ result }: Props) {
   const OFFSET = CIRC * 0.25; // start at 12 o'clock
 
   return (
-    <div className="w-full max-w-xl rounded-2xl border border-zinc-800 bg-zinc-900/80 p-6 space-y-5">
+    <div
+      className={`w-full max-w-xl rounded-2xl border-2 p-6 space-y-5 transition-all duration-300 ${cfg.cardClass}`}
+    >
       {/* Classification header */}
       <div
         className={`flex items-start gap-3 rounded-xl border px-4 py-3 ${cfg.badgeBg}`}

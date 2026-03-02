@@ -1,6 +1,6 @@
 # IsThisValid.com
 
-A free, no-signup verification hub for checking emails, scanning URLs for threats, and detecting scam text messages using AI.
+A free, no-signup verification hub for checking emails, scanning URLs for threats, detecting scam text messages using AI, and validating phone numbers.
 
 **Live:** https://isthisvalid.com
 
@@ -52,6 +52,20 @@ A free, no-signup verification hub for checking emails, scanning URLs for threat
 
 **Result:** Classification (scam/smishing/spam/suspicious/legit) with confidence score and flagged red flags
 
+### 📞 Phone Number Validator
+
+- International format parsing (E.164, national, and local formats for any country)
+- ITU-T validity and length checks via Google's libphonenumber
+- Line type detection: mobile, landline, VoIP, toll-free, premium-rate, pager, VOIP
+- Country and calling-code identification (240+ countries)
+- US area-code geographic lookup
+- Carrier name and active-line confirmation via AbstractAPI or NumVerify
+- Caribbean/Pacific NANP one-ring scam warning (809, 876, 473, etc.)
+- Premium-rate and VoIP flagging
+- 30-day Redis cache keyed on SHA-256(E.164) to conserve monthly API quota
+
+**Result:** 0–100 confidence score, line-type badge, carrier details, and prominent scam warnings
+
 ---
 
 ## Tech Stack
@@ -101,6 +115,8 @@ Then edit `.env.local` and add your API keys:
 - `ZEROBOUNCE_API_KEY` — ZeroBounce email verification (optional, preferred — 100 free/month)
 - `EMAILABLE_API_KEY` — Emailable fallback (optional, only used if ZeroBounce key is absent)
 - `NEXT_PUBLIC_ADSENSE_ID` — AdSense publisher ID (optional, leave blank until approved)
+- `ABSTRACT_API_PHONE_KEY` — AbstractAPI Phone Intelligence (optional, 250 free/month; preferred carrier lookup)
+- `NUMVERIFY_API_KEY` — NumVerify (optional, 100 free/month; fallback if Abstract key is absent)
 
 All external APIs degrade gracefully if keys are missing.
 
@@ -120,7 +136,7 @@ npm run test -- --watch   # Watch mode
 npm run test -- --coverage  # With coverage report
 ```
 
-**Current:** 333/333 tests passing (150 email + 113 URL + 45 text debunker + 15 smtp-cache + 10 other)
+**Current:** 403/403 tests passing (150 email + 113 URL + 70 phone + 45 text debunker + 15 smtp-cache + 10 other)
 
 ### Production Build
 
@@ -136,7 +152,7 @@ npm start
 ```
 src/
 ├── app/                    # Next.js App Router pages
-│   ├── check/              # Tool pages (email/url/text/image)
+│   ├── check/              # Tool pages (email/url/text/phone/image)
 │   ├── api/                # API routes (validation endpoints)
 │   ├── privacy/            # Legal pages
 │   ├── about/
@@ -145,12 +161,16 @@ src/
 │   ├── ResultCard.tsx      # Email validator result display
 │   ├── UrlResultCard.tsx   # URL checker result display
 │   ├── TextResultCard.tsx  # Text debunker result display
+│   ├── PhoneResultCard.tsx # Phone validator result display
 │   └── ...
 ├── lib/                    # Utility functions & constants
 │   ├── email-validator.ts  # Core email validation logic
 │   ├── smtp-provider.ts    # Pluggable SMTP provider (ZeroBounce / Emailable)
 │   ├── url-validator.ts    # Core URL validation logic
 │   ├── text-debunker.ts    # Text analysis types
+│   ├── phone-validator.ts  # Core phone validation logic + carrier merge
+│   ├── carrier-provider.ts # Pluggable carrier API (AbstractAPI / NumVerify)
+│   ├── phone-cache.ts      # Redis carrier result cache (30-day TTL)
 │   ├── llm-client.ts       # Anthropic API wrapper
 │   ├── rate-limit.ts       # Upstash rate limiting
 │   └── affiliate-links.ts  # Affiliate partner URLs
@@ -184,14 +204,16 @@ Set all required env vars in your Vercel project dashboard before deploying:
 
 ## Cost Monitoring
 
-| Service              | Free Tier              | Notes                                        |
-| -------------------- | ---------------------- | -------------------------------------------- |
-| Vercel               | 100 GB bandwidth/month | Hobby plan sufficient                        |
-| Anthropic Claude     | Pay-per-token          | ~$1–3/month at 20 text checks/day            |
-| Google Safe Browsing | 10,000 req/day         | Free                                         |
-| Upstash Redis        | 10,000 req/day         | Free tier                                    |
-| ZeroBounce           | 100 checks/month       | Preferred SMTP provider; recurring free tier |
-| Emailable            | 250 checks (one-time)  | Fallback; only used if ZeroBounce key absent |
+| Service              | Free Tier              | Notes                                              |
+| -------------------- | ---------------------- | -------------------------------------------------- |
+| Vercel               | 100 GB bandwidth/month | Hobby plan sufficient                              |
+| Anthropic Claude     | Pay-per-token          | ~$1–3/month at 20 text checks/day                  |
+| Google Safe Browsing | 10,000 req/day         | Free                                               |
+| Upstash Redis        | 10,000 req/day         | Free tier                                          |
+| ZeroBounce           | 100 checks/month       | Preferred SMTP provider; recurring free tier       |
+| Emailable            | 250 checks (one-time)  | Fallback; only used if ZeroBounce key absent       |
+| AbstractAPI Phone    | 250 lookups/month      | Preferred carrier lookup; recurring free tier      |
+| NumVerify            | 100 lookups/month      | Carrier fallback; only used if Abstract key absent |
 
 **Estimated monthly cost:** $0–5 with all APIs (depends on usage)
 
@@ -236,6 +258,7 @@ The fallback values in `src/lib/affiliate-links.ts` contain PLACEHOLDER values t
 - **Cookie Consent** — GDPR-required banner stored in localStorage
 - **No data retention for URLs/text inputs** — URL and text inputs are never stored after the check is complete
 - **Email SMTP cache** — a SHA-256 hash of submitted email addresses may be stored in Redis for up to 7 days to avoid redundant paid API calls; the hash is one-way and cannot be used to reconstruct the original address
+- **Phone carrier cache** — a SHA-256 hash of the E.164-normalised phone number may be stored in Redis for up to 30 days to conserve carrier API quota; the hash cannot be used to reconstruct the original number
 
 ---
 
