@@ -119,8 +119,14 @@ export default function EmailCheckPage() {
             flags 57,000+ known throwaway providers.
           </li>
           <li>
-            <strong className="text-zinc-200">API verification</strong>{" "}
-            (optional) — ZeroBounce validates if the mailbox actually exists.
+            <strong className="text-zinc-200">MX record check</strong> — looks
+            up the domain&apos;s DNS mail records to confirm it can actually
+            receive email.
+          </li>
+          <li>
+            <strong className="text-zinc-200">Mailbox verification</strong>{" "}
+            (optional) — ZeroBounce or Emailable confirms whether the specific
+            mailbox exists and accepts mail.
           </li>
         </ol>
       </section>

@@ -121,9 +121,19 @@ export default function PhoneCheckPage() {
             numbers. Premium-rate and VoIP are the primary phone scam vectors.
           </li>
           <li>
-            <strong className="text-zinc-200">Country identification</strong> —
-            Resolves the number to its registered country using the country
-            calling code.
+            <strong className="text-zinc-200">Country &amp; location</strong> —
+            Resolves the country from the calling code. US numbers are further
+            mapped to state/region via area code.
+          </li>
+          <li>
+            <strong className="text-zinc-200">Caribbean NANP warning</strong> —
+            +1 numbers registered outside the US, Canada, and territories are
+            flagged for the one-ring scam (809, 876, 473, and others).
+          </li>
+          <li>
+            <strong className="text-zinc-200">Carrier lookup</strong> (optional)
+            — AbstractAPI or NumVerify confirms the carrier name, active-line
+            status, and refines the line type.
           </li>
         </ol>
       </section>
