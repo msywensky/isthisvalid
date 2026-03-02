@@ -57,7 +57,7 @@ export default function PhoneCheckPage() {
           Is this <span className="text-teal-400">legit</span>?
         </>
       }
-      sub="Paste any phone number and we'll identify the country, line type, and whether it's a known scam vector. No signup required."
+      sub="Paste any phone number and we'll identify the country, carrier, and line type — flagging VoIP and premium-rate numbers commonly used in phone scams."
     >
       {/* Top ad slot */}
       <AdSenseBanner slot="top" className="w-full max-w-xl" />
