@@ -11,7 +11,7 @@ import { FAQ_DATA } from "@/lib/faq-data";
 export default function FAQ() {
   return (
     <section className="w-full max-w-xl mx-auto">
-      <details className="group/section rounded-2xl border border-zinc-800 bg-zinc-900/50 open:border-orange-500/20 transition-colors duration-150">
+      <details className="group/section rounded-2xl border border-zinc-800 bg-zinc-900/50 open:border-amber-500/20 transition-colors duration-150">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-3 [&::-webkit-details-marker]:hidden">
           <h2 className="text-zinc-300 font-semibold text-base select-none">
             Frequently Asked Questions
@@ -37,7 +37,7 @@ export default function FAQ() {
           {FAQ_DATA.map(({ q, a }) => (
             <details
               key={q}
-              className="group rounded-xl border border-zinc-800 bg-zinc-900/50 open:border-orange-500/30 open:bg-zinc-900 transition-colors duration-150"
+              className="group rounded-xl border border-zinc-800 bg-zinc-900/50 open:border-amber-500/30 open:bg-zinc-900 transition-colors duration-150"
             >
               <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-3 text-sm text-zinc-300 font-medium hover:text-white transition-colors duration-100 [&::-webkit-details-marker]:hidden">
                 <span>{q}</span>

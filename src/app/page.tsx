@@ -9,8 +9,8 @@ const tools = [
     tagline: "Is this address real?",
     description:
       "Validate syntax, check TLD, flag disposable providers, and verify mailbox delivery.",
-    accentHover: "hover:border-orange-500/60",
-    accentText: "group-hover:text-orange-400",
+    accentHover: "hover:border-amber-500/60",
+    accentText: "group-hover:text-amber-400",
     accentBadge: null,
     cta: "Validate email",
   },

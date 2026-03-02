@@ -54,7 +54,7 @@ export default function EmailCheckPage() {
       label="Email Validator"
       headline={
         <>
-          Is this <span className="text-orange-400">valid</span>?
+          Is this <span className="text-amber-400">valid</span>?
         </>
       }
       sub="Paste any email address and we'll tell you if it's real, sketchy, or straight-up fake. No signup required."
@@ -87,7 +87,7 @@ export default function EmailCheckPage() {
         {(state.phase === "result" || state.phase === "error") && (
           <button
             onClick={handleReset}
-            className="cursor-pointer text-sm text-orange-400 hover:text-orange-300 underline underline-offset-2 transition-colors"
+            className="cursor-pointer text-sm text-amber-400 hover:text-amber-300 underline underline-offset-2 transition-colors"
           >
             ← Check another email
           </button>
@@ -119,8 +119,14 @@ export default function EmailCheckPage() {
             flags 57,000+ known throwaway providers.
           </li>
           <li>
-            <strong className="text-zinc-200">API verification</strong>{" "}
-            (optional) — ZeroBounce validates if the mailbox actually exists.
+            <strong className="text-zinc-200">MX record check</strong> — looks
+            up the domain&apos;s DNS mail records to confirm it can actually
+            receive email.
+          </li>
+          <li>
+            <strong className="text-zinc-200">Mailbox verification</strong>{" "}
+            (optional) — ZeroBounce or Emailable confirms whether the specific
+            mailbox exists and accepts mail.
           </li>
         </ol>
       </section>

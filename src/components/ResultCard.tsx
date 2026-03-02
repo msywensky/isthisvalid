@@ -76,7 +76,7 @@ export default function ResultCard({ result }: Props) {
 
       {/* Suggestion */}
       {result.suggestion && (
-        <p className="text-sm text-orange-400">
+        <p className="text-sm text-amber-400">
           💡 Did you mean <strong>{result.suggestion}</strong>?
         </p>
       )}

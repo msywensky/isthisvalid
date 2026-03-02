@@ -296,6 +296,7 @@ Current test count: **333 / 333** (150 email + 113 URL + 45 text + 15 smtp-cache
 - **Always-dark** design — never introduce light-mode conditionals
 - Brand colour: `orange-500` (`#f97316`) for CTAs, `orange-400` for links/accents
 - Score results: `lime-500` (safe), `yellow-500` (suspicious), `rose-500` (dangerous)
+- Email tool accent: `amber-400/500` (warm gold — distinct from brand orange)
 - Body/secondary text: `zinc-400` — do not use `zinc-500` (fails WCAG AA contrast)
 - `CheckShell` is a server component — keep it free of `useState`/`useEffect`
 - Affiliate nudges use `AffiliateNudge.tsx` — shown only on risky/unsafe results, always labelled "Affiliate"
