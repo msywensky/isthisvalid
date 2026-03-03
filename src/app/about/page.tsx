@@ -13,7 +13,7 @@ const CONTACT_EMAIL = "privacy@isthisvalid.com";
 
 export default function AboutPage() {
   return (
-    <PolicyLayout title="About IsThisValid.com" lastUpdated="February 25, 2026">
+    <PolicyLayout title="About IsThisValid.com" lastUpdated="March 3, 2026">
       <PolicySection title="What is IsThisValid.com?">
         <p>
           IsThisValid.com is a free verification hub. Whether you&apos;ve
@@ -22,7 +22,7 @@ export default function AboutPage() {
           it — no account, no sign-up, no data stored.
         </p>
         <p>
-          All three tools run directly in your browser and return results in
+          All four tools run directly in your browser and return results in
           seconds.
         </p>
       </PolicySection>
@@ -64,6 +64,19 @@ export default function AboutPage() {
               Try it →
             </Link>
           </li>
+          <li>
+            <strong className="text-white">Phone Number Checker</strong> —
+            validates any phone number against ITU-T rules using
+            libphonenumber-js, identifies the country, line type (mobile,
+            landline, VoIP, toll-free, etc.), and (optionally) enriches results
+            with live carrier and line-status data via the AbstractAPI.{" "}
+            <Link
+              href="/check/phone"
+              className="text-orange-400 hover:underline"
+            >
+              Try it →
+            </Link>
+          </li>
         </ol>
       </PolicySection>
 
@@ -85,18 +98,9 @@ export default function AboutPage() {
         <p>
           <strong className="text-white">Email Validator</strong> — validation
           runs in two layers: local checks (syntax, TLD, disposable domain list,
-          MX DNS) happen in milliseconds with no third-party calls. If the
-          optional{" "}
-          <a
-            href="https://emailable.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-orange-400 hover:underline"
-          >
-            Emailable
-          </a>{" "}
-          integration is active, we also perform an SMTP-level handshake to
-          verify mailbox reachability.
+          MX DNS) happen in milliseconds with no third-party calls. If a
+          ZeroBounce or Emailable API key is configured, we also perform an
+          SMTP-level handshake to verify mailbox reachability.
         </p>
         <p>
           <strong className="text-white">URL Safety Checker</strong> — nine
@@ -121,12 +125,20 @@ export default function AboutPage() {
           cached for 24 hours (by a one-way hash of the message) to avoid
           redundant AI calls for the same viral scam text.
         </p>
+        <p>
+          <strong className="text-white">Phone Number Checker</strong> —
+          validation runs locally first using libphonenumber-js (no network
+          calls). If an AbstractAPI key is configured, we enrich the result with
+          live carrier name, line type, ported status, and line-active
+          confirmation. Phone numbers are never stored — only their SHA-256 hash
+          is cached for up to 30 days as a cache key.
+        </p>
       </PolicySection>
 
       <PolicySection title="Privacy & data">
         <p>
-          None of the content you submit — email addresses, URLs, or text
-          messages — is permanently stored on our servers. Text messages
+          None of the content you submit — email addresses, URLs, text messages,
+          or phone numbers — is permanently stored on our servers. Text messages
           submitted to the scam detector are forwarded to Anthropic for
           analysis; a one-way cryptographic hash may be cached briefly to avoid
           duplicate calls. For full details, see our{" "}

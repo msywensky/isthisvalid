@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 };
 
-const LAST_UPDATED = "February 26, 2026";
+const LAST_UPDATED = "March 3, 2026";
 const CONTACT_EMAIL = "privacy@isthisvalid.com";
 
 export default function PrivacyPage() {
@@ -59,6 +59,19 @@ export default function PrivacyPage() {
           up to 24 hours to avoid redundant API calls for identical inputs; the
           hash is one-way and cannot be used to reconstruct the original
           message.
+        </p>
+        <p>
+          <strong className="text-white">Phone numbers you submit.</strong> When
+          you enter a phone number into the phone checker, that number is sent
+          to our server for validation. If our AbstractAPI integration is
+          enabled, the number is forwarded to AbstractAPI solely to retrieve
+          carrier and line-status data. We do not permanently store submitted
+          phone numbers. To avoid redundant calls to paid carrier APIs, only a
+          cryptographic hash (SHA-256) of the E.164-normalised number may be
+          cached in Upstash Redis for up to 30 days. This hash is one-way and
+          cannot be used to reconstruct the original number. The cache entry
+          stores only the carrier and line-type result; the raw number is never
+          written to Redis.
         </p>
         <p>
           <strong className="text-white">Server logs.</strong> Like all web
@@ -158,13 +171,31 @@ export default function PrivacyPage() {
           for details.
         </p>
         <p>
+          <strong className="text-white">AbstractAPI (Phone).</strong> When our
+          AbstractAPI integration is enabled, phone numbers you submit to the
+          phone checker are forwarded to AbstractAPI solely to retrieve carrier
+          name, line type, ported status, and line-active information.
+          AbstractAPI processes this data as a data processor on our behalf. For
+          details, see the{" "}
+          <a
+            href="https://www.abstractapi.com/legal/privacy"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-orange-400 hover:underline"
+          >
+            AbstractAPI Privacy Policy
+          </a>
+          .
+        </p>
+        <p>
           <strong className="text-white">Upstash Redis.</strong> We use Upstash
-          Redis to enforce rate limits and to cache results for both the email
-          validator and the AI text analysis tool. Email verification results
-          are cached as one-way SHA-256 hashes with a 7-day TTL. AI analysis
-          results are cached as one-way SHA-256 hashes with a 24-hour TTL. No
-          personally identifiable information is written to Upstash in a form
-          that can be reconstructed. See the{" "}
+          Redis to enforce rate limits and to cache results for the email
+          validator, phone checker, and AI text analysis tool. Email
+          verification results are cached as one-way SHA-256 hashes with a 7-day
+          TTL. Phone carrier results are cached as one-way SHA-256 hashes with a
+          30-day TTL. AI analysis results are cached as one-way SHA-256 hashes
+          with a 24-hour TTL. No personally identifiable information is written
+          to Upstash in a form that can be reconstructed. See the{" "}
           <a
             href="https://upstash.com/trust/privacy.pdf"
             target="_blank"
@@ -301,16 +332,18 @@ export default function PrivacyPage() {
 
       <PolicySection title="7. Data Retention">
         <p>
-          We do not permanently store email addresses, URLs, or text messages
-          entered into any of our tools. Email verification results are cached
-          as one-way SHA-256 hashes in Upstash Redis for up to 7 days to avoid
-          redundant paid API calls; the hash cannot be used to recover the
-          original address. A short-lived cache entry (24-hour TTL) derived from
-          a one-way hash of submitted text messages may also be retained in
-          Upstash Redis solely to avoid redundant AI calls; it cannot be used to
-          recover the original text. Server access logs retained by Vercel are
-          deleted within 30 days. Cookie consent preferences stored in your
-          browser persist until you clear your browser storage.
+          We do not permanently store email addresses, phone numbers, URLs, or
+          text messages entered into any of our tools. Email verification
+          results are cached as one-way SHA-256 hashes in Upstash Redis for up
+          to 7 days; the hash cannot be used to recover the original address.
+          Phone carrier results are cached as one-way SHA-256 hashes for up to
+          30 days; the hash cannot be used to recover the original number. A
+          short-lived cache entry (24-hour TTL) derived from a one-way hash of
+          submitted text messages may also be retained in Upstash Redis solely
+          to avoid redundant AI calls; it cannot be used to recover the original
+          text. Server access logs retained by Vercel are deleted within 30
+          days. Cookie consent preferences stored in your browser persist until
+          you clear your browser storage.
         </p>
       </PolicySection>
 
