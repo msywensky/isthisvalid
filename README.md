@@ -79,7 +79,7 @@ A free, no-signup verification hub for checking emails, scanning URLs for threat
 - **LLM Integration:** Anthropic Claude API
 - **Hosting:** Vercel
 - **Analytics:** Vercel Analytics
-- **Monetisation:** Google AdSense + affiliate links (ZeroBounce, NordVPN)
+- **Monetisation:** Google AdSense + affiliate links (ZeroBounce, NordVPN) + Ko-fi donations
 - **Code Formatting:** Prettier + husky pre-commit hook (auto-formats on every commit)
 
 ---
