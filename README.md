@@ -79,7 +79,7 @@ A free, no-signup verification hub for checking emails, scanning URLs for threat
 - **LLM Integration:** Anthropic Claude API
 - **Hosting:** Vercel
 - **Analytics:** Vercel Analytics
-- **Monetisation:** Google AdSense + affiliate links (ZeroBounce, NordVPN) + Ko-fi donations
+- **Monetisation:** Ko-fi voluntary donations + contextual affiliate links (ZeroBounce, NordVPN) + Google AdSense (pending approval)
 - **Code Formatting:** Prettier + husky pre-commit hook (auto-formats on every commit)
 
 ---
@@ -253,8 +253,8 @@ The fallback values in `src/lib/affiliate-links.ts` contain PLACEHOLDER values t
 
 ## Privacy & Compliance
 
-- **Privacy Policy** (`/privacy`) — GDPR/CCPA-compliant, all 5 subprocessors documented
-- **Terms of Service** (`/terms`) — Liability disclaimers, tool limitations, acceptable use
+- **Privacy Policy** (`/privacy`) — GDPR/CCPA-compliant; all subprocessors documented; 6 GDPR rights including portability, rectification, and right to lodge a DPA complaint
+- **Terms of Service** (`/terms`) — 15 sections covering liability disclaimers, tool limitations, acceptable use, indemnification, severability, and no-waiver
 - **Cookie Consent** — GDPR-required banner stored in localStorage
 - **No data retention for URLs/text inputs** — URL and text inputs are never stored after the check is complete
 - **Email SMTP cache** — a SHA-256 hash of submitted email addresses may be stored in Redis for up to 7 days to avoid redundant paid API calls; the hash is one-way and cannot be used to reconstruct the original address

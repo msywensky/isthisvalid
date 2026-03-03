@@ -29,6 +29,27 @@ export default function SiteFooter() {
         © {new Date().getFullYear()} IsThisValid.com &mdash; results are
         informational only, not guaranteed.
       </p>
+
+      <p className="text-xs text-zinc-600">
+        Built by{" "}
+        <a
+          href="https://www.linkedin.com/in/mikesywensky/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hover:text-zinc-400 transition-colors"
+        >
+          Mike Sywensky
+        </a>{" "}
+        with{" "}
+        <a
+          href="https://claude.ai"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hover:text-zinc-400 transition-colors"
+        >
+          Claude
+        </a>
+      </p>
     </footer>
   );
 }

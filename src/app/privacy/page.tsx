@@ -18,10 +18,10 @@ export default function PrivacyPage() {
         <p>
           IsThisValid.com (&ldquo;we&rdquo;, &ldquo;our&rdquo;, or
           &ldquo;us&rdquo;) operates a free suite of verification tools,
-          including an email validator, a URL safety checker, and a text / SMS
-          scam detector. This Privacy Policy explains what information we
-          collect when you use our site, how we use it, and the rights you have
-          over your data.
+          including an email validator, a URL safety checker, a text / SMS scam
+          detector, and a phone number checker. This Privacy Policy explains
+          what information we collect when you use our site, how we use it, and
+          the rights you have over your data.
         </p>
         <p>
           We are committed to processing as little personal data as possible. We
@@ -101,12 +101,13 @@ export default function PrivacyPage() {
 
       <PolicySection title="3. Third-Party Services">
         <p>
-          <strong className="text-white">Google AdSense.</strong> We display
-          advertisements served by Google AdSense. Google may use cookies and
-          similar technologies to serve ads based on your prior visits to this
-          or other websites. Google&apos;s use of advertising cookies enables it
-          and its partners to serve ads based on your visit to our site and/or
-          other sites on the Internet.
+          <strong className="text-white">Google AdSense.</strong> We may display
+          advertisements served by Google AdSense in the future. If and when
+          advertising is enabled, Google may use cookies and similar
+          technologies to serve ads based on your prior visits to this or other
+          websites. Google&apos;s use of advertising cookies enables it and its
+          partners to serve ads based on your visit to our site and/or other
+          sites on the Internet.
         </p>
         <p>
           You may opt out of personalised advertising by visiting{" "}
@@ -263,7 +264,8 @@ export default function PrivacyPage() {
                 </td>
                 <td className="py-2 pr-4">Third-party cookies</td>
                 <td className="py-2">
-                  Ad personalisation, frequency capping (only after consent)
+                  Ad personalisation and frequency capping — only set if and
+                  when advertising is enabled, and only after consent
                 </td>
               </tr>
             </tbody>
@@ -272,7 +274,7 @@ export default function PrivacyPage() {
         <p>
           You can disable cookies at any time via your browser settings.
           Disabling advertising cookies will not affect the core functionality
-          of our validation tool.
+          of our validation tools.
         </p>
       </PolicySection>
 
@@ -289,8 +291,11 @@ export default function PrivacyPage() {
           </li>
           <li>
             <strong className="text-white">Deletion</strong> — you can request
-            deletion of your personal data. Because we do not store email
-            addresses, there is typically nothing to delete.
+            deletion of your personal data. Because we do not permanently store
+            any submitted data (email addresses, URLs, messages, or phone
+            numbers) in a recoverable form, there is typically nothing to
+            delete. If Vercel access logs contain your IP address, those are
+            governed by Vercel&apos;s data retention policy (up to 30 days).
           </li>
           <li>
             <strong className="text-white">Opt-out of sale</strong> — we do not
@@ -300,6 +305,22 @@ export default function PrivacyPage() {
             <strong className="text-white">Object to processing</strong> — you
             can withdraw consent for advertising cookies at any time via the
             cookie banner or your browser settings.
+          </li>
+          <li>
+            <strong className="text-white">Portability</strong> — you can
+            request a copy of any personal data we hold in a structured,
+            machine-readable format, where technically feasible.
+          </li>
+          <li>
+            <strong className="text-white">Rectification</strong> — you can
+            request correction of any inaccurate personal data we hold about
+            you.
+          </li>
+          <li>
+            <strong className="text-white">Lodge a complaint</strong> — you have
+            the right to lodge a complaint with your local data protection
+            authority (DPA) if you believe we have processed your personal data
+            unlawfully.
           </li>
         </ul>
         <p>

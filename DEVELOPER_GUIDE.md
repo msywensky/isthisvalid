@@ -1,6 +1,6 @@
 # isthisvalid.com — Maintenance-Grade Technical Documentation
 
-**Generated:** March 2, 2026 | **Build:** ✅ clean (18 routes) | **Tests:** ✅ 403/403 | **Branch:** `main`
+**Generated:** March 3, 2026 | **Build:** ✅ clean (18 routes) | **Tests:** ✅ 403/403 | **Branch:** `main`
 
 ---
 
@@ -8,7 +8,7 @@
 
 ### Purpose & Business Value
 
-isthisvalid.com is a free, no-signup, multi-tool verification hub that lets any member of the public instantly check whether an email address is real, a URL is safe, or a text message is a scam. The business model is Google AdSense advertising plus contextual affiliate links (ZeroBounce for email verification, NordVPN for URL safety). Hosted on Vercel; all computation happens in serverless API routes. Zero user accounts, zero persistent PII.
+isthisvalid.com is a free, no-signup, multi-tool verification hub that lets any member of the public instantly check whether an email address is real, a URL is safe, a text message is a scam, or a phone number is suspicious. The funding model is Ko-fi voluntary donations plus contextual affiliate links (ZeroBounce for email verification, NordVPN for URL safety); Google AdSense advertising is pending approval and not yet active. Hosted on Vercel; all computation happens in serverless API routes. Zero user accounts, zero persistent PII.
 
 ### High-Level Architecture
 
@@ -908,6 +908,5 @@ git branch -a
 
 ### Documentation Still Needed
 
-- **GitHub Actions CI** — a `.github/workflows/ci.yml` running `npm run build && npm test` on every PR would enforce the pre-merge checklist automatically.
 - **Runbook** — no incident response doc exists. Recommend a brief section covering: "ZeroBounce credits exhausted", "Anthropic spend cap hit", "Redis outage", "Safe Browsing quota reached".
 - **`ROADMAP.md`** — exists; verify it still reflects current Phase 2 priorities (image tool).

@@ -1,6 +1,6 @@
 # IsThisValid.com — Architecture Guide
 
-**Last updated: March 2, 2026**
+**Last updated: March 3, 2026**
 
 ## High-Level Flow
 
@@ -228,7 +228,7 @@ Browser  →  POST /api/debunk/text { message }
 src/
 ├── app/
 │   ├── api/validate/route.ts        # POST handler, Zod validation, graceful API fallback
-│   ├── about/page.tsx               # /about — site description, advertising disclosure
+│   ├── about/page.tsx               # /about — site description, funding disclosure (Ko-fi + future ads)
 │   ├── privacy/page.tsx             # /privacy — GDPR/CCPA-compliant privacy policy
 │   ├── terms/page.tsx               # /terms — terms of service
 │   ├── check/
@@ -555,8 +555,8 @@ AdSense has hard requirements and soft recommendations. Track progress here.
 
 ### Hard requirements
 
-- [x] **Privacy Policy page** — `/privacy` covers AdSense cookies, third-party data,
-      GDPR/CCPA rights, and cookie table
+- [x] **Privacy Policy page** — `/privacy` covers AdSense cookies (future), third-party data,
+      6 GDPR/CCPA rights (access, deletion, opt-out of sale, object to processing, portability, rectification + DPA complaint right), and cookie table
 - [x] **Cookie consent banner** — `CookieConsent` component stores preference in
       `localStorage` under key `itv_cookie_consent`; shown to all visitors until
       a choice is made
