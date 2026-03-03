@@ -122,7 +122,7 @@ export default function TextCheckPage() {
               disabled={phase === "loading"}
               className="
                 w-full rounded-xl border-2 border-zinc-700 bg-zinc-900 px-4 py-3
-                text-white placeholder-zinc-500 text-sm leading-relaxed resize-y
+                text-white placeholder-zinc-500 text-base leading-relaxed resize-y
                 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/30
                 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-150
               "
