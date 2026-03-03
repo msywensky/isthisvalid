@@ -19,11 +19,11 @@ export default function AboutPage() {
           IsThisValid.com is a free verification hub. Whether you&apos;ve
           received a suspicious text, want to check a sketchy link before
           clicking it, or need to validate an email address, we have a tool for
-          it — no account, no sign-up, no data stored.
+          it — no account, no sign-up, no personal data stored.
         </p>
         <p>
-          All four tools run directly in your browser and return results in
-          seconds.
+          All four tools are accessible directly in your browser; submitted data
+          is processed server-side and never permanently stored.
         </p>
       </PolicySection>
 

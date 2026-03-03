@@ -18,7 +18,8 @@ export default function TermsPage() {
           By accessing or using IsThisValid.com (the &ldquo;Service&rdquo;), you
           agree to be bound by these Terms of Service (&ldquo;Terms&rdquo;). If
           you do not agree with any part of these Terms, please do not use the
-          Service.
+          Service. You must be at least 13 years of age (or 16 years of age if
+          you are located in the European Economic Area) to use this Service.
         </p>
       </PolicySection>
 
@@ -92,6 +93,10 @@ export default function TermsPage() {
           <li>
             Circumvent any rate limits or access controls implemented by the
             Service.
+          </li>
+          <li>
+            Surveil, stalk, harass, or collect information about individuals
+            without their knowledge or consent.
           </li>
         </ul>
       </PolicySection>
@@ -283,7 +288,35 @@ export default function TermsPage() {
         </p>
       </PolicySection>
 
-      <PolicySection title="10. Changes to the Service and Terms">
+      <PolicySection title="10. Indemnification">
+        <p>
+          You agree to indemnify, defend, and hold harmless IsThisValid.com and
+          its operators from and against any and all claims, liabilities,
+          damages, losses, and expenses (including reasonable legal fees)
+          arising out of or in any way connected with: (a) your access to or use
+          of the Service; (b) your violation of these Terms; or (c) your
+          violation of any rights of a third party.
+        </p>
+      </PolicySection>
+
+      <PolicySection title="11. Severability">
+        <p>
+          If any provision of these Terms is found by a court of competent
+          jurisdiction to be invalid or unenforceable, that provision will be
+          limited or eliminated to the minimum extent necessary so that these
+          Terms will otherwise remain in full force and effect.
+        </p>
+      </PolicySection>
+
+      <PolicySection title="12. No Waiver">
+        <p>
+          Failure by either party to enforce any provision of these Terms at any
+          time shall not be construed as a waiver of that party&apos;s right to
+          enforce such provision or any other provision in the future.
+        </p>
+      </PolicySection>
+
+      <PolicySection title="13. Changes to the Service and Terms">
         <p>
           We reserve the right to modify or discontinue the Service at any time
           without notice. We may update these Terms from time to time; the
@@ -293,7 +326,7 @@ export default function TermsPage() {
         </p>
       </PolicySection>
 
-      <PolicySection title="11. Governing Law">
+      <PolicySection title="14. Governing Law">
         <p>
           These Terms shall be governed by and construed in accordance with the
           laws of the United States, without regard to conflict-of-law
@@ -302,7 +335,7 @@ export default function TermsPage() {
         </p>
       </PolicySection>
 
-      <PolicySection title="12. Contact">
+      <PolicySection title="15. Contact">
         <p>
           Questions about these Terms? Contact us at{" "}
           <a
