@@ -39,6 +39,15 @@ export default function SiteFooter() {
           className="hover:text-zinc-400 transition-colors"
         >
           Mike Sywensky
+        </a>{" "}
+        with{" "}
+        <a
+          href="https://claude.ai"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hover:text-zinc-400 transition-colors"
+        >
+          Claude
         </a>
       </p>
     </footer>
