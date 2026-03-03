@@ -42,6 +42,11 @@ export const PHONE_FAQ_DATA: PhoneFaqEntry[] = [
       "Carrier data reflects the number's registered network, which may not match the subscriber's current network if the number has been ported (transferred to a different carrier). The free tier of the carrier APIs used does not provide porting information, so the carrier shown is always the original registered carrier. The 'Line active' check reflects whether the number is currently reachable, not whether it belongs to a legitimate owner.",
   },
   {
+    question: "Is this free? What's the catch?",
+    answer:
+      "Completely free — no account, no per-lookup limit on your end. Carrier API calls cost us money, so if this saved you from a one-ring callback scam, consider hitting the ☕ at the bottom of the results. No paywalls, no nonsense.",
+  },
+  {
     question: "Can this tell me if a number is a scammer?",
     answer:
       "Not definitively — there is no universal live scam database. However, certain number types (VoIP, premium-rate) are significantly overrepresented in scam traffic, and the checker flags these clearly. For a definitive scam check, cross-reference the number on community-reporting sites like 800notes.com or WhoCalledMe.",

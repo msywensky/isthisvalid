@@ -34,7 +34,7 @@ export const URL_FAQ_DATA: { q: string; a: string }[] = [
   },
   {
     q: "Is this free? What's the catch?",
-    a: "Completely free. We keep the lights on with advertising. The URL checking logic will never be paywalled — that'd make it useless exactly when you need it most.",
+    a: "Completely free. No account, no catch. If we just saved you from clicking something catastrophic, the ☕ at the bottom of the results is always appreciated. The URL checking logic will never be paywalled — that'd make it useless exactly when you need it most.",
   },
   {
     q: "Can this tool miss a dangerous URL?",
