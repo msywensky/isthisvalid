@@ -34,6 +34,8 @@ Every change — including docs, chores, and formatting — must:
 
 ```bash
 # Correct workflow every time
+git checkout main
+git pull origin main          # ← ALWAYS pull latest main before branching
 git checkout -b feat/my-feature
 # ... make changes ...
 git add <files>
