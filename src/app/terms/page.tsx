@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 };
 
-const LAST_UPDATED = "February 26, 2026";
+const LAST_UPDATED = "March 3, 2026";
 const CONTACT_EMAIL = "privacy@isthisvalid.com";
 
 export default function TermsPage() {
@@ -45,6 +45,12 @@ export default function TermsPage() {
             uses AI (Anthropic Claude) to analyse text messages submitted by
             users and classify them as potential scam, spam, or legitimate
             content.
+          </li>
+          <li>
+            <strong className="text-white">Phone Number Checker</strong> —
+            validates phone numbers against ITU-T international numbering rules
+            and (optionally) enriches results with live carrier and line-status
+            data.
           </li>
         </ul>
         <p>
@@ -121,6 +127,13 @@ export default function TermsPage() {
           professional or law-enforcement advice. Never ignore official warnings
           or fail to report suspected fraud based solely on a result from this
           tool.
+        </p>
+        <p>
+          <strong className="text-white">Phone Number Checker:</strong> A result
+          of &ldquo;valid&rdquo; means the number conforms to international
+          numbering standards; it does not guarantee the number is currently
+          active, assigned, or reachable. Carrier and line-type data are
+          provided by third-party APIs and may not reflect real-time status.
         </p>
       </PolicySection>
 
@@ -201,6 +214,21 @@ export default function TermsPage() {
           <li>
             <strong className="text-white">Upstash Redis</strong> — used for
             rate limiting and short-lived result caching.
+          </li>
+          <li>
+            <strong className="text-white">AbstractAPI</strong> — used for phone
+            number carrier and line-status lookups when the integration is
+            enabled. Phone numbers you submit may be forwarded to AbstractAPI.
+            See{" "}
+            <a
+              href="https://www.abstractapi.com/legal/terms"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-orange-400 hover:underline"
+            >
+              AbstractAPI&apos;s Terms of Service
+            </a>
+            .
           </li>
           <li>
             <strong className="text-white">Google AdSense</strong> — used to
