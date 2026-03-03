@@ -98,10 +98,17 @@ export async function POST(req: NextRequest) {
     // ── 5a. Cache lookup ── hits avoid consuming monthly API quota ──────────────
     const cached = await getCachedPhoneResult(e164);
     if (cached) {
-      // Re-stamp input from the current request — the cached copy reflects
-      // whatever the first caller typed, which would show wrong text in the UI.
+      // Re-hydrate the stripped PII fields from the current request context.
+      // The cached value intentionally omits all phone number strings;
+      // we restore them here so the UI response is complete.
       return NextResponse.json(
-        { ...cached, input: phone },
+        {
+          ...cached,
+          input: phone,
+          phoneE164: e164,
+          nationalFormat: localResult.nationalFormat,
+          internationalFormat: localResult.internationalFormat,
+        },
         { headers: securityHeaders() },
       );
     }
