@@ -30,6 +30,31 @@ export default function AboutPage() {
       <PolicySection title="Our tools">
         <ol className="list-decimal list-inside space-y-4 pl-2">
           <li>
+            <strong className="text-white">Phone Number Checker</strong> —
+            validates any phone number against ITU-T rules using
+            libphonenumber-js, identifies the country, line type (mobile,
+            landline, VoIP, toll-free, etc.), and (optionally) enriches results
+            with live carrier and line-status data via the AbstractAPI.{" "}
+            <Link
+              href="/check/phone"
+              className="text-orange-400 hover:underline"
+            >
+              Try it →
+            </Link>
+          </li>
+          <li>
+            <strong className="text-white">Text / SMS Scam Detector</strong> —
+            paste any suspicious message and our AI (powered by Anthropic
+            Claude) analyses it for scam, smishing, spam, and social-engineering
+            patterns. It flags specific phrases and explains its reasoning.{" "}
+            <Link
+              href="/check/text"
+              className="text-orange-400 hover:underline"
+            >
+              Try it →
+            </Link>
+          </li>
+          <li>
             <strong className="text-white">Email Validator</strong> — checks
             whether an email address passes RFC 5322 syntax rules, belongs to a
             known disposable-email provider (57,000+ domains), has valid DNS MX
@@ -52,31 +77,6 @@ export default function AboutPage() {
               Try it →
             </Link>
           </li>
-          <li>
-            <strong className="text-white">Text / SMS Scam Detector</strong> —
-            paste any suspicious message and our AI (powered by Anthropic
-            Claude) analyses it for scam, smishing, spam, and social-engineering
-            patterns. It flags specific phrases and explains its reasoning.{" "}
-            <Link
-              href="/check/text"
-              className="text-orange-400 hover:underline"
-            >
-              Try it →
-            </Link>
-          </li>
-          <li>
-            <strong className="text-white">Phone Number Checker</strong> —
-            validates any phone number against ITU-T rules using
-            libphonenumber-js, identifies the country, line type (mobile,
-            landline, VoIP, toll-free, etc.), and (optionally) enriches results
-            with live carrier and line-status data via the AbstractAPI.{" "}
-            <Link
-              href="/check/phone"
-              className="text-orange-400 hover:underline"
-            >
-              Try it →
-            </Link>
-          </li>
         </ol>
       </PolicySection>
 
@@ -95,6 +95,23 @@ export default function AboutPage() {
       </PolicySection>
 
       <PolicySection title="How each tool works">
+        <p>
+          <strong className="text-white">Phone Number Checker</strong> —
+          validation runs locally first using libphonenumber-js (no network
+          calls). If an AbstractAPI key is configured, we enrich the result with
+          live carrier name, line type, ported status, and line-active
+          confirmation. Phone numbers are never stored — only their SHA-256 hash
+          is cached for up to 30 days as a cache key.
+        </p>
+        <p>
+          <strong className="text-white">Text / SMS Scam Detector</strong> —
+          your message is sent to our server and forwarded to Anthropic&apos;s
+          Claude API with a strict system prompt that instructs the model to
+          classify the message and extract specific red flags. The output is
+          validated against a schema before being returned to you. Results are
+          cached for 24 hours (by a one-way hash of the message) to avoid
+          redundant AI calls for the same viral scam text.
+        </p>
         <p>
           <strong className="text-white">Email Validator</strong> — validation
           runs in two layers: local checks (syntax, TLD, disposable domain list,
@@ -115,23 +132,6 @@ export default function AboutPage() {
             Google Safe Browsing
           </a>{" "}
           API against its threat database.
-        </p>
-        <p>
-          <strong className="text-white">Text / SMS Scam Detector</strong> —
-          your message is sent to our server and forwarded to Anthropic&apos;s
-          Claude API with a strict system prompt that instructs the model to
-          classify the message and extract specific red flags. The output is
-          validated against a schema before being returned to you. Results are
-          cached for 24 hours (by a one-way hash of the message) to avoid
-          redundant AI calls for the same viral scam text.
-        </p>
-        <p>
-          <strong className="text-white">Phone Number Checker</strong> —
-          validation runs locally first using libphonenumber-js (no network
-          calls). If an AbstractAPI key is configured, we enrich the result with
-          live carrier name, line type, ported status, and line-active
-          confirmation. Phone numbers are never stored — only their SHA-256 hash
-          is cached for up to 30 days as a cache key.
         </p>
       </PolicySection>
 
