@@ -3,6 +3,30 @@ import SiteLogo from "@/components/SiteLogo";
 
 const tools = [
   {
+    href: "/check/phone",
+    icon: "📞",
+    name: "Phone",
+    tagline: "Scam call?",
+    description:
+      "Identify country, line type, and flag premium-rate or VoIP numbers used in callback scams.",
+    accentHover: "hover:border-teal-500/60",
+    accentText: "group-hover:text-teal-400",
+    accentBadge: null,
+    cta: "Check number",
+  },
+  {
+    href: "/check/text",
+    icon: "💬",
+    name: "Text / SMS",
+    tagline: "Scam or legit?",
+    description:
+      "Paste a suspicious message — AI flags smishing, impersonation, and urgency tricks.",
+    accentHover: "hover:border-violet-500/60",
+    accentText: "group-hover:text-violet-400",
+    accentBadge: null,
+    cta: "Analyse text",
+  },
+  {
     href: "/check/email",
     icon: "📧",
     name: "Email",
@@ -25,30 +49,6 @@ const tools = [
     accentText: "group-hover:text-sky-400",
     accentBadge: null,
     cta: "Check URL",
-  },
-  {
-    href: "/check/text",
-    icon: "💬",
-    name: "Text / SMS",
-    tagline: "Scam or legit?",
-    description:
-      "Paste a suspicious message — AI flags smishing, impersonation, and urgency tricks.",
-    accentHover: "hover:border-violet-500/60",
-    accentText: "group-hover:text-violet-400",
-    accentBadge: null,
-    cta: "Analyse text",
-  },
-  {
-    href: "/check/phone",
-    icon: "📞",
-    name: "Phone",
-    tagline: "Scam call?",
-    description:
-      "Identify country, line type, and flag premium-rate or VoIP numbers used in callback scams.",
-    accentHover: "hover:border-teal-500/60",
-    accentText: "group-hover:text-teal-400",
-    accentBadge: null,
-    cta: "Check number",
   },
   {
     href: "/check/image",
