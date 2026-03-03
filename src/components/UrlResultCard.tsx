@@ -2,6 +2,7 @@
 
 import { UrlValidationResult } from "@/lib/url-validator";
 import AffiliateNudge from "@/components/AffiliateNudge";
+import KofiDonation from "@/components/KofiDonation";
 import { AFFILIATE_LINKS } from "@/lib/affiliate-links";
 
 interface Props {
@@ -234,6 +235,9 @@ export function UrlResultCard({ result }: Props) {
           cta="Try NordVPN →"
         />
       )}
+
+      {/* Ko-fi donation */}
+      <KofiDonation />
     </div>
   );
 }

@@ -126,6 +126,7 @@ npm run build
 | `NEXT_PUBLIC_ADSENSE_ID`               | For ad revenue              | Ads hidden if blank               | Leave blank until AdSense approved                              |
 | `NEXT_PUBLIC_ZEROBOUNCE_AFFILIATE_URL` | For affiliate nudge         | Placeholder shown                 | Set when affiliate link obtained                                |
 | `NEXT_PUBLIC_NORDVPN_AFFILIATE_URL`    | For affiliate nudge         | Placeholder shown                 | Set when affiliate link obtained                                |
+| `NEXT_PUBLIC_KOFI_USERNAME`            | For Ko-fi donations         | Link hidden if blank              | Set to your Ko-fi username (no `https://` prefix)               |
 
 ### Commands
 

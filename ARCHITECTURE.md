@@ -322,6 +322,7 @@ __tests__/
 | `NEXT_PUBLIC_ADSENSE_ID`               | No       | Google AdSense publisher ID (`ca-pub-...`) — leave blank until approved                                                 |
 | `NEXT_PUBLIC_ZEROBOUNCE_AFFILIATE_URL` | No       | ZeroBounce affiliate tracking URL — shown on email tool risky results                                                   |
 | `NEXT_PUBLIC_NORDVPN_AFFILIATE_URL`    | No       | NordVPN affiliate tracking URL — shown on URL/text tool unsafe results                                                  |
+| `NEXT_PUBLIC_KOFI_USERNAME`            | No       | Ko-fi username for donation link — link is hidden if not set                                                            |
 
 ## Affiliate Links
 
@@ -337,6 +338,28 @@ Affiliate links are always labelled with a visible "Affiliate" disclosure badge.
 - `NEXT_PUBLIC_NORDVPN_AFFILIATE_URL` — NordVPN tracking link
 
 Set these in `.env.local` (local dev) or Vercel environment variables (production) once affiliate accounts are approved.
+
+## Donations
+
+**Ko-fi voluntary donations** appear at the bottom of all result cards (email, URL, phone, SMS):
+
+```
+☕ Enjoying this? Support our work →
+```
+
+Clicking opens https://ko-fi.com/{username} in a new tab. Donors choose their own amount ($1+). Ko-fi takes 0% platform fees — users keep 98% of each donation (rest is payment processor). The donation link is controlled by `NEXT_PUBLIC_KOFI_USERNAME`:
+
+- **Blank / not set:** Donation link is hidden (returns `null` from `KofiDonation.tsx` component)
+- **Set to username:** Link appears on all result cards with coffee emoji and arrow
+
+Implementation: [KofiDonation.tsx](src/components/KofiDonation.tsx) is imported in:
+
+- [ResultCard.tsx](src/components/ResultCard.tsx) (email results)
+- [TextResultCard.tsx](src/components/TextResultCard.tsx) (SMS scam results)
+- [UrlResultCard.tsx](src/components/UrlResultCard.tsx) (URL safe/unsafe results)
+- [PhoneResultCard.tsx](src/components/PhoneResultCard.tsx) (phone number results)
+
+The component renders conditionally and is positioned below affiliate nudges (which are shown only on risky/unsafe scores).
 
 ## URL Validation Pipeline
 
