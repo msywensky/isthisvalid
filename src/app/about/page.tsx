@@ -182,9 +182,9 @@ export default function AboutPage() {
           >
             Mike Sywensky
           </a>
-          , a full-stack developer with a focus on TypeScript, Next.js, and
-          practical security tooling. If you&apos;re looking for a contractor
-          for your next project, feel free to reach out.
+          , a full-stack developer and engineering manager with over 10 years of
+          experience in Pharma and over six in Finance. If you&apos;re looking
+          for a contractor for your next project, feel free to reach out.
         </p>
         <div className="flex flex-wrap gap-3 pt-1">
           <a
