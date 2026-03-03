@@ -30,7 +30,7 @@ export const FAQ_DATA: { q: string; a: string }[] = [
   },
   {
     q: "Is this free? What's the catch?",
-    a: "Completely free to use. We keep the lights on with advertising and the occasional affiliate link. The validation logic itself will never be paywalled — that'd defeat the whole point.",
+    a: "Completely free — no account, no trial, no 'premium' tier mysteriously lacking the useful bits. We keep the lights on with the occasional affiliate link and the generosity of people who hit the ☕ at the bottom of the results. The validation logic itself will never be paywalled — that'd defeat the whole point.",
   },
   {
     q: "Can I use this via an API?",

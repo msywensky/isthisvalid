@@ -149,13 +149,23 @@ export default function AboutPage() {
         </p>
       </PolicySection>
 
-      <PolicySection title="Advertising">
+      <PolicySection title="How we're funded">
         <p>
-          IsThisValid.com is free to use. To keep the lights on, we display
-          advertisements via Google AdSense. Advertising never affects our
-          results — we have no commercial relationship with any service we check
-          against, and no financial incentive to report a result as safe or
-          unsafe.
+          IsThisValid.com is completely free to use — no account, no limits, no
+          catch. Running AI analysis and third-party API calls costs real money,
+          so if you find the tools useful, a ☕ via{" "}
+          <a
+            href="https://ko-fi.com/mikesywensky"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-orange-400 hover:underline"
+          >
+            Ko-fi
+          </a>{" "}
+          goes a long way. We may also display contextual advertisements in the
+          future to help cover costs. Advertising never affects our results — we
+          have no commercial relationship with any service we check against, and
+          no financial incentive to report a result as safe or unsafe.
         </p>
       </PolicySection>
 

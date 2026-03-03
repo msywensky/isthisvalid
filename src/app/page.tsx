@@ -165,7 +165,8 @@ export default function HubPage() {
 
       {/* Trust line */}
       <p className="text-zinc-500 text-xs text-center max-w-sm">
-        Free to use &middot; No account required &middot; Nothing is stored
+        Free to use &middot; No account required &middot; No personal data
+        stored
       </p>
     </main>
   );

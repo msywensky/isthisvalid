@@ -40,6 +40,11 @@ export const TEXT_FAQ_DATA: TextFaqEntry[] = [
       "Smishing (SMS + phishing) is a scam delivered via text message. Common examples include fake parcel delivery notifications, fake bank fraud alerts, fake prize wins, and HMRC or IRS impersonation. They typically contain a link to a fraudulent website designed to steal your credentials or payment details.",
   },
   {
+    question: "Is this free? What's the catch?",
+    answer:
+      "Completely free, including the AI analysis. Running Claude costs us real money every time you submit a message, so if you find yourself using this regularly, the ☕ at the bottom of the results goes a long way. No ads, no account, no catch.",
+  },
+  {
     question: "What are the most common signs of a scam message?",
     answer:
       "Key red flags include: unexpected urgency ('act within 24 hours'), requests for personal information or payment, suspicious links (shortened URLs or misspelled domains), impersonation of a trusted authority (your bank, HMRC, Amazon, Royal Mail), requests for gift cards or cryptocurrency, and poor grammar or strange formatting.",
