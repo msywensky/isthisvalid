@@ -13,7 +13,10 @@
  * "+1-800-555-1234" all produce the same cache key once the local validator
  * has parsed them into "+18005551234".
  *
- * Privacy: Only the SHA-256 hash of the E.164 number is stored as the key.
+ * Privacy: The raw phone number is NEVER stored — not in the key (hashed)
+ * and not in the value. The fields `input`, `phoneE164`, `nationalFormat`,
+ * and `internationalFormat` are stripped before writing; they are
+ * re-hydrated by the caller (the API route) on read.
  */
 
 import { createHash } from "crypto";
@@ -28,17 +31,25 @@ function cacheKey(e164: string): string {
   return `${KEY_PREFIX}${hash}`;
 }
 
+/** Subset of PhoneValidationResult that is safe to persist (no phone numbers). */
+type CachedPhoneResult = Omit<
+  PhoneValidationResult,
+  "input" | "phoneE164" | "nationalFormat" | "internationalFormat"
+>;
+
 /**
  * Returns a cached PhoneValidationResult, or null on cache miss / no Redis.
+ * Phone-number fields (`input`, `phoneE164`, `nationalFormat`,
+ * `internationalFormat`) are re-stamped by the API route after this call.
  */
 export async function getCachedPhoneResult(
   e164: string,
-): Promise<PhoneValidationResult | null> {
+): Promise<CachedPhoneResult | null> {
   const redis = getRedis();
   if (!redis) return null;
 
   try {
-    const cached = await redis.get<PhoneValidationResult>(cacheKey(e164));
+    const cached = await redis.get<CachedPhoneResult>(cacheKey(e164));
     return cached ?? null;
   } catch (err) {
     console.warn("[phone-cache] get error:", err);
@@ -61,8 +72,19 @@ export async function setCachedPhoneResult(
   // Only cache results enriched by a real carrier provider
   if (result.source === "local") return;
 
+  // Strip all phone-number-containing fields before persisting — they must
+  // never appear in the Redis value. The API route re-hydrates them on read.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const {
+    input: _input,
+    phoneE164: _phoneE164,
+    nationalFormat: _nationalFormat,
+    internationalFormat: _internationalFormat,
+    ...sanitized
+  } = result;
+
   try {
-    await redis.set(cacheKey(e164), result, { ex: TTL_SECONDS });
+    await redis.set(cacheKey(e164), sanitized, { ex: TTL_SECONDS });
   } catch (err) {
     console.warn("[phone-cache] set error:", err);
   }

@@ -166,7 +166,7 @@ describe("setCachedSmtpResult", () => {
     expect(redis.set).not.toHaveBeenCalled();
   });
 
-  it("stores a ZeroBounce result in Redis", async () => {
+  it("stores a ZeroBounce result in Redis without the raw email address", async () => {
     const redis = makeMockRedis();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockGetRedis.mockReturnValue(redis as any);
@@ -176,7 +176,27 @@ describe("setCachedSmtpResult", () => {
     expect(redis.set).toHaveBeenCalledTimes(1);
     const [key, value] = redis.set.mock.calls[0] as [string, unknown];
     expect(key).toMatch(/^itv:smtp:/);
-    expect(value).toEqual(ZEROBOUNCE_RESULT);
+    // The raw email address must never appear in the stored value
+    expect(value).not.toHaveProperty("email");
+    // All other fields should be present
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { email: _email, ...expectedWithoutEmail } = ZEROBOUNCE_RESULT;
+    expect(value).toEqual(expectedWithoutEmail);
+  });
+
+  it("re-hydrates the email field from the parameter on cache hit", async () => {
+    // Simulate a stored value that has no email field (as written by setCachedSmtpResult)
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { email: _email, ...storedValue } = ZEROBOUNCE_RESULT;
+    const redis = makeMockRedis({
+      get: jest.fn().mockResolvedValue(storedValue),
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockGetRedis.mockReturnValue(redis as any);
+
+    const result = await getCachedSmtpResult("user@example.com");
+    expect(result).not.toBeNull();
+    expect(result!.email).toBe("user@example.com");
   });
 
   it("stores an Emailable result in Redis", async () => {
