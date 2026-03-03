@@ -2,6 +2,7 @@
 
 import type { TextDebunkResult, TextClassification } from "@/lib/text-debunker";
 import AffiliateNudge from "@/components/AffiliateNudge";
+import KofiDonation from "@/components/KofiDonation";
 import { AFFILIATE_LINKS } from "@/lib/affiliate-links";
 
 type Props = { result: TextDebunkResult };
@@ -220,6 +221,9 @@ export default function TextResultCard({ result }: Props) {
           cta="Try NordVPN →"
         />
       )}
+
+      {/* Ko-fi donation */}
+      <KofiDonation />
     </div>
   );
 }

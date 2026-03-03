@@ -1,4 +1,5 @@
 import type { PhoneValidationResult } from "@/lib/phone-validator";
+import KofiDonation from "@/components/KofiDonation";
 
 interface Props {
   result: PhoneValidationResult;
@@ -202,6 +203,9 @@ export default function PhoneResultCard({ result }: Props) {
               : "libphonenumber (Google)"}
         </span>
       </p>
+
+      {/* Ko-fi donation */}
+      <KofiDonation />
     </div>
   );
 }

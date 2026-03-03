@@ -1,5 +1,6 @@
 import type { EmailValidationResult } from "@/lib/email-validator";
 import AffiliateNudge from "@/components/AffiliateNudge";
+import KofiDonation from "@/components/KofiDonation";
 import { AFFILIATE_LINKS } from "@/lib/affiliate-links";
 
 interface Props {
@@ -125,6 +126,9 @@ export default function ResultCard({ result }: Props) {
           cta="Try ZeroBounce free →"
         />
       )}
+
+      {/* Ko-fi donation */}
+      <KofiDonation />
     </div>
   );
 }
