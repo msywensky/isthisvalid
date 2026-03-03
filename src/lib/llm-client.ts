@@ -5,7 +5,7 @@
  * Falls back gracefully (returns null) when not configured, so local dev
  * and deployments without the key degrade cleanly.
  */
-import Anthropic from "@anthropic-ai/sdk";
+import Anthropic, { APIError } from "@anthropic-ai/sdk";
 
 // Model and token cap are overridable via env vars so you can switch to a
 // cheaper/faster model (e.g. Haiku 4.5) or reduce tokens in dev without a code change.
@@ -22,10 +22,16 @@ if (key) {
   _client = new Anthropic({ apiKey: key });
 }
 
+// 529 "Overloaded" is a transient Anthropic capacity error. We retry up to
+// MAX_RETRIES times with exponential backoff before giving up.
+const MAX_RETRIES = 3;
+const RETRY_BASE_MS = 1_000; // 1 s → 2 s → 4 s
+
 /**
  * Call Claude with a system prompt and user message.
  * Returns the raw text response, or null if the client is not configured.
- * Throws on network / API errors — caller should catch.
+ * Automatically retries up to 3 times on 529 Overloaded errors.
+ * Throws on other network / API errors — caller should catch.
  */
 export async function callClaude(
   system: string,
@@ -39,19 +45,45 @@ export async function callClaude(
   // a cheap/low-token config in dev without touching call sites.
   const effectiveMaxTokens = ENV_MAX_TOKENS ?? maxTokens;
 
-  const response = await _client.messages.create(
-    {
-      model: MODEL,
-      max_tokens: effectiveMaxTokens,
-      system,
-      messages: [{ role: "user", content: userMessage }],
-    },
-    { signal: AbortSignal.timeout(timeoutMs) },
-  );
+  let lastError: unknown;
 
-  const block = response.content[0];
-  if (block.type !== "text") return null;
-  return block.text.trim();
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const response = await _client.messages.create(
+        {
+          model: MODEL,
+          max_tokens: effectiveMaxTokens,
+          system,
+          messages: [{ role: "user", content: userMessage }],
+        },
+        { signal: AbortSignal.timeout(timeoutMs) },
+      );
+
+      const block = response.content[0];
+      if (block.type !== "text") return null;
+      return block.text.trim();
+    } catch (err) {
+      lastError = err;
+
+      // Only retry on 529 Overloaded — all other errors propagate immediately.
+      if (
+        err instanceof APIError &&
+        err.status === 529 &&
+        attempt < MAX_RETRIES
+      ) {
+        const delayMs = RETRY_BASE_MS * 2 ** attempt;
+        console.warn(
+          `[llm-client] Anthropic 529 Overloaded — retrying in ${delayMs}ms (attempt ${attempt + 1}/${MAX_RETRIES})`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        continue;
+      }
+
+      throw err;
+    }
+  }
+
+  throw lastError;
 }
 
 /** True when ANTHROPIC_API_KEY is set and the client is initialised. */
