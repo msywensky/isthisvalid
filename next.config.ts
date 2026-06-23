@@ -24,8 +24,8 @@ const ContentSecurityPolicy = [
   `script-src 'self' 'unsafe-inline' ${ADSENSE_SCRIPT_DOMAINS}`,
   // Styles: Tailwind inlines CSS via style attributes at runtime
   "style-src 'self' 'unsafe-inline'",
-  // Images: allow HTTPS images and data URIs (AdSense tracking pixels)
-  "img-src 'self' data: https:",
+  // Images: allow HTTPS images, data URIs (AdSense), and blob: (image preview)
+  "img-src 'self' data: blob: https:",
   // Fetch API calls go to our own origin only
   "connect-src 'self'",
   // AdSense embeds iframes for ad creative

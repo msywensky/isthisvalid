@@ -11,6 +11,7 @@ const config: Config = {
     "^.+\\.tsx?$": ["ts-jest", { tsconfig: { jsx: "react-jsx" } }],
   },
   testMatch: ["**/__tests__/**/*.test.ts", "**/__tests__/**/*.test.tsx"],
+  testPathIgnorePatterns: ["/node_modules/", "/.claude/worktrees/"],
   clearMocks: true,
 };
 

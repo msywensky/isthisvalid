@@ -161,7 +161,7 @@ npm run generate-og    # Regenerate OG image (scripts/generate-og.mjs)
 /check/url             → check/url/page.tsx       URL tool (SSG shell, CSR form)
 /check/text            → check/text/page.tsx      Text tool (SSG shell, CSR form)
 /check/phone           → check/phone/page.tsx     Phone tool (SSG shell, CSR form)
-/check/image           → check/image/page.tsx     Beta stub (SSG, no API)
+/check/image           → check/image/page.tsx     Image tool (SSG shell, CSR form → /api/debunk/image)
 /about                 → about/page.tsx           (SSG)
 /privacy               → privacy/page.tsx         (SSG)
 /terms                 → terms/page.tsx           (SSG)
@@ -169,6 +169,7 @@ npm run generate-og    # Regenerate OG image (scripts/generate-og.mjs)
 /api/validate-url      → POST — URL validation pipeline
 /api/validate-phone    → POST — phone validation pipeline (Node.js runtime)
 /api/debunk/text       → POST — text/SMS scam analysis
+/api/debunk/image      → POST — image authenticity check (SightEngine, cached)
 /sitemap.xml           → sitemap.ts               (SSG)
 /robots.txt            → robots.ts                (SSG)
 ```

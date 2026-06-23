@@ -1,0 +1,33 @@
+Here's my feedback on the image detection plan:
+Strengths
+- Excellent alignment with existing patterns — mirroring debunk/text step-for-step is the right call. The pipeline ordering (rate limit → config guard → parse → cache → daily cap → call → normalize → cache write → respond) matches the text route exactly.
+- Cache-before-daily-cap invariant is correctly identified and documented.
+- SHA-256 on bytes (not filename) is correct for deduplication and privacy.
+- Graceful degradation pattern (isDeepflagConfigured() → 503) matches the codebase convention.
+- Test plan is thorough — covers cache hit/miss, rate limits, MIME/size validation, provider failure, and graceful Redis degradation.
+Issues & Concerns
+1. Cache key prefix mismatch (line 22 vs line 81)
+Line 22 says itv:cache:image:{sha256} but the existing convention is itv:{tool}:{hash} (e.g., itv:smtp:abc123, itv:phone:def456). Should be itv:image:{hash} for consistency.
+2. normalizeDeepflagResponse needs a coerceRiskScore equivalent
+The text route has coerceRiskScore() to prevent contradictions like "scam" with a green ring. Since deepflag's verdict is free-form and mapped via keyword matching, you need the same coercion logic — e.g., classification: "deepfake" with riskScore < 60 should be bumped up. This is mentioned in the normalization function description but should be explicit as a separate function like the text tool has.
+3. SAFE_RISK_THRESHOLD = 40 rationale is shaky
+The plan says "false-positive cost is lower for images" — but a false positive on a real photo flagged as deepfake could be just as harmful (e.g., a journalist's real photo marked as fake). The text tool uses 50. Consider keeping 50 unless you have data supporting 40. If you do use 40, document the boundary test more carefully (line 140 tests 39→safe, 40→not-safe, which is correct for <).
+4. Missing DebunkResponseSchema equivalent for deepflag
+The text route validates Claude's JSON with a Zod schema before merging. The deepflag response comes from a third-party API with a known OpenAPI spec, but the plan doesn't mention validating the response shape. Since verdict is free-form and analysis/flagged_segments are free-form objects, a Zod safeParse on the raw response before normalization would catch API contract drift.
+5. FormData request validation (line 79)
+The text route uses z.safeParse() on a JSON body. For FormData, you can't use Zod directly on the raw body. The plan should clarify how validation errors are surfaced — e.g., if (!file || !(file instanceof Blob)) → 422. Also, the MIME type check should use file.type, not the file extension (the plan mentions this but should emphasize it since .txt renamed to .jpg is explicitly tested).
+6. Retry strategy for deepflag (line 63)
+The plan says retry on 429/503 matching callClaude's 529 retry. But deepflag is a different provider — you should confirm which status codes deepflag returns for transient errors. If it doesn't use 429/503, the retry logic will silently fail.
+7. Frontend: blob URL cleanup timing (line 101)
+The plan says "revoke blob URL on unmount and on result." But if the result card shows a thumbnail (line 116), the blob URL is still needed after the result is set. Revoke should happen when the component unmounts or when a new file replaces the old one, not when the result appears.
+8. Missing layout.tsx metadata details
+Line 103-106 mentions adding layout.tsx but doesn't specify the description meta tag, which is important for SEO. The text tool's layout.tsx should be checked for the full pattern.
+9. No mention of next.config.js body size limit
+Vercel serverless has a 4.5 MB body limit, but Next.js may have its own bodySizeLimit in next.config.js. The plan validates at 4 MB client- and server-side, which is good, but should confirm the Next.js config doesn't impose a lower limit.
+10. ImageDebunkResult.source type
+The text tool has source: "claude" as a literal type. The plan should specify source: "deepflag" as the literal for the image equivalent, not a generic string.
+Minor Suggestions
+- Line 65: getDeepflagModelLabel() — consider getDeepflagModel() to match getModelLabel() naming.
+- Line 74: The normalization function should also handle edge cases like confidence: null or scores missing from the response.
+- Line 116: Thumbnail in the result card is a nice touch but adds complexity (blob URL lifecycle). Consider deferring to a follow-up PR.
+- Tests: Add a test for the normalizeDeepflagResponse handling of unknown verdict strings (e.g., "unknown" or empty string) → should map to "uncertain".
