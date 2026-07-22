@@ -59,8 +59,8 @@ const tools = [
       "AI vision checks for deepfakes, manipulated screenshots, and out-of-context photos.",
     accentHover: "hover:border-emerald-500/60",
     accentText: "group-hover:text-emerald-400",
-    accentBadge: "Soon",
-    cta: "Coming soon",
+    accentBadge: null,
+    cta: "Check image",
   },
 ];
 

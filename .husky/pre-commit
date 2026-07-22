@@ -1,1 +1,9 @@
-npx lint-staged
+#!/usr/bin/env sh
+case "$(uname -s)" in
+	MINGW*|MSYS*|CYGWIN*)
+	npx.cmd lint-staged
+	;;
+	*)
+		npx lint-staged
+	;;
+esac

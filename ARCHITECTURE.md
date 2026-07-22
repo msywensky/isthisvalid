@@ -237,13 +237,13 @@ src/
 │   │   │   └── page.tsx             # /check/email — full email validator (client)
 │   │   ├── url/
 │   │   │   ├── layout.tsx           # URL tool metadata
-│   │   │   └── page.tsx             # /check/url — URL safety checker (beta stub)
+│   │   │   └── page.tsx             # /check/url — URL safety checker
 │   │   ├── text/
 │   │   │   ├── layout.tsx           # Text tool metadata
 │   │   │   └── page.tsx             # /check/text — SMS/text scam debunker (production, Claude-powered)
 │   │   └── image/
 │   │       ├── layout.tsx           # Image tool metadata
-│   │       └── page.tsx             # /check/image — image authenticity checker (beta stub)
+│   │       └── page.tsx             # /check/image — image authenticity checker (SightEngine)
 │   ├── layout.tsx                   # Root layout: SEO metadata, Schema.org, AdSense script,
 │   │                                #   SiteFooter + CookieConsent rendered globally
 │   ├── page.tsx                     # Hub page — 2×2 tool picker (server component)
@@ -651,7 +651,7 @@ maximising SEO value and deep-linkability.
 ├── /check/url     ← full working tool
 ├── /check/text    ← full working tool (Claude-powered)
 ├── /check/phone   ← full working tool (libphonenumber + carrier API)
-└── /check/image   ← coming soon placeholder
+└── /check/image   ← full working tool (SightEngine AI detection)
 ```
 
 `CheckShell` is a shared server component providing the back-nav and tool hero
@@ -659,20 +659,21 @@ for all four `/check/*` pages. Each tool page supplies its own colour accent and
 
 ## Route Map
 
-| Route                 | Type    | Purpose                                              |
-| --------------------- | ------- | ---------------------------------------------------- |
-| `/`                   | Static  | Hub — tool picker (2×2 card grid)                    |
-| `/check/email`        | Static  | Full email validator                                 |
-| `/check/url`          | Static  | URL safety checker                                   |
-| `/check/text`         | Static  | SMS / text scam analyser (Claude-powered)            |
-| `/check/phone`        | Static  | Phone number validator                               |
-| `/check/image`        | Static  | Image authenticity checker (coming soon placeholder) |
-| `/about`              | Static  | Site description, disclosure, contact                |
-| `/privacy`            | Static  | GDPR/CCPA privacy policy (AdSense required)          |
-| `/terms`              | Static  | Terms of service                                     |
-| `/api/validate`       | Dynamic | POST — email validation                              |
-| `/api/validate-url`   | Dynamic | POST — URL safety check                              |
-| `/api/validate-phone` | Dynamic | POST — phone number validation (Node.js runtime)     |
-| `/api/debunk/text`    | Dynamic | POST — text/SMS scam analysis (Claude, cached)       |
-| `/sitemap.xml`        | Static  | Auto-generated sitemap                               |
-| `/robots.txt`         | Static  | Auto-generated robots file                           |
+| Route                 | Type    | Purpose                                               |
+| --------------------- | ------- | ----------------------------------------------------- |
+| `/`                   | Static  | Hub — tool picker (2×2 card grid)                     |
+| `/check/email`        | Static  | Full email validator                                  |
+| `/check/url`          | Static  | URL safety checker                                    |
+| `/check/text`         | Static  | SMS / text scam analyser (Claude-powered)             |
+| `/check/phone`        | Static  | Phone number validator                                |
+| `/check/image`        | Static  | Image authenticity checker (SightEngine)              |
+| `/about`              | Static  | Site description, disclosure, contact                 |
+| `/privacy`            | Static  | GDPR/CCPA privacy policy (AdSense required)           |
+| `/terms`              | Static  | Terms of service                                      |
+| `/api/validate`       | Dynamic | POST — email validation                               |
+| `/api/validate-url`   | Dynamic | POST — URL safety check                               |
+| `/api/validate-phone` | Dynamic | POST — phone number validation (Node.js runtime)      |
+| `/api/debunk/text`    | Dynamic | POST — text/SMS scam analysis (Claude, cached)        |
+| `/api/debunk/image`   | Dynamic | POST — image authenticity check (SightEngine, cached) |
+| `/sitemap.xml`        | Static  | Auto-generated sitemap                                |
+| `/robots.txt`         | Static  | Auto-generated robots file                            |
