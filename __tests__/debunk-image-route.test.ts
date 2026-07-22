@@ -79,7 +79,12 @@ async function makeImageRequest(
   ip = "1.2.3.4",
 ): Promise<NextRequest> {
   const form = new FormData();
-  form.append("file", new File([fileBytes], filename, { type: mimeType }));
+  form.append(
+    "file",
+    new File([fileBytes.buffer as ArrayBuffer], filename, {
+      type: mimeType,
+    }),
+  );
 
   return new NextRequest("http://localhost/api/debunk/image", {
     method: "POST",
