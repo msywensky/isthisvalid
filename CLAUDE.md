@@ -17,7 +17,7 @@ A free, no-signup verification hub for email validation, URL safety checking, SM
 ```bash
 npm run dev                    # Start dev server at http://localhost:3000
 npm run build                  # Production build (type-check + static generation)
-npm test                       # Run all Jest suites (403 tests)
+npm test                       # Run all Jest suites (493 tests)
 npx jest __tests__/email-validator.test.ts  # Single test file
 npx jest -t "typosquat"       # Tests matching a pattern
 npm run test:coverage         # Generate coverage report (→ coverage/)
@@ -111,6 +111,19 @@ The codebase implements a **progressive enrichment pattern**: cheap local checks
 - `SAFE_RISK_THRESHOLD = 50`; use this constant, not magic number 50.
 - Daily limit is 10/day (intentionally lower than text's 20/day—SightEngine credits cost more per call than LLM tokens at this scale).
 
+### 6. QR Code Scanner (`src/hooks/useQrScanner.ts` + `src/app/check/qr/page.tsx` — entirely client-side)
+
+- **Decode** (free, in-browser, `useQrScanner()` hook — `src/hooks/useQrScanner.ts`): Upload an image or scan live via camera; both paths draw to a shared `<canvas>` and decode with `jsQR` (dynamically imported once, cached in a ref). Upload uses `inversionAttempts: "attemptBoth"`; the camera loop uses `"dontInvert"` and is throttled to ~12.5fps (`FRAME_INTERVAL_MS = 80`) to bound `getImageData` GC pressure. `check/qr/page.tsx` only renders based on the hook's returned state — it holds no decode/camera logic itself.
+- **Classify** (`src/lib/qr-content.ts`, pure/DOM-free): `classifyQrContent(raw)` returns a discriminated union — `url` (http(s):// or bare-domain), `tel`, `email` (mailto:, `?subject=` stripped), `wifi` (SSID/encryption/hidden parsed; password `P:` never extracted), or `text` (everything else, including `javascript:`/`data:` schemes — never treated as a URL).
+- **Route on classification**: `url` content is POSTed to the existing `/api/validate-url` route and rendered via `<UrlResultCard>` — no new API route, no new provider. Non-URL content is displayed via `<QrContentCard>` with safety notes; never auto-navigated, auto-connected, or auto-dialled.
+- **No new environment variables.** No image bytes or camera frames ever leave the browser.
+
+**Critical invariants:**
+
+- The camera `MediaStream` must be stopped (`stopCamera()`) on decode success, on the Stop button, on reset, on switching to upload, and in a `useEffect` cleanup — a left-on camera light is the #1 regression risk here.
+- `classifyQrContent` never returns `kind: "url"` for `javascript:`/`data:` schemes (regression-tested) — only `http://`/`https://`/bare-domain content is sent to `/api/validate-url`.
+- Wifi QR parsing never surfaces the `P:` (password) field on the returned object.
+
 ---
 
 ## Environment Variables & Graceful Degradation
@@ -192,7 +205,7 @@ Model and token cap overridable via `ANTHROPIC_MODEL` and `ANTHROPIC_MAX_TOKENS`
 
 All tests are pure unit tests—no network, no Redis, no filesystem. Jest mocks external dependencies.
 
-**Test coverage:** 403 tests (150 email + 113 URL + 70 phone + 45 text + 15 smtp-cache + 10 other)
+**Test coverage:** 493 tests (161 email + 113 URL + 70 phone + 45 text + 46 image-debunker + 27 image-route + 16 qr-content + 15 smtp-cache)
 
 **Patterns:**
 
@@ -288,8 +301,21 @@ Prettier config: 2-space indent, double quotes, trailing commas, 80-char line wi
 2. Write code + tests
 3. Run `npm run build` (0 errors), `npm test` (all pass), `npm run lint` (0 errors)
 4. Add any new env vars to `.env.example` and Vercel dashboard
-5. Update `ARCHITECTURE.md`, `DEVELOPER_GUIDE.md`, `README.md` if significant
+5. Update `CLAUDE.md` and `ARCHITECTURE.md` (mandatory, see below); update `DEVELOPER_GUIDE.md` and `README.md` if significant
 6. Open PR; wait for approval before merging
+
+---
+
+## Documentation Must Stay Current
+
+**`CLAUDE.md` and `ARCHITECTURE.md` must be kept up to date as part of finishing any coding task — not as a follow-up, not "if significant."** Before considering a coding task complete:
+
+- If you added, removed, or changed a pipeline/route/lib file: update the relevant pipeline section and file structure listing in `ARCHITECTURE.md`, and the matching section in `CLAUDE.md`.
+- If you added or changed an env var: update the Environment Variables table in both files (and `.env.example`).
+- If you added or changed tests: update test counts/breakdowns in both files.
+- If you changed a scoring formula, cache TTL, rate limit, or critical invariant: update the relevant bullet — these files are the source of truth other engineers (and future Claude sessions) rely on, and stale invariants cause real regressions.
+
+Treat outdated `CLAUDE.md`/`ARCHITECTURE.md` content as a bug the same as a failing test. If a change makes something in either file inaccurate, fix it in the same PR — do not leave it for later.
 
 ---
 
