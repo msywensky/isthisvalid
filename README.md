@@ -1,6 +1,6 @@
 # IsThisValid.com
 
-A free, no-signup verification hub for checking emails, scanning URLs for threats, detecting scam text messages using AI, and validating phone numbers.
+A free, no-signup verification hub for checking emails, scanning URLs for threats, detecting scam text messages using AI, validating phone numbers, detecting AI-generated images, and scanning QR codes before you trust them.
 
 **Live:** https://isthisvalid.com
 
@@ -66,6 +66,30 @@ A free, no-signup verification hub for checking emails, scanning URLs for threat
 
 **Result:** 0–100 confidence score, line-type badge, carrier details, and prominent scam warnings
 
+### 🖼️ Image Authenticity Checker
+
+- AI-generated image detection via SightEngine (`genai` model)
+- Accepts JPEG, PNG, WebP, GIF up to 4 MB
+- MIME type validated from actual file content, not extension
+- Image bytes never persisted — only a SHA-256 hash is cached
+- Per-IP rate limiting (20/min) + daily cost cap (10/day — lower than text's 20/day since SightEngine credits cost more per call)
+- Cache check runs before daily limit — cache hits never burn quota
+- 24-hour result caching, 30-second API timeout with 3 automatic retries on transient errors
+- Zod-validated raw provider response before normalisation
+
+**Result:** Classification (ai-generated/authentic/uncertain), 0–100 risk score, confidence, flagged indicators, and explanation
+
+### 🔳 QR Code Scanner
+
+- Upload an image or scan live with your camera — decoded entirely in the browser (`jsQR`), nothing ever uploaded
+- URLs are automatically run through the URL Safety Checker for a full verdict
+- Non-URL content (Wi-Fi credentials, phone numbers, email addresses, plain text) decoded and displayed, never auto-actioned
+- Wi-Fi QR passwords are parsed but never surfaced or stored
+- `javascript:`/`data:` and other dangerous schemes are always treated as inert text, never sent to the URL checker
+- Camera loop throttled to ~12.5fps with automatic cleanup — camera light never stays on after you leave the page
+
+**Result:** Full URL safety verdict for links, or a decoded-content card with safety notes for everything else
+
 ---
 
 ## Tech Stack
@@ -77,6 +101,8 @@ A free, no-signup verification hub for checking emails, scanning URLs for threat
 - **Testing:** Jest + ts-jest
 - **Rate Limiting & Caching:** Upstash Redis
 - **LLM Integration:** Anthropic Claude API
+- **Image AI Detection:** SightEngine (`genai` model)
+- **QR Decoding:** jsQR (client-side, no server processing)
 - **Hosting:** Vercel
 - **Analytics:** Vercel Analytics
 - **Monetisation:** Ko-fi voluntary donations + contextual affiliate links (ZeroBounce, NordVPN) + Google AdSense (pending approval)
@@ -117,6 +143,9 @@ Then edit `.env.local` and add your API keys:
 - `NEXT_PUBLIC_ADSENSE_ID` — AdSense publisher ID (optional, leave blank until approved)
 - `ABSTRACT_API_PHONE_KEY` — AbstractAPI Phone Intelligence (optional, 250 free/month; preferred carrier lookup)
 - `NUMVERIFY_API_KEY` — NumVerify (optional, 100 free/month; fallback if Abstract key is absent)
+- `SIGHTENGINE_API_USER` / `SIGHTENGINE_API_SECRET` — SightEngine image AI detection (required for image tool; sign up at sightengine.com)
+- `SIGHTENGINE_MODEL_LABEL` — Optional display label override (default: `"SightEngine"`)
+- `NEXT_PUBLIC_KOFI_USERNAME` — Ko-fi username for donation link (optional; link hidden if not set)
 
 All external APIs degrade gracefully if keys are missing.
 
@@ -136,7 +165,7 @@ npm run test -- --watch   # Watch mode
 npm run test -- --coverage  # With coverage report
 ```
 
-**Current:** 403/403 tests passing (150 email + 113 URL + 70 phone + 45 text debunker + 15 smtp-cache + 10 other)
+**Current:** 493/493 tests passing (161 email + 113 URL + 70 phone + 45 text debunker + 46 image debunker + 27 image route + 16 qr-content + 15 smtp-cache)
 
 ### Production Build
 
@@ -152,7 +181,7 @@ npm start
 ```
 src/
 ├── app/                    # Next.js App Router pages
-│   ├── check/              # Tool pages (email/url/text/phone/image)
+│   ├── check/              # Tool pages (email/url/text/phone/image/qr)
 │   ├── api/                # API routes (validation endpoints)
 │   ├── privacy/            # Legal pages
 │   ├── about/
@@ -162,6 +191,8 @@ src/
 │   ├── UrlResultCard.tsx   # URL checker result display
 │   ├── TextResultCard.tsx  # Text debunker result display
 │   ├── PhoneResultCard.tsx # Phone validator result display
+│   ├── ImageResultCard.tsx # Image authenticity result display
+│   ├── QrContentCard.tsx   # Non-URL QR content display (tel/email/wifi/text)
 │   └── ...
 ├── lib/                    # Utility functions & constants
 │   ├── email-validator.ts  # Core email validation logic
@@ -171,6 +202,9 @@ src/
 │   ├── phone-validator.ts  # Core phone validation logic + carrier merge
 │   ├── carrier-provider.ts # Pluggable carrier API (AbstractAPI / NumVerify)
 │   ├── phone-cache.ts      # Redis carrier result cache (30-day TTL)
+│   ├── image-debunker.ts   # Image analysis types, Zod schema, normalisation, coercion
+│   ├── sightengine-client.ts # SightEngine API client with retry/backoff
+│   ├── qr-content.ts       # Pure QR content classifier (url/tel/email/wifi/text)
 │   ├── llm-client.ts       # Anthropic API wrapper
 │   ├── rate-limit.ts       # Upstash rate limiting
 │   └── affiliate-links.ts  # Affiliate partner URLs
@@ -199,6 +233,7 @@ Set all required env vars in your Vercel project dashboard before deploying:
 - `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` (default: `claude-sonnet-4-20250514`), `ANTHROPIC_MAX_TOKENS` (default: `1024`)
 - `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`
 - `GOOGLE_SAFE_BROWSING_API_KEY` (optional)
+- `SIGHTENGINE_API_USER`, `SIGHTENGINE_API_SECRET` (required for image tool; optional `SIGHTENGINE_MODEL_LABEL`)
 
 ---
 
@@ -214,6 +249,7 @@ Set all required env vars in your Vercel project dashboard before deploying:
 | Emailable            | 250 checks (one-time)  | Fallback; only used if ZeroBounce key absent       |
 | AbstractAPI Phone    | 250 lookups/month      | Preferred carrier lookup; recurring free tier      |
 | NumVerify            | 100 lookups/month      | Carrier fallback; only used if Abstract key absent |
+| SightEngine          | Free trial credits     | Image AI detection; 10 checks/day cap limits spend |
 
 **Estimated monthly cost:** $0–5 with all APIs (depends on usage)
 
@@ -259,6 +295,7 @@ The fallback values in `src/lib/affiliate-links.ts` contain PLACEHOLDER values t
 - **No data retention for URLs/text inputs** — URL and text inputs are never stored after the check is complete
 - **Email SMTP cache** — a SHA-256 hash of submitted email addresses may be stored in Redis for up to 7 days to avoid redundant paid API calls; the hash is one-way and cannot be used to reconstruct the original address
 - **Phone carrier cache** — a SHA-256 hash of the E.164-normalised phone number may be stored in Redis for up to 30 days to conserve carrier API quota; the hash cannot be used to reconstruct the original number
+- **Image bytes never stored** — only a SHA-256 hash of the uploaded image is cached in Redis for up to 24 hours to avoid redundant SightEngine calls
 
 ---
 

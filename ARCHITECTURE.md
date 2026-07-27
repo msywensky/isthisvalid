@@ -1,6 +1,6 @@
 # IsThisValid.com — Architecture Guide
 
-**Last updated: March 3, 2026**
+**Last updated: July 22, 2026**
 
 ## High-Level Flow
 
@@ -222,6 +222,96 @@ Browser  →  POST /api/debunk/text { message }
         └── modelLabel: human-readable model name (e.g. "Claude Sonnet 4", "Claude Haiku 4.5")
 ```
 
+### Image Authenticity Detection (`POST /api/debunk/image`)
+
+```
+Browser  →  POST /api/debunk/image  { file: multipart/form-data }
+  │
+  ├─► Rate limit check (Upstash, 20 req/min per IP — shared with other tools)
+  │     └── 429 if exceeded
+  │
+  ├─► SightEngine availability check (SIGHTENGINE_API_USER + _SECRET configured?)
+  │     └── 503 if not configured
+  │
+  ├─► Parse multipart FormData — 400 if malformed, 422 if "file" field missing/invalid
+  │
+  ├─► isAcceptedMimeType(file.type) — JPEG/PNG/WebP/GIF only, checked from actual
+  │     content type (not filename extension) → 422 if unsupported
+  │
+  ├─► file.size > MAX_IMAGE_BYTES (4 MB) → 422
+  │
+  ├─► Read bytes → sha256(bytes) cache key (itv:image:<hash>)
+  │
+  ├─► Redis cache lookup ← hits return here, daily budget NOT consumed
+  │     ├── HIT  → return cached ImageDebunkResult (X-Cache: HIT)
+  │     └── MISS → continue
+  │
+  ├─► Daily spend cap check (Upstash, 10 req/day per IP) ← only reached on cache miss
+  │     └── 429 if exceeded
+  │
+  ├─► callSightengine(bytes, mimeType, filename)
+  │     ├── POST multipart to api.sightengine.com/1.0/check.json, models=genai
+  │     ├── AbortSignal.timeout(30 000 ms)
+  │     └── 3 retries, exponential backoff (1 s → 2 s → 4 s) on 429/5xx/network errors
+  │
+  ├─► API error → 502; null response (not configured) → 503
+  │
+  ├─► SightengineRawResponseSchema.safeParse() — Zod validates raw provider shape
+  │     └── Parse failure → 502
+  │
+  ├─► normalizeProviderResponse() — converts type.ai_generated (0–1) into result
+  │     ├── ≥0.7 → "ai-generated" · 0.4–0.7 → "uncertain" · <0.4 → "authentic"
+  │     ├── confidence = distance from 0.5 ambiguity midpoint, scaled 0–100
+  │     └── builds flags[] + explanation string
+  │
+  ├─► coerceImageRiskScore() — enforces cross-field consistency
+  │     ├── ai-generated → riskScore = Math.max(riskScore, 60)
+  │     ├── authentic    → riskScore = Math.min(riskScore, 40)
+  │     └── uncertain     → riskScore clamped to 40–70 band
+  │
+  ├─► modelLabel attached from getSightengineModelLabel() (SIGHTENGINE_MODEL_LABEL env var, default "SightEngine")
+  │
+  ├─► Cache write to Redis, 24 h TTL (fire-and-forget)
+  │
+  └─► JSON response → ImageDebunkResult (X-Cache: MISS)
+        ├── classification: ai-generated | authentic | uncertain
+        ├── confidence: 0–100
+        ├── riskScore: 0–100 (coerced for consistency with classification)
+        ├── safe: boolean (riskScore < 50 AND not ai-generated)
+        ├── summary, flags, explanation
+        └── source: "sightengine", modelLabel
+```
+
+### QR Code Scanner (client-side decode → `POST /api/validate-url` on URL content)
+
+```
+Browser (client-side only — no new API route)
+  │
+  ├─► User uploads an image OR starts the camera
+  │     ├── Upload: draw to <canvas> → ctx.getImageData()
+  │     └── Camera: getUserMedia() → <video> → rAF loop throttled to ~12.5 fps →
+  │           draw frame to <canvas> → ctx.getImageData()
+  │
+  ├─► jsQR(imageData, opts) — pure-JS decode, dynamically imported once, shared
+  │     between upload ("attemptBoth") and camera ("dontInvert") via a cached ref
+  │     └── No match → "No QR code found" (upload) / loop continues (camera)
+  │
+  ├─► classifyQrContent(raw) — src/lib/qr-content.ts, pure + DOM-free
+  │     ├── tel: / mailto: / WIFI: schemes parsed (wifi password never extracted)
+  │     ├── http(s):// or bare-domain pattern → { kind: "url" }
+  │     └── everything else (incl. javascript:/data: — regression-guarded) → { kind: "text" }
+  │
+  └─► Route on classification:
+        ├── kind: "url"  → POST /api/validate-url { url } (same pipeline as the
+        │                   URL tool above) → <UrlResultCard>
+        └── kind: other  → decoded content displayed as-is via <QrContentCard>,
+                            never auto-navigated/auto-connected/auto-dialled
+```
+
+No server-side image processing, no new environment variables — decoding happens entirely
+in the browser; only URL-classified content is ever sent to the server (as a string, to the
+existing `/api/validate-url` route).
+
 ## File Structure
 
 ```
@@ -241,9 +331,12 @@ src/
 │   │   ├── text/
 │   │   │   ├── layout.tsx           # Text tool metadata
 │   │   │   └── page.tsx             # /check/text — SMS/text scam debunker (production, Claude-powered)
-│   │   └── image/
-│   │       ├── layout.tsx           # Image tool metadata
-│   │       └── page.tsx             # /check/image — image authenticity checker (SightEngine)
+│   │   ├── image/
+│   │   │   ├── layout.tsx           # Image tool metadata
+│   │   │   └── page.tsx             # /check/image — image authenticity checker (SightEngine)
+│   │   └── qr/
+│   │       ├── layout.tsx           # QR tool metadata
+│   │       └── page.tsx             # /check/qr — QR code scanner (upload + live camera, client-side decode)
 │   ├── layout.tsx                   # Root layout: SEO metadata, Schema.org, AdSense script,
 │   │                                #   SiteFooter + CookieConsent rendered globally
 │   ├── page.tsx                     # Hub page — 2×2 tool picker (server component)
@@ -267,8 +360,15 @@ src/
 │   ├── UrlResultCard.tsx            # Score ring, check grid, flags list (URL) + NordVPN affiliate nudge
 │   ├── PhoneFAQ.tsx                 # FAQ accordion for the phone validator (teal accent)
 │   ├── PhoneForm.tsx                # Phone number input form (teal accent)
-│   └── PhoneResultCard.tsx          # Score ring, line-type badge, carrier details, NANP callout
+│   ├── PhoneResultCard.tsx          # Score ring, line-type badge, carrier details, NANP callout
+│   ├── ImageFAQ.tsx                 # FAQ accordion for the image tool (emerald accent)
+│   ├── ImageResultCard.tsx          # Classification badge, risk score, flags, explanation (image) — Ko-fi only, no affiliate nudge
+│   ├── QrFAQ.tsx                    # FAQ accordion for the QR tool (cyan accent)
+│   └── QrContentCard.tsx            # Displays non-URL decoded QR content (tel/email/wifi/text) — never auto-acted on
 ├── proxy.ts                         # CORS enforcement / middleware (Next.js 16 convention)
+├── hooks/
+│   └── useQrScanner.ts              # Camera capture, upload decode (jsQR), classification + /api/validate-url
+│                                     #   routing for the QR tool — keeps check/qr/page.tsx render-only
 └── lib/
     ├── affiliate-links.ts           # Affiliate partner URLs — reads from NEXT_PUBLIC_* env vars
     ├── email-validator.ts           # Core logic: validateEmailLocal, applyMxResult, mergeSmtpResult, mergeEmailableResult (compat wrapper); 110+ role prefixes; 35+ typo corrections; RFC 5321 dot validation; typo score cap (≤65); +tag stripped for role check
@@ -292,18 +392,35 @@ src/
     ├── us-area-codes.ts             # US area-code → state/region lookup table
     ├── llm-client.ts                # Thin Anthropic SDK wrapper: callClaude(systemPrompt, userMsg)
     ├── disposable-domains.ts        # ~57 000+ disposable domains — disposable-email-domains (~3 500) merged with mailchecker (~55 860); combined Set
-    └── rate-limit.ts                # Upstash Redis: checkRateLimit (20/min), checkDailyTextLimit (20/day); getRedis() shared client
+    ├── image-debunker.ts            # Types + Zod schema for ImageDebunkResult; normalizeProviderResponse, coerceImageRiskScore,
+    │                                #   isAcceptedMimeType, MAX_IMAGE_BYTES (4 MB), SAFE_RISK_THRESHOLD
+    ├── image-faq-data.ts            # FAQ Q&A for image tool — consumed by ImageFAQ.tsx
+    ├── sightengine-client.ts        # SightEngine API client: callSightengine, isSightengineConfigured, getSightengineModelLabel;
+    │                                #   3 retries with exponential backoff on 429/5xx/network errors
+    ├── qr-content.ts                # Pure classifier: classifyQrContent(raw) → QrContent discriminated union
+    │                                #   (url/tel/email/wifi/text); DOM-free, wifi password never extracted
+    ├── qr-faq-data.ts               # FAQ Q&A for QR tool — consumed by QrFAQ.tsx + FAQPage JSON-LD
+    └── rate-limit.ts                # Upstash Redis: checkRateLimit (20/min), checkDailyTextLimit (20/day), checkDailyImageLimit (10/day);
+                                     #   getRedis() shared client
 __tests__/
 ├── debunk-text-route.test.ts        # Jest unit tests: POST /api/debunk/text route (45 tests)
-├── email-validator.test.ts          # Jest unit tests: validateEmailLocal, applyMxResult, mergeSmtpResult, mergeEmailableResult, role prefixes, plus-addressed role check, expanded typo map, RFC 5321 dot rules, typo score cap, exact scoring, case normalization, DISPOSABLE_DOMAINS (150 tests)
+├── debunk-image-route.test.ts       # Jest unit tests: POST /api/debunk/image route — rate limit, daily cap,
+    #   cache hit/miss, MIME/size validation, SightEngine mocked (27 tests)
+├── email-validator.test.ts          # Jest unit tests: validateEmailLocal, applyMxResult, mergeSmtpResult, mergeEmailableResult, role prefixes, plus-addressed role check, expanded typo map, RFC 5321 dot rules, typo score cap, exact scoring, case normalization, DISPOSABLE_DOMAINS (161 tests)
+├── image-debunker.test.ts           # Jest unit tests: normalizeProviderResponse, coerceImageRiskScore,
+    #   isAcceptedMimeType, classification thresholds, confidence scaling (46 tests)
 ├── phone-validator.test.ts          # Jest unit tests: validatePhoneLocal, applyCarrierResult, getLineTypeBonus,
     #   format parsing, validity, country detection, line-type scoring, flags, Caribbean NANP,
     #   area-code location, applyCarrierResult score swap, VOIP reclassification (70 tests)
+├── qr-content.test.ts               # Jest unit tests: classifyQrContent — url/tel/email/wifi/text classification,
+    #   wifi password never surfaced, javascript:/data: regression guard (16 tests)
 ├── smtp-cache.test.ts               # Jest unit tests: getCachedSmtpResult, setCachedSmtpResult — Redis mocked (15 tests)
 └── url-validator.test.ts            # Jest unit tests: validateUrlLocal, applyHeadResult, applySafeBrowsingResult,
     #   applyRdapResult, applyRedirectResult; getRegisteredDomain, checkBrandSquat, checkTyposquat;
     #   notHighEntropy, notExcessiveHyphens, IP edge cases, ccTLD coverage (113 tests)
 ```
+
+**Total: 493 tests** (161 email + 113 URL + 70 phone + 45 text + 46 image-debunker + 27 image-route + 16 qr-content + 15 smtp-cache)
 
 ## Environment Variables
 
@@ -319,6 +436,9 @@ __tests__/
 | `EMAILABLE_API_KEY`                    | No       | Emailable API key — fallback SMTP provider (250 one-time free, then paid); used only if `ZEROBOUNCE_API_KEY` is not set |
 | `ABSTRACT_API_PHONE_KEY`               | No       | AbstractAPI Phone Intelligence key — preferred carrier lookup (250 free/month recurring)                                |
 | `NUMVERIFY_API_KEY`                    | No       | NumVerify API key — fallback carrier lookup (100 free/month); used only if `ABSTRACT_API_PHONE_KEY` is not set          |
+| `SIGHTENGINE_API_USER`                 | Yes\*    | SightEngine API user — powers the image authenticity checker (\*route returns 503 without it)                           |
+| `SIGHTENGINE_API_SECRET`               | Yes\*    | SightEngine API secret — required alongside `SIGHTENGINE_API_USER`                                                      |
+| `SIGHTENGINE_MODEL_LABEL`              | No       | Display label override for image tool results (default: `"SightEngine"`)                                                |
 | `NEXT_PUBLIC_ADSENSE_ID`               | No       | Google AdSense publisher ID (`ca-pub-...`) — leave blank until approved                                                 |
 | `NEXT_PUBLIC_ZEROBOUNCE_AFFILIATE_URL` | No       | ZeroBounce affiliate tracking URL — shown on email tool risky results                                                   |
 | `NEXT_PUBLIC_NORDVPN_AFFILIATE_URL`    | No       | NordVPN affiliate tracking URL — shown on URL/text tool unsafe results                                                  |
@@ -358,6 +478,7 @@ Implementation: [KofiDonation.tsx](src/components/KofiDonation.tsx) is imported 
 - [TextResultCard.tsx](src/components/TextResultCard.tsx) (SMS scam results)
 - [UrlResultCard.tsx](src/components/UrlResultCard.tsx) (URL safe/unsafe results)
 - [PhoneResultCard.tsx](src/components/PhoneResultCard.tsx) (phone number results)
+- [ImageResultCard.tsx](src/components/ImageResultCard.tsx) (image authenticity results)
 
 The component renders conditionally and is positioned below affiliate nudges (which are shown only on risky/unsafe scores).
 
@@ -504,12 +625,14 @@ POST /api/validate
 
 The site uses an **always-dark** design (zinc-950 background). Each tool has its own accent colour:
 
-| Tool     | Accent   | Tailwind class   |
-| -------- | -------- | ---------------- |
-| Email    | Amber    | `amber-400/500`  |
-| URL      | Sky blue | `sky-400/500`    |
-| Text/SMS | Violet   | `violet-400/500` |
-| Phone    | Teal     | `teal-400/500`   |
+| Tool     | Accent   | Tailwind class    |
+| -------- | -------- | ----------------- |
+| Email    | Amber    | `amber-400/500`   |
+| URL      | Sky blue | `sky-400/500`     |
+| Text/SMS | Violet   | `violet-400/500`  |
+| Phone    | Teal     | `teal-400/500`    |
+| Image    | Emerald  | `emerald-400/500` |
+| QR Code  | Cyan     | `cyan-400/500`    |
 
 | Token role            | Tailwind class                          | Hex        |
 | --------------------- | --------------------------------------- | ---------- |
@@ -598,9 +721,10 @@ This is optional for initial launch but required for strict GDPR compliance.
 
 All API routes are protected by Upstash Redis rate limiting:
 
-- **Per-IP sliding window** — 20 requests/min shared across `/api/validate`, `/api/validate-url`, and `/api/validate-phone`
-- **Per-IP daily cap** — 20 requests/day on `/api/debunk/text` (LLM cost control)
+- **Per-IP sliding window** — 20 requests/min shared across `/api/validate`, `/api/validate-url`, `/api/validate-phone`, `/api/debunk/text`, and `/api/debunk/image`
+- **Per-IP daily cap** — 20 requests/day on `/api/debunk/text` (LLM cost control); 10 requests/day on `/api/debunk/image` (lower than text's since SightEngine credits cost more per call at this scale)
 - **Text result cache** — SHA-256 of the normalised message; 24 h TTL (`itv:text:<hash>`). Viral scam texts hit cache on second request, skipping Claude.
+- **Image result cache** — SHA-256 of the raw image bytes; 24 h TTL (`itv:image:<hash>`). Cache hit returns immediately and does not consume the daily image cap. Image bytes themselves are never persisted — only the hash.
 - **SMTP result cache** — SHA-256 of the lowercased email; 7-day TTL (`itv:smtp:<hash>`). Repeat email checks skip ZeroBounce/Emailable. Only SMTP-provider results are cached.
 - **Phone result cache** — SHA-256 of the E.164 number; 30-day TTL (`itv:phone:<hash>`). Carrier assignments rarely change. Cache hit re-stamps `input` from the current request to avoid echoing the first caller's formatting. Only carrier-API results are cached — local-only results are not stored. Implemented in `src/lib/phone-cache.ts`.
 - All limiters and caches are **no-ops when `UPSTASH_REDIS_REST_URL` is absent** (safe for local dev).
@@ -618,6 +742,7 @@ See ROADMAP.md (local file, gitignored for privacy planning).
 | Emailable            | 250 checks/mo one-time (fallback) | $0.005/check (paid) |
 | Google Safe Browsing | 10 k req/day                      | Free                |
 | Upstash Redis        | 10 k req/day                      | $0.20/100 k         |
+| SightEngine          | Free trial credits                | Paid per check      |
 
 **Estimated ZeroBounce cost at 10k unique validations/day (no caching)**: ~$80/day
 **With Redis SMTP caching + role/disposable pre-filters (~75% reduction)**: ~$20/day at scale
@@ -651,7 +776,8 @@ maximising SEO value and deep-linkability.
 ├── /check/url     ← full working tool
 ├── /check/text    ← full working tool (Claude-powered)
 ├── /check/phone   ← full working tool (libphonenumber + carrier API)
-└── /check/image   ← full working tool (SightEngine AI detection)
+├── /check/image   ← full working tool (SightEngine AI detection)
+└── /check/qr      ← full working tool (client-side jsQR decode, upload + camera)
 ```
 
 `CheckShell` is a shared server component providing the back-nav and tool hero
@@ -667,6 +793,7 @@ for all four `/check/*` pages. Each tool page supplies its own colour accent and
 | `/check/text`         | Static  | SMS / text scam analyser (Claude-powered)             |
 | `/check/phone`        | Static  | Phone number validator                                |
 | `/check/image`        | Static  | Image authenticity checker (SightEngine)              |
+| `/check/qr`           | Static  | QR code scanner (upload + live camera, client-side)   |
 | `/about`              | Static  | Site description, disclosure, contact                 |
 | `/privacy`            | Static  | GDPR/CCPA privacy policy (AdSense required)           |
 | `/terms`              | Static  | Terms of service                                      |

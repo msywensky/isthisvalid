@@ -62,6 +62,18 @@ const tools = [
     accentBadge: null,
     cta: "Check image",
   },
+  {
+    href: "/check/qr",
+    icon: "🔳",
+    name: "QR Code",
+    tagline: "Safe to scan?",
+    description:
+      "Decode a QR code from an image or your camera and check where it really leads — before you scan it.",
+    accentHover: "hover:border-cyan-500/60",
+    accentText: "group-hover:text-cyan-400",
+    accentBadge: null,
+    cta: "Scan QR code",
+  },
 ];
 
 export default function HubPage() {
