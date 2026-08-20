@@ -2,11 +2,30 @@
 
 A free, no-signup verification hub for checking emails, scanning URLs for threats, detecting scam text messages using AI, validating phone numbers, detecting AI-generated images, and scanning QR codes before you trust them.
 
+Not sure which of those you need? Paste it into **Smart Check** and it works that out for you.
+
 **Live:** https://isthisvalid.com
 
 ---
 
 ## Features
+
+### 🔍 Smart Check — paste anything
+
+- One box that takes a link, an email address, a phone number, or a whole text message — it works out which and runs the right check
+- Paste a suspicious SMS and it does more than one thing: the message gets an AI verdict **and** the links inside it are checked automatically (up to three)
+- Callback numbers found in the message are listed with a button — looked up only when you ask, never behind your back
+- What you paste is carried between pages in `sessionStorage`, never in the web address, so it stays out of your browser history
+- Dangerous schemes (`javascript:`, `data:`, `file:`, `vbscript:`) are always treated as inert text, never as a link
+
+**Result:** The full verdict from the matching tool, plus a card for each link found inside a pasted message
+
+### 📲 Install it / share to it
+
+- Installable as a home-screen app (PWA) with a proper icon and standalone display
+- **Android:** share a suspicious text straight from Messages via **Share → IsThisValid** — it lands pre-filled in Smart Check
+- **iOS:** installs to the home screen, but Apple does not implement the Web Share Target API, so IsThisValid will **not** appear in the iOS share sheet
+- Text only — no service worker, and shared images are out of scope (use the Image Checker's normal upload)
 
 ### 🔤 Email Validator
 
@@ -103,6 +122,7 @@ A free, no-signup verification hub for checking emails, scanning URLs for threat
 - **LLM Integration:** Anthropic Claude API
 - **Image AI Detection:** SightEngine (`genai` model)
 - **QR Decoding:** jsQR (client-side, no server processing)
+- **PWA:** static `public/manifest.json` with a text-only Web Share Target (no service worker)
 - **Hosting:** Vercel
 - **Analytics:** Vercel Analytics
 - **Monetisation:** Ko-fi voluntary donations + contextual affiliate links (ZeroBounce, NordVPN) + Google AdSense (pending approval)
@@ -165,7 +185,7 @@ npm run test -- --watch   # Watch mode
 npm run test -- --coverage  # With coverage report
 ```
 
-**Current:** 493/493 tests passing (161 email + 113 URL + 70 phone + 45 text debunker + 46 image debunker + 27 image route + 16 qr-content + 15 smtp-cache)
+**Current:** 562/562 tests passing (161 email + 113 URL + 70 phone + 52 input-router + 45 text debunker + 46 image debunker + 27 image route + 17 share route + 16 qr-content + 15 smtp-cache)
 
 ### Production Build
 
@@ -181,8 +201,9 @@ npm start
 ```
 src/
 ├── app/                    # Next.js App Router pages
-│   ├── check/              # Tool pages (email/url/text/phone/image/qr)
+│   ├── check/              # Tool pages (any/email/url/text/phone/image/qr)
 │   ├── api/                # API routes (validation endpoints)
+│   ├── share/              # Web Share Target receiver + handoff page
 │   ├── privacy/            # Legal pages
 │   ├── about/
 │   └── terms/
@@ -193,6 +214,7 @@ src/
 │   ├── PhoneResultCard.tsx # Phone validator result display
 │   ├── ImageResultCard.tsx # Image authenticity result display
 │   ├── QrContentCard.tsx   # Non-URL QR content display (tel/email/wifi/text)
+│   ├── SmartInput.tsx      # Homepage "paste anything" box
 │   └── ...
 ├── lib/                    # Utility functions & constants
 │   ├── email-validator.ts  # Core email validation logic
@@ -205,10 +227,18 @@ src/
 │   ├── image-debunker.ts   # Image analysis types, Zod schema, normalisation, coercion
 │   ├── sightengine-client.ts # SightEngine API client with retry/backoff
 │   ├── qr-content.ts       # Pure QR content classifier (url/tel/email/wifi/text)
+│   ├── input-router.ts     # Pure input router: detect kind + extract links/numbers from prose
+│   ├── smart-input-handoff.ts # Read-once sessionStorage handoff (never a query string)
+│   ├── result-card-variant.ts # standalone / primary / nested card display modes
 │   ├── llm-client.ts       # Anthropic API wrapper
 │   ├── rate-limit.ts       # Upstash rate limiting
 │   └── affiliate-links.ts  # Affiliate partner URLs
-└── __tests__/              # Jest unit tests
+├── hooks/                  # useQrScanner, useSmartCheck
+└── __tests__/              # Jest unit tests (562)
+
+public/
+├── manifest.json           # PWA manifest (text-only share target)
+└── icons/                  # Home-screen icons — regenerate with `npm run generate-icons`
 ```
 
 Full architecture details: see [ARCHITECTURE.md](./ARCHITECTURE.md)

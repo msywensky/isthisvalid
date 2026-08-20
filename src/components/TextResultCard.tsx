@@ -4,8 +4,17 @@ import type { TextDebunkResult, TextClassification } from "@/lib/text-debunker";
 import AffiliateNudge from "@/components/AffiliateNudge";
 import KofiDonation from "@/components/KofiDonation";
 import { AFFILIATE_LINKS } from "@/lib/affiliate-links";
+import {
+  showsAffiliate,
+  showsKofi,
+  type ResultCardVariant,
+} from "@/lib/result-card-variant";
 
-type Props = { result: TextDebunkResult };
+type Props = {
+  result: TextDebunkResult;
+  /** Defaults to "standalone" — see ResultCardVariant. */
+  variant?: ResultCardVariant;
+};
 
 const CLASS_CONFIG: Record<
   TextClassification,
@@ -60,8 +69,13 @@ const CLASS_CONFIG: Record<
   },
 };
 
-export default function TextResultCard({ result }: Props) {
+export default function TextResultCard({
+  result,
+  variant = "standalone",
+}: Props) {
   const cfg = CLASS_CONFIG[result.classification];
+  const showKofi = showsKofi(variant);
+  const showAffiliate = showsAffiliate(variant);
 
   // Display score: higher = safer (inverse of riskScore)
   const displayScore = 100 - result.riskScore;
@@ -207,7 +221,7 @@ export default function TextResultCard({ result }: Props) {
       </div>
 
       {/* Affiliate nudge — only shown when the message is not safe */}
-      {!result.safe && (
+      {showAffiliate && !result.safe && (
         <AffiliateNudge
           href={AFFILIATE_LINKS.nordvpn}
           eyebrow={
@@ -222,8 +236,8 @@ export default function TextResultCard({ result }: Props) {
         />
       )}
 
-      {/* Ko-fi donation */}
-      <KofiDonation />
+      {/* Ko-fi donation — the composite view renders a single shared one */}
+      {showKofi && <KofiDonation />}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import SiteLogo from "@/components/SiteLogo";
+import SmartInput from "@/components/SmartInput";
 
 const tools = [
   {
@@ -100,11 +101,17 @@ export default function HubPage() {
         </p>
       </section>
 
+      {/* Smart universal input — accepts anything and routes it */}
+      <SmartInput />
+
       {/* Tool grid */}
       <section
         className="w-full max-w-2xl grid grid-cols-1 sm:grid-cols-2 gap-4"
         aria-label="Available tools"
       >
+        <p className="sm:col-span-2 -mb-1 text-sm text-zinc-400">
+          …or pick a specific tool:
+        </p>
         {tools.map((tool) => {
           const isSoon = tool.accentBadge === "Soon";
           const cardBody = (

@@ -47,10 +47,15 @@ const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   // Send origin only on same-origin, just the origin (no path) on cross-origin
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  // Disable browser features we don't use
+  // Disable browser features we don't use.
+  // camera=(self) — an EMPTY allowlist, camera=(), disables the feature in the
+  // top-level document too, not just in cross-origin iframes. That blocked the
+  // QR scanner's own getUserMedia call (src/hooks/useQrScanner.ts). (self) is
+  // the narrowest value that permits same-origin use; microphone and
+  // geolocation stay fully disabled.
   {
     key: "Permissions-Policy",
-    value: "camera=(), microphone=(), geolocation=(), interest-cohort=()",
+    value: "camera=(self), microphone=(), geolocation=(), interest-cohort=()",
   },
   // Force HTTPS for 2 years on production (Vercel handles SSL)
   {

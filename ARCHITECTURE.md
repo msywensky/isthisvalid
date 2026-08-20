@@ -312,6 +312,107 @@ No server-side image processing, no new environment variables — decoding happe
 in the browser; only URL-classified content is ever sent to the server (as a string, to the
 existing `/api/validate-url` route).
 
+### Smart Universal Input (client-side routing → the existing API routes)
+
+```
+Homepage hero box (<SmartInput/>)
+  │  detectInputKind() runs locally on every keystroke, only to show a hint
+  │
+  ├─► Submit → sessionStorage["itv_smart_input"] = value, router.push("/check/any")
+  │     (never a query string — pasted messages contain names, account numbers,
+  │      one-time codes, and Referrer-Policy is only strict-origin-when-cross-origin)
+  │
+/check/any (<useSmartCheck/>)
+  │
+  ├─► takeSmartInput() — reads AND deletes in one step, cached in a ref because
+  │     StrictMode double-invokes the mount effect
+  │
+  ├─► detectInputKind(raw) — src/lib/input-router.ts, pure + DOM-free
+  │     ordered precedence chain:
+  │       1. empty                        → text
+  │       2. javascript:/data:/file:/     → text  (NEVER url — security regression)
+  │          vbscript:/blob:
+  │       3. mailto: → email, tel: → phone
+  │       4. IPv4 literal                 → url   (BEFORE phone: dots are phone separators)
+  │       5. phone shape, 7–15 digits     → phone (BEFORE prose: "+1 555 123 4567" has spaces)
+  │       6. contains whitespace          → text  (prose)
+  │       7. matches email shape          → email ("@" beats bare-domain)
+  │       8. http(s)://                   → url
+  │       9. bare domain, alphabetic TLD  → url
+  │      10. fallback                     → text
+  │
+  ├─► PRIMARY CHECK — runs alone, first (one of the five existing routes)
+  │       email → POST /api/validate       │ url   → POST /api/validate-url
+  │       phone → POST /api/validate-phone │ text  → POST /api/debunk/text
+  │     Pre-flight length guards mirror each route's Zod schema so an over-long
+  │     paste gets a friendly message instead of a raw 422.
+  │
+  └─► FAN-OUT — only when kind === "text"; runs even if the primary FAILED
+        │  (a 503 with no ANTHROPIC_API_KEY still leaves the links worth checking)
+        │
+        ├─► extractUrls(msg)   — mask emails → match → strip trailing punctuation →
+        │     dedupe (case-insensitive) → keep only candidates passing
+        │     validateUrlLocal().checks.parseable && .validTld, and (for bare
+        │     domains only) a TLD in EXTRACTABLE_TLDS
+        │       ├── first 3 (MAX_AUTO_URL_CHECKS) → Promise.allSettled →
+        │       │     POST /api/validate-url → <UrlResultCard variant="nested">
+        │       └── the rest → listed as "not checked automatically"
+        │
+        └─► extractPhones(msg) — mask emails AND urls → match → keep only candidates
+              passing validatePhoneLocal().checks.parseable && .valid
+                └── first 3 → rendered as buttons, status "idle".
+                    Dispatched to POST /api/validate-phone ONLY on click
+                    (paid provider quota — never automatic).
+```
+
+**Rate-limit budget.** `checkRateLimit` is a single 20/min sliding window under the
+Redis prefix `itv:rl`, shared by all five API routes and keyed on raw IP. Fan-out spends
+from that same budget, hence the hard cap: worst case is 1 primary + 3 sub-checks = 4 of 20.
+Each sub-check owns its own error state — a 429 or 502 renders an inline row and never
+touches the primary card.
+
+**Why client-side.** The network helpers (`resolveMx`, `checkResolves`, `checkDomainAge`,
+`checkSafeBrowsing`, `isPrivateHost`) are module-private to their `route.ts` files, and the
+entire text-debunk LLM pipeline (`SYSTEM_PROMPT`, `DebunkResponseSchema`, `coerceRiskScore`,
+`cacheKey`) is private to `src/app/api/debunk/text/route.ts`. A server-side aggregator would
+duplicate ~150 lines including the LLM prompt, creating two sources of truth for invariants
+this document treats as regression-critical. No new API route, no new env vars.
+
+### PWA + Text Share Target
+
+```
+Android share sheet ("Share → IsThisValid")
+  │
+  ├─► POST /share  (multipart/form-data: title, text, url)
+  │     NOT under /api/ — src/proxy.ts matches /api/:path* and 403s browser
+  │     requests from unrecognised origins; an OS share POST has an unreliable Origin
+  │
+  ├─► composeSharedText() — prefer `text`, else `title`; append `url` if it adds
+  │     something new; truncate to 3000 chars
+  │
+  ├─► Set-Cookie itv_share = base64(payload)
+  │     httpOnly: false (the client must read it), sameSite: lax, path: /,
+  │     maxAge: 60, secure in production. Shrunk until it fits under ~4 KB.
+  │
+  ├─► 303 See Other → /share/handoff
+  │     303 (not 200) is what stops the POST becoming a re-submittable history entry
+  │
+  └─► /share/handoff (client)
+        read cookie → expire it immediately → sessionStorage["itv_smart_input"]
+        → router.replace("/check/any")   (replace, not push — no back-stack entry)
+```
+
+- **Text-only. No service worker anywhere in the repo.** Shared _files_ are out of scope;
+  images keep using the normal upload flow on `/check/image`.
+- **Manifest is a static `public/manifest.json`**, not `src/app/manifest.ts`: Next 16 types
+  `share_target.params.files` as the DOM `File` type rather than the spec's
+  `{ name, accept }[]`.
+- **iOS/Safari does not implement the Web Share Target API at all.** The manifest still
+  buys an installable home-screen app with a standalone display mode and a proper icon
+  there, but "Share → IsThisValid" will not appear in the iOS share sheet. Android/Chrome
+  gets the full flow.
+- Icons are generated from the `SiteLogo` diamond by `npm run generate-icons`.
+
 ## File Structure
 
 ```
@@ -334,12 +435,20 @@ src/
 │   │   ├── image/
 │   │   │   ├── layout.tsx           # Image tool metadata
 │   │   │   └── page.tsx             # /check/image — image authenticity checker (SightEngine)
-│   │   └── qr/
-│   │       ├── layout.tsx           # QR tool metadata
-│   │       └── page.tsx             # /check/qr — QR code scanner (upload + live camera, client-side decode)
+│   │   ├── qr/
+│   │   │   ├── layout.tsx           # QR tool metadata
+│   │   │   └── page.tsx             # /check/qr — QR code scanner (upload + live camera, client-side decode)
+│   │   └── any/
+│   │       ├── layout.tsx           # Smart Check metadata
+│   │       └── page.tsx             # /check/any — smart universal input + composite result view (client)
+│   ├── share/
+│   │   ├── route.ts                 # POST — Web Share Target receiver; sets itv_share cookie, 303s to handoff
+│   │   └── handoff/
+│   │       ├── layout.tsx           # noindex metadata
+│   │       └── page.tsx             # Cookie → sessionStorage → router.replace("/check/any")
 │   ├── layout.tsx                   # Root layout: SEO metadata, Schema.org, AdSense script,
 │   │                                #   SiteFooter + CookieConsent rendered globally
-│   ├── page.tsx                     # Hub page — 2×2 tool picker (server component)
+│   ├── page.tsx                     # Hub page — <SmartInput/> hero + tool picker grid (server component)
 │   ├── globals.css                  # Tailwind v4, always-dark theme (zinc-950 bg, orange brand)
 │   ├── robots.ts                    # /robots.txt via Next.js Metadata API
 │   └── sitemap.ts                   # /sitemap.xml — all routes
@@ -354,6 +463,7 @@ src/
 │   ├── ResultCard.tsx               # Score ring, check breakdown, cheeky message (email) + ZeroBounce affiliate nudge
 │   ├── SiteFooter.tsx               # Persistent footer: About / Privacy / Terms nav links
 │   ├── SiteLogo.tsx                 # Split-diamond SVG wordmark (size="md" hero / size="sm" nav)
+│   ├── SmartInput.tsx               # Homepage "paste anything" box; live kind hint, sessionStorage handoff
 │   ├── TextFAQ.tsx                  # FAQ accordion for the text/SMS tool
 │   ├── TextResultCard.tsx           # Classification badge, risk score, flags, explanation (text) + NordVPN affiliate nudge
 │   ├── UrlFAQ.tsx                   # FAQ accordion for the URL checker tool
@@ -367,8 +477,10 @@ src/
 │   └── QrContentCard.tsx            # Displays non-URL decoded QR content (tel/email/wifi/text) — never auto-acted on
 ├── proxy.ts                         # CORS enforcement / middleware (Next.js 16 convention)
 ├── hooks/
-│   └── useQrScanner.ts              # Camera capture, upload decode (jsQR), classification + /api/validate-url
-│                                     #   routing for the QR tool — keeps check/qr/page.tsx render-only
+│   ├── useQrScanner.ts              # Camera capture, upload decode (jsQR), classification + /api/validate-url
+│   │                                 #   routing for the QR tool — keeps check/qr/page.tsx render-only
+│   └── useSmartCheck.ts             # Smart Check state machine: primary check + URL/phone fan-out,
+│                                     #   per-sub-check error isolation, stale-run guard
 └── lib/
     ├── affiliate-links.ts           # Affiliate partner URLs — reads from NEXT_PUBLIC_* env vars
     ├── email-validator.ts           # Core logic: validateEmailLocal, applyMxResult, mergeSmtpResult, mergeEmailableResult (compat wrapper); 110+ role prefixes; 35+ typo corrections; RFC 5321 dot validation; typo score cap (≤65); +tag stripped for role check
@@ -400,6 +512,12 @@ src/
     ├── qr-content.ts                # Pure classifier: classifyQrContent(raw) → QrContent discriminated union
     │                                #   (url/tel/email/wifi/text); DOM-free, wifi password never extracted
     ├── qr-faq-data.ts               # FAQ Q&A for QR tool — consumed by QrFAQ.tsx + FAQPage JSON-LD
+    ├── input-router.ts              # Pure router: detectInputKind(raw) → DetectedInput (email/url/phone/text);
+    │                                #   extractUrls / extractPhones for prose; MAX_AUTO_URL_CHECKS = 3;
+    │                                #   EXTRACTABLE_TLDS allowlist; dangerous schemes never classified as url
+    ├── smart-input-handoff.ts       # SMART_INPUT_KEY / SHARE_COOKIE; stashSmartInput / takeSmartInput
+    │                                #   (read-once sessionStorage, deleted on read — never a query string)
+    ├── result-card-variant.ts       # ResultCardVariant ("standalone" | "primary" | "nested") + showsKofi/showsAffiliate
     └── rate-limit.ts                # Upstash Redis: checkRateLimit (20/min), checkDailyTextLimit (20/day), checkDailyImageLimit (10/day);
                                      #   getRedis() shared client
 __tests__/
@@ -412,6 +530,11 @@ __tests__/
 ├── phone-validator.test.ts          # Jest unit tests: validatePhoneLocal, applyCarrierResult, getLineTypeBonus,
     #   format parsing, validity, country detection, line-type scoring, flags, Caribbean NANP,
     #   area-code location, applyCarrierResult score swap, VOIP reclassification (70 tests)
+├── input-router.test.ts             # Jest unit tests: detectInputKind precedence chain, extractUrls / extractPhones;
+    #   dangerous-scheme regression guard, IPv4-before-phone, "@" beats bare-domain,
+    #   prose false-positive rejection, fan-out cap constants (52 tests)
+├── share-route.test.ts              # Jest unit tests: POST/GET /share — composeSharedText, 303 redirect,
+    #   cookie flags, UTF-8 + delimiter round-trip, oversize shrink, no content in the URL (17 tests)
 ├── qr-content.test.ts               # Jest unit tests: classifyQrContent — url/tel/email/wifi/text classification,
     #   wifi password never surfaced, javascript:/data: regression guard (16 tests)
 ├── smtp-cache.test.ts               # Jest unit tests: getCachedSmtpResult, setCachedSmtpResult — Redis mocked (15 tests)
@@ -420,7 +543,24 @@ __tests__/
     #   notHighEntropy, notExcessiveHyphens, IP edge cases, ccTLD coverage (113 tests)
 ```
 
-**Total: 493 tests** (161 email + 113 URL + 70 phone + 45 text + 46 image-debunker + 27 image-route + 16 qr-content + 15 smtp-cache)
+**Total: 562 tests** (161 email + 113 URL + 70 phone + 52 input-router + 45 text + 46 image-debunker + 27 image-route + 17 share-route + 16 qr-content + 15 smtp-cache)
+
+Jest runs with `testEnvironment: "node"` and no jsdom, so component tests are not possible —
+logic worth testing lives in pure libs (`input-router.ts`, `qr-content.ts`, the validators).
+
+```
+public/
+├── og-image.png                     # 1200×630 Open Graph image (npm run generate-og)
+├── manifest.json                    # PWA manifest — icons, shortcuts, text-only share_target
+└── icons/                           # npm run generate-icons (from the SiteLogo diamond)
+    ├── icon-192.png                 # 192×192, purpose "any"
+    ├── icon-512.png                 # 512×512, purpose "any"
+    ├── icon-maskable-512.png        # 512×512, purpose "maskable" (diamond at 60% for the safe zone)
+    └── apple-touch-icon.png         # 180×180 — iOS home screen
+scripts/
+├── generate-og.mjs                  # SVG → sharp → PNG
+└── generate-icons.mjs               # SVG → sharp → PNG; re-run if SiteLogo.tsx changes
+```
 
 ## Environment Variables
 
@@ -763,6 +903,9 @@ See ROADMAP.md (local file, gitignored for privacy planning).
 - [x] Persistent footer policy links on every page via `SiteFooter`
 - [x] Core Web Vitals — Lighthouse (mobile): Perf 85–88 / A11y 90–96 / Best Practices 92 / SEO 100
 - [x] `og-image.png` (1200×630) — multi-tool branding
+- [x] PWA manifest (`/manifest.json`) — installable, standalone display, maskable icon
+- [x] `apple-touch-icon` + `appleWebApp` metadata for iOS home-screen installs
+- [x] `/share/handoff` explicitly `noindex, nofollow` (transient redirect page)
 
 ## UI Architecture
 
@@ -771,7 +914,9 @@ This gives every tool its own `<h1>`, `<title>`, `<meta description>`, and JSON-
 maximising SEO value and deep-linkability.
 
 ```
-/  (hub — 2×2 card grid)
+/  (hub — Smart Check box + tool card grid)
+├── /check/any     ← smart universal input; detects and routes to the tools below,
+│                    and fans out sub-checks on links/numbers inside a pasted message
 ├── /check/email   ← full working tool
 ├── /check/url     ← full working tool
 ├── /check/text    ← full working tool (Claude-powered)
@@ -781,13 +926,21 @@ maximising SEO value and deep-linkability.
 ```
 
 `CheckShell` is a shared server component providing the back-nav and tool hero
-for all four `/check/*` pages. Each tool page supplies its own colour accent and copy.
+for all `/check/*` pages. Each tool page supplies its own colour accent and copy;
+`/check/any` uses the brand orange, deliberately not one of the six tool accents.
+
+`/check/any` is the only page that stacks several result cards. It reuses the
+existing cards verbatim via the `variant` prop (`src/lib/result-card-variant.ts`) —
+`"primary"` for the headline verdict, `"nested"` for supporting sub-checks — so the
+composite renders exactly one Ko-fi bar and at most one affiliate nudge. The default
+`"standalone"` leaves all six single-tool pages untouched.
 
 ## Route Map
 
 | Route                 | Type    | Purpose                                               |
 | --------------------- | ------- | ----------------------------------------------------- |
-| `/`                   | Static  | Hub — tool picker (2×2 card grid)                     |
+| `/`                   | Static  | Hub — Smart Check box + tool picker grid              |
+| `/check/any`          | Static  | Smart Check — paste anything, auto-routed             |
 | `/check/email`        | Static  | Full email validator                                  |
 | `/check/url`          | Static  | URL safety checker                                    |
 | `/check/text`         | Static  | SMS / text scam analyser (Claude-powered)             |
@@ -802,5 +955,8 @@ for all four `/check/*` pages. Each tool page supplies its own colour accent and
 | `/api/validate-phone` | Dynamic | POST — phone number validation (Node.js runtime)      |
 | `/api/debunk/text`    | Dynamic | POST — text/SMS scam analysis (Claude, cached)        |
 | `/api/debunk/image`   | Dynamic | POST — image authenticity check (SightEngine, cached) |
+| `/share`              | Dynamic | POST — Web Share Target receiver (303 → handoff)      |
+| `/share/handoff`      | Static  | Cookie → sessionStorage bridge (noindex)              |
+| `/manifest.json`      | Static  | PWA manifest (static file, not a route handler)       |
 | `/sitemap.xml`        | Static  | Auto-generated sitemap                                |
 | `/robots.txt`         | Static  | Auto-generated robots file                            |
