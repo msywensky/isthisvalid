@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 };
 
-const LAST_UPDATED = "March 3, 2026";
+const LAST_UPDATED = "August 19, 2026";
 const CONTACT_EMAIL = "privacy@isthisvalid.com";
 
 export default function TermsPage() {
@@ -52,6 +52,19 @@ export default function TermsPage() {
             validates phone numbers against ITU-T international numbering rules
             and (optionally) enriches results with live carrier and line-status
             data.
+          </li>
+          <li>
+            <strong className="text-white">Image Authenticity Checker</strong> —
+            uses AI (via the SightEngine API) to estimate the likelihood that an
+            uploaded image is AI-generated or synthetic.
+          </li>
+          <li>
+            <strong className="text-white">QR Code Scanner</strong> — decodes QR
+            codes entirely in your browser (from an uploaded image or your
+            device camera) and, if the content is a URL, runs it through the URL
+            Safety Checker. Non-URL content (Wi-Fi credentials, phone numbers,
+            email addresses, plain text) is displayed to you but is never
+            automatically dialled, connected to, or navigated to.
           </li>
         </ul>
         <p>
@@ -139,6 +152,24 @@ export default function TermsPage() {
           numbering standards; it does not guarantee the number is currently
           active, assigned, or reachable. Carrier and line-type data are
           provided by third-party APIs and may not reflect real-time status.
+        </p>
+        <p>
+          <strong className="text-white">Image Authenticity Checker:</strong>{" "}
+          AI-generated image detection can produce incorrect results (false
+          positives and false negatives). A result of &ldquo;authentic&rdquo;
+          does not guarantee an image is unedited or free of AI involvement; a
+          result of &ldquo;ai-generated&rdquo; does not guarantee the image was
+          created solely by AI. Do not rely on this tool as the sole basis for
+          verifying provenance in legal, journalistic, or evidentiary contexts.
+        </p>
+        <p>
+          <strong className="text-white">QR Code Scanner:</strong> Decoded
+          content is displayed as read from the QR code and is not verified for
+          authenticity beyond the automated checks described above (URL content
+          is passed through the URL Safety Checker; other content types are not
+          independently verified). A &ldquo;safe&rdquo; result on decoded URL
+          content carries the same limitations described above for the URL
+          Safety Checker.
         </p>
       </PolicySection>
 
@@ -232,6 +263,20 @@ export default function TermsPage() {
               className="text-orange-400 hover:underline"
             >
               AbstractAPI&apos;s Terms of Service
+            </a>
+            .
+          </li>
+          <li>
+            <strong className="text-white">SightEngine</strong> — powers the
+            Image Authenticity Checker. Images you submit are processed by
+            SightEngine&apos;s API. See{" "}
+            <a
+              href="https://sightengine.com/legal/terms"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-orange-400 hover:underline"
+            >
+              SightEngine&apos;s Terms of Service
             </a>
             .
           </li>

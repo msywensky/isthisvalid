@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 };
 
-const LAST_UPDATED = "March 3, 2026";
+const LAST_UPDATED = "August 19, 2026";
 const CONTACT_EMAIL = "privacy@isthisvalid.com";
 
 export default function PrivacyPage() {
@@ -19,9 +19,10 @@ export default function PrivacyPage() {
           IsThisValid.com (&ldquo;we&rdquo;, &ldquo;our&rdquo;, or
           &ldquo;us&rdquo;) operates a free suite of verification tools,
           including an email validator, a URL safety checker, a text / SMS scam
-          detector, and a phone number checker. This Privacy Policy explains
-          what information we collect when you use our site, how we use it, and
-          the rights you have over your data.
+          detector, a phone number checker, an image authenticity checker, and a
+          QR code scanner. This Privacy Policy explains what information we
+          collect when you use our site, how we use it, and the rights you have
+          over your data.
         </p>
         <p>
           We are committed to processing as little personal data as possible. We
@@ -72,6 +73,27 @@ export default function PrivacyPage() {
           cannot be used to reconstruct the original number. The cache entry
           stores only the carrier and line-type result; the raw number is never
           written to Redis.
+        </p>
+        <p>
+          <strong className="text-white">Images you submit.</strong> When you
+          upload an image to the image authenticity checker, the image bytes are
+          sent to our server and forwarded to the SightEngine API solely to
+          determine whether the image is AI-generated. We do not permanently
+          store submitted images. A cryptographic hash (SHA-256) of the raw
+          image bytes may be cached in Upstash Redis for up to 24 hours to avoid
+          redundant calls to SightEngine for identical images; only the hash and
+          the analysis result are cached, never the image itself.
+        </p>
+        <p>
+          <strong className="text-white">QR codes you scan.</strong> The QR code
+          scanner runs entirely in your browser. Uploaded images and live camera
+          frames are decoded locally using client-side JavaScript and are never
+          uploaded to our server or any third party. If the decoded content is a
+          URL, that URL (not the image or camera frame) is sent to our URL
+          safety checker as described above. Other decoded content (Wi-Fi
+          credentials, phone numbers, email addresses, plain text) is displayed
+          to you locally and is never transmitted anywhere or acted upon
+          automatically.
         </p>
         <p>
           <strong className="text-white">Server logs.</strong> Like all web
@@ -225,6 +247,40 @@ export default function PrivacyPage() {
           .
         </p>
         <p>
+          <strong className="text-white">SightEngine API.</strong> Images you
+          submit to the image authenticity checker are forwarded to the
+          SightEngine API solely to determine the likelihood that the image is
+          AI-generated. SightEngine processes this data as a data processor on
+          our behalf. Image bytes are never persisted by us; only a one-way
+          SHA-256 hash and the resulting classification are cached. For details,
+          see the{" "}
+          <a
+            href="https://sightengine.com/privacy"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-orange-400 hover:underline"
+          >
+            SightEngine Privacy Policy
+          </a>
+          .
+        </p>
+        <p>
+          <strong className="text-white">Vercel Web Analytics.</strong> We use
+          Vercel&apos;s built-in, cookieless web analytics to understand
+          aggregate traffic (e.g. page views and referrers). It does not use
+          cookies or collect personal data tied to an individual identity. See
+          the{" "}
+          <a
+            href="https://vercel.com/legal/privacy-policy"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-orange-400 hover:underline"
+          >
+            Vercel Privacy Policy
+          </a>{" "}
+          for details.
+        </p>
+        <p>
           <strong className="text-white">Emailable API.</strong> If our
           Emailable integration is enabled, email addresses you submit may be
           forwarded to the Emailable email verification API (
@@ -353,8 +409,8 @@ export default function PrivacyPage() {
 
       <PolicySection title="7. Data Retention">
         <p>
-          We do not permanently store email addresses, phone numbers, URLs, or
-          text messages entered into any of our tools. Email verification
+          We do not permanently store email addresses, phone numbers, URLs, text
+          messages, or images entered into any of our tools. Email verification
           results are cached as one-way SHA-256 hashes in Upstash Redis for up
           to 7 days; the hash cannot be used to recover the original address.
           Phone carrier results are cached as one-way SHA-256 hashes for up to
@@ -362,9 +418,15 @@ export default function PrivacyPage() {
           short-lived cache entry (24-hour TTL) derived from a one-way hash of
           submitted text messages may also be retained in Upstash Redis solely
           to avoid redundant AI calls; it cannot be used to recover the original
-          text. Server access logs retained by Vercel are deleted within 30
-          days. Cookie consent preferences stored in your browser persist until
-          you clear your browser storage.
+          text. Image authenticity results are likewise cached as a one-way
+          SHA-256 hash of the image bytes for up to 24 hours; the hash cannot be
+          used to reconstruct the original image, and the image bytes themselves
+          are never written to Redis. QR code content is decoded entirely in
+          your browser and is never sent to our server unless it is a URL, in
+          which case only the URL text is sent (see Section 2). Server access
+          logs retained by Vercel are deleted within 30 days. Cookie consent
+          preferences stored in your browser persist until you clear your
+          browser storage.
         </p>
       </PolicySection>
 
