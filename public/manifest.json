@@ -1,0 +1,53 @@
+{
+  "name": "IsThisValid — Scam & Verification Checker",
+  "short_name": "IsThisValid",
+  "description": "Check links, emails, phone numbers, and suspicious messages for scams. Free, no signup.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#09090b",
+  "theme_color": "#09090b",
+  "categories": ["utilities", "security"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Smart Check",
+      "short_name": "Check anything",
+      "url": "/check/any"
+    },
+    {
+      "name": "Scan a QR code",
+      "short_name": "QR code",
+      "url": "/check/qr"
+    }
+  ],
+  "share_target": {
+    "action": "/share",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  }
+}

@@ -13,6 +13,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
     },
     // Tools
     {
+      url: `${SITE_URL}/check/any`,
+      lastModified: new Date(),
+      changeFrequency: "monthly",
+      priority: 0.9,
+    },
+    {
       url: `${SITE_URL}/check/email`,
       lastModified: new Date(),
       changeFrequency: "monthly",

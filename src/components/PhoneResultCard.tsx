@@ -1,8 +1,11 @@
 import type { PhoneValidationResult } from "@/lib/phone-validator";
 import KofiDonation from "@/components/KofiDonation";
+import { showsKofi, type ResultCardVariant } from "@/lib/result-card-variant";
 
 interface Props {
   result: PhoneValidationResult;
+  /** Defaults to "standalone" — see ResultCardVariant. */
+  variant?: ResultCardVariant;
 }
 
 type Sentiment = "valid" | "warn" | "invalid";
@@ -69,9 +72,13 @@ const sentimentLabels: Record<Sentiment, string> = {
   invalid: "Invalid",
 };
 
-export default function PhoneResultCard({ result }: Props) {
+export default function PhoneResultCard({
+  result,
+  variant = "standalone",
+}: Props) {
   const sentiment = getSentiment(result);
   const styles = sentimentStyles[sentiment];
+  const showKofi = showsKofi(variant);
 
   // Pull the Caribbean/NANP warning out for prominent placement.
   // It's filtered from the generic flags list to avoid showing twice.
@@ -204,8 +211,8 @@ export default function PhoneResultCard({ result }: Props) {
         </span>
       </p>
 
-      {/* Ko-fi donation */}
-      <KofiDonation />
+      {/* Ko-fi donation — the composite view renders a single shared one */}
+      {showKofi && <KofiDonation />}
     </div>
   );
 }

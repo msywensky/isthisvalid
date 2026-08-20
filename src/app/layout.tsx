@@ -59,6 +59,23 @@ export const metadata: Metadata = {
   },
   robots: { index: true, follow: true },
   alternates: { canonical: SITE_URL },
+  // PWA — see public/manifest.json. Written as a static file rather than
+  // src/app/manifest.ts because Next 16 mistypes share_target.params.files as
+  // the DOM File type instead of the spec's { name, accept }[].
+  manifest: "/manifest.json",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icons/icon-192.png", type: "image/png", sizes: "192x192" },
+      { url: "/icons/icon-512.png", type: "image/png", sizes: "512x512" },
+    ],
+    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180" }],
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "IsThisValid",
+  },
 };
 
 export const viewport: Viewport = {

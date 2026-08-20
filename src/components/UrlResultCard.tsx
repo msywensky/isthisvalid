@@ -4,9 +4,16 @@ import { UrlValidationResult } from "@/lib/url-validator";
 import AffiliateNudge from "@/components/AffiliateNudge";
 import KofiDonation from "@/components/KofiDonation";
 import { AFFILIATE_LINKS } from "@/lib/affiliate-links";
+import {
+  showsAffiliate,
+  showsKofi,
+  type ResultCardVariant,
+} from "@/lib/result-card-variant";
 
 interface Props {
   result: UrlValidationResult;
+  /** Defaults to "standalone" — see ResultCardVariant. */
+  variant?: ResultCardVariant;
 }
 
 // Sentiment thresholds — stricter than email (URL ≥80 = Safe)
@@ -63,9 +70,14 @@ function CheckRow({
   );
 }
 
-export function UrlResultCard({ result }: Props) {
+export function UrlResultCard({ result, variant = "standalone" }: Props) {
   const s = getSentiment(result.score);
   const checks = result.checks;
+  const showKofi = showsKofi(variant);
+  const showAffiliate = showsAffiliate(variant);
+  // Only this card carries its own top margin. Inside a composite view the
+  // container owns the spacing, so it would double up.
+  const ownSpacing = variant === "standalone" ? "mt-8" : "";
 
   // SVG score ring
   const radius = 40;
@@ -87,7 +99,7 @@ export function UrlResultCard({ result }: Props) {
 
   return (
     <div
-      className={`mt-8 w-full rounded-2xl border-2 p-6 backdrop-blur transition-all duration-300 ${s.card}`}
+      className={`${ownSpacing} w-full rounded-2xl border-2 p-6 backdrop-blur transition-all duration-300 ${s.card}`}
     >
       {/* Header row — score ring + sentiment */}
       <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-start">
@@ -226,7 +238,7 @@ export function UrlResultCard({ result }: Props) {
       )}
 
       {/* Affiliate nudge — only shown for suspicious or dangerous URLs */}
-      {result.score < 80 && (
+      {showAffiliate && result.score < 80 && (
         <AffiliateNudge
           href={AFFILIATE_LINKS.nordvpn}
           eyebrow="Stay safer online"
@@ -236,8 +248,8 @@ export function UrlResultCard({ result }: Props) {
         />
       )}
 
-      {/* Ko-fi donation */}
-      <KofiDonation />
+      {/* Ko-fi donation — the composite view renders a single shared one */}
+      {showKofi && <KofiDonation />}
     </div>
   );
 }

@@ -17,7 +17,7 @@ A free, no-signup verification hub for email validation, URL safety checking, SM
 ```bash
 npm run dev                    # Start dev server at http://localhost:3000
 npm run build                  # Production build (type-check + static generation)
-npm test                       # Run all Jest suites (493 tests)
+npm test                       # Run all Jest suites (562 tests)
 npx jest __tests__/email-validator.test.ts  # Single test file
 npx jest -t "typosquat"       # Tests matching a pattern
 npm run test:coverage         # Generate coverage report (→ coverage/)
@@ -124,6 +124,40 @@ The codebase implements a **progressive enrichment pattern**: cheap local checks
 - `classifyQrContent` never returns `kind: "url"` for `javascript:`/`data:` schemes (regression-tested) — only `http://`/`https://`/bare-domain content is sent to `/api/validate-url`.
 - Wifi QR parsing never surfaces the `P:` (password) field on the returned object.
 
+### 7. Smart Universal Input (`src/lib/input-router.ts` + `src/hooks/useSmartCheck.ts` → `/check/any`)
+
+The "paste anything" entry point. **Adds no API route, no provider, and no env vars** — it detects what the user pasted and calls the existing endpoints.
+
+- **Detect** (`detectInputKind(raw)`, pure/sync/DOM-free): returns a discriminated union `email | url | phone | text` via an explicit ordered precedence chain (see invariants).
+- **Route**: the primary check calls exactly one of `/api/validate`, `/api/validate-url`, `/api/validate-phone`, `/api/debunk/text`.
+- **Fan out** (pasted messages only): `extractUrls()` / `extractPhones()` pull entities out of prose, filtering candidates through the free sync `validateUrlLocal` / `validatePhoneLocal`. The first `MAX_AUTO_URL_CHECKS` (3) links are checked automatically; the rest render as "not checked". Phones render as on-demand buttons — never dispatched automatically.
+- **Orchestration is client-side** (`useSmartCheck`). Deliberate: the network helpers and the whole text-debunk LLM pipeline are module-private to their `route.ts` files, so a server aggregator would duplicate ~150 lines including `SYSTEM_PROMPT` and create a second source of truth for regression-critical invariants.
+- **Handoff** (`src/lib/smart-input-handoff.ts`): the pasted value travels from the homepage box to `/check/any` through `sessionStorage` key `itv_smart_input`, read-once and deleted on read. **Never a query string** — pasted messages contain names, account numbers, and one-time codes, and `Referrer-Policy` is only `strict-origin-when-cross-origin`.
+
+**Critical invariants:**
+
+- **Precedence order is the correctness surface.** In `detectInputKind`: dangerous schemes (`javascript:`/`data:`/`file:`/`vbscript:`/`blob:`) are tested FIRST and always return `text` — never `url`. **IPv4 is tested BEFORE phone shape** (`192.168.1.1` is only digits and dots, and dots are phone separators, so the phone rule would otherwise claim it). Phone shape is tested BEFORE the prose test (`+1 555 123 4567` has spaces but is not prose). `@` beats bare-domain (`support@paypal.com` is an email).
+- **`MAX_AUTO_URL_CHECKS = 3` is a rate-limit guard, not a UI preference.** `checkRateLimit` is a 20/min sliding window shared by all five routes under one Redis prefix. Worst case here is 1 primary + 3 sub-checks = 4 of 20. Raising it eats the user's whole budget on one link-heavy message.
+- **Prose bare-domain extraction requires a TLD in `EXTRACTABLE_TLDS`.** `validateUrlLocal`'s `validTld` check is only "≥2 characters", so without the allowlist ordinary prose with a missing space ("delayed.Also confirm") parses as a domain and spends a real API call. Explicit `http(s)://` links bypass the allowlist.
+- **Emails and URLs are masked out before scanning** — otherwise `support@paypal.com` also yields the bare domain `paypal.com`, and digits inside a tracking URL are read as a phone number.
+- **Sub-checks are error-isolated.** A 429 or 502 on one link renders an inline row and never touches the primary card. Fan-out also runs when the primary check _failed_ (e.g. 503 with no `ANTHROPIC_API_KEY`), because the embedded links are still worth checking.
+- `variant` on the result cards defaults to `"standalone"` — changing that default silently alters all five single-tool pages.
+
+### 8. PWA + Text Share Target (`public/manifest.json` + `src/app/share/`)
+
+- **Manifest** is a static `public/manifest.json`, **not** `src/app/manifest.ts`: Next 16 mistypes `share_target.params.files` as the DOM `File` type instead of the spec's `{ name, accept }[]`.
+- **Text-only share target.** No service worker anywhere in the repo. Shared _files_ are out of scope; images keep using the normal upload flow.
+- **Receiver is `/share`, deliberately NOT under `/api/`** — `src/proxy.ts` matches `/api/:path*` and 403s browser requests from unrecognised origins, and an OS-initiated share POST has an unreliable `Origin`.
+- **Flow:** POST `/share` → compose one payload from `text`/`url`/`title` → base64 into the `itv_share` cookie (`maxAge: 60`, `sameSite: lax`, not httpOnly) → **303** to `/share/handoff` → client reads the cookie, expires it, writes `itv_smart_input`, `router.replace("/check/any")`.
+- **iOS/Safari does not implement Web Share Target at all.** The manifest still gives an installable home-screen app with a proper icon there, but "Share → IsThisValid" will not appear in the iOS share sheet. Do not describe this as cross-platform in user-facing copy.
+- **Icons** are generated by `npm run generate-icons` from the `SiteLogo` diamond. If the logo changes, re-run it.
+
+**Critical invariants:**
+
+- The 303 (not 200) is what stops the share POST becoming a re-submittable history entry; `/share/handoff` uses `router.replace`, not `push`.
+- The share payload is never written to a query string, and the cookie is expired on first read.
+- `next.config.ts` must keep `camera=(self)`, not `camera=()` — an **empty** allowlist disables the feature in the top-level document too, which blocks the QR scanner's own `getUserMedia`. Verify with `document.featurePolicy.allowsFeature("camera")`.
+
 ---
 
 ## Environment Variables & Graceful Degradation
@@ -205,7 +239,9 @@ Model and token cap overridable via `ANTHROPIC_MODEL` and `ANTHROPIC_MAX_TOKENS`
 
 All tests are pure unit tests—no network, no Redis, no filesystem. Jest mocks external dependencies.
 
-**Test coverage:** 493 tests (161 email + 113 URL + 70 phone + 45 text + 46 image-debunker + 27 image-route + 16 qr-content + 15 smtp-cache)
+**Test coverage:** 562 tests (161 email + 113 URL + 70 phone + 52 input-router + 45 text + 46 image-debunker + 27 image-route + 17 share-route + 16 qr-content + 15 smtp-cache)
+
+Jest runs with `testEnvironment: "node"` and **no jsdom**, so component tests are not possible. Keep logic worth testing in pure libs (`input-router.ts`, `qr-content.ts`, the validators) rather than in hooks or components.
 
 **Patterns:**
 
@@ -269,17 +305,22 @@ Prettier config: 2-space indent, double quotes, trailing commas, 80-char line wi
 
 ## Common Gotchas
 
-| Symptom                                 | Likely Cause                                                                           |
-| --------------------------------------- | -------------------------------------------------------------------------------------- |
-| Score is 100 for a `.con` typo address  | Typo cap escaped in `applyMxResult` or `mergeSmtpResult`                               |
-| `valid: true` on garbage-TLD address    | `validTld` missing from `mergeSmtpResult`'s valid formula                              |
-| Typosquat URL scores 84 instead of ≤79  | Score bonus applied AFTER cap—reorder so caps come last                                |
-| Text tool returns 502                   | Claude returned malformed JSON—check `DebunkResponseSchema` matches actual response    |
-| Rate limit fires in local dev           | `UPSTASH_REDIS_*` env vars set—clear them or use a dev Redis DB                        |
-| SMTP cache never hits                   | Email normalisation mismatch, TTL expired, or `source === "local"` (cache excludes it) |
-| Safe Browsing returns 401               | API key not enabled for "Safe Browsing API" in Google Cloud Console                    |
-| `disposable-email-domains` import fails | It's CJS/ESM hybrid—use `disposable-domains.ts` wrapper; don't import directly         |
-| Claude model 404                        | Format is `claude-{variant}-{version}-{date}`, NOT `claude-{version}-{variant}-{date}` |
+| Symptom                                 | Likely Cause                                                                                                                                                   |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Score is 100 for a `.con` typo address  | Typo cap escaped in `applyMxResult` or `mergeSmtpResult`                                                                                                       |
+| `valid: true` on garbage-TLD address    | `validTld` missing from `mergeSmtpResult`'s valid formula                                                                                                      |
+| Typosquat URL scores 84 instead of ≤79  | Score bonus applied AFTER cap—reorder so caps come last                                                                                                        |
+| Text tool returns 502                   | Claude returned malformed JSON—check `DebunkResponseSchema` matches actual response                                                                            |
+| Rate limit fires in local dev           | `UPSTASH_REDIS_*` env vars set—clear them or use a dev Redis DB                                                                                                |
+| SMTP cache never hits                   | Email normalisation mismatch, TTL expired, or `source === "local"` (cache excludes it)                                                                         |
+| Safe Browsing returns 401               | API key not enabled for "Safe Browsing API" in Google Cloud Console                                                                                            |
+| `disposable-email-domains` import fails | It's CJS/ESM hybrid—use `disposable-domains.ts` wrapper; don't import directly                                                                                 |
+| Claude model 404                        | Format is `claude-{variant}-{version}-{date}`, NOT `claude-{version}-{variant}-{date}`                                                                         |
+| Smart Check opens with an empty box     | The `itv_smart_input` handoff was consumed twice. `takeSmartInput()` is destructive and StrictMode double-invokes effects—cache the first read in a ref        |
+| QR camera fails in production           | `Permissions-Policy: camera=()` in `next.config.ts`—an empty allowlist blocks the top-level document too. Must be `camera=(self)`                              |
+| Prose extraction returns junk "links"   | A sentence with a missing space after a full stop matched the bare-domain regex—the TLD is missing from `EXTRACTABLE_TLDS`, or the allowlist check was skipped |
+| `192.168.1.1` detected as a phone       | The IPv4 rule was moved after the phone-shape rule in `detectInputKind`                                                                                        |
+| Several Ko-fi bars on one page          | A composite view passed `variant="standalone"` (or omitted it) on stacked cards                                                                                |
 
 ---
 
@@ -292,6 +333,9 @@ Prettier config: 2-space indent, double quotes, trailing commas, 80-char line wi
 - **Body text:** `zinc-400`—do NOT use `zinc-500` (fails WCAG AA contrast)
 - **CheckShell** is a server component—keep it free of `useState`/`useEffect`
 - **Affiliate nudges:** Use `AffiliateNudge.tsx`; shown only on risky/unsafe results; always labelled "Affiliate"
+- **Smart Check accent:** `orange-400/500` (the brand colour) — deliberately not one of the six tool accents, since it is the generalist
+- **Result-card `variant`** (`src/lib/result-card-variant.ts`): `"standalone"` (default — own Ko-fi bar + affiliate nudge), `"primary"` (composite headline card — nudge, no Ko-fi), `"nested"` (supporting card — neither). Use `showsKofi()` / `showsAffiliate()` rather than comparing the string. A composite view must render exactly one Ko-fi bar and at most one nudge.
+- `KofiDonation` renders `null` unless `NEXT_PUBLIC_KOFI_USERNAME` is set, so it is invisible in local dev — that is not a bug.
 
 ---
 

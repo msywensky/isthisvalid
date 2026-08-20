@@ -2,9 +2,16 @@ import type { EmailValidationResult } from "@/lib/email-validator";
 import AffiliateNudge from "@/components/AffiliateNudge";
 import KofiDonation from "@/components/KofiDonation";
 import { AFFILIATE_LINKS } from "@/lib/affiliate-links";
+import {
+  showsAffiliate,
+  showsKofi,
+  type ResultCardVariant,
+} from "@/lib/result-card-variant";
 
 interface Props {
   result: EmailValidationResult;
+  /** Defaults to "standalone" — see ResultCardVariant. */
+  variant?: ResultCardVariant;
 }
 
 type Sentiment = "valid" | "warn" | "invalid";
@@ -42,9 +49,11 @@ const sentimentLabels: Record<Sentiment, string> = {
   invalid: "Invalid",
 };
 
-export default function ResultCard({ result }: Props) {
+export default function ResultCard({ result, variant = "standalone" }: Props) {
   const sentiment = getSentiment(result);
   const styles = sentimentStyles[sentiment];
+  const showKofi = showsKofi(variant);
+  const showAffiliate = showsAffiliate(variant);
 
   return (
     <div
@@ -117,7 +126,7 @@ export default function ResultCard({ result }: Props) {
       </p>
 
       {/* Affiliate nudge — only shown for risky or invalid results */}
-      {(sentiment === "warn" || sentiment === "invalid") && (
+      {showAffiliate && (sentiment === "warn" || sentiment === "invalid") && (
         <AffiliateNudge
           href={AFFILIATE_LINKS.zerobounce}
           eyebrow="Got a whole list to check?"
@@ -127,8 +136,8 @@ export default function ResultCard({ result }: Props) {
         />
       )}
 
-      {/* Ko-fi donation */}
-      <KofiDonation />
+      {/* Ko-fi donation — the composite view renders a single shared one */}
+      {showKofi && <KofiDonation />}
     </div>
   );
 }

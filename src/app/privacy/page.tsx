@@ -315,6 +315,26 @@ export default function PrivacyPage() {
                 <td className="py-2">Stores your cookie consent choice</td>
               </tr>
               <tr>
+                <td className="py-2 pr-4 font-mono">itv_smart_input</td>
+                <td className="py-2 pr-4">sessionStorage</td>
+                <td className="py-2">
+                  Carries what you typed from the home page to the Smart Check
+                  page without putting it in the web address. Deleted the
+                  instant it is read, and never sent to our servers except as
+                  the check you asked for.
+                </td>
+              </tr>
+              <tr>
+                <td className="py-2 pr-4 font-mono">itv_share</td>
+                <td className="py-2 pr-4">Cookie (functional)</td>
+                <td className="py-2">
+                  Only set when you share content into IsThisValid from your
+                  phone&apos;s share sheet. Holds that content for up to 60
+                  seconds so the page can pick it up, then is deleted
+                  immediately on read. Not used for tracking.
+                </td>
+              </tr>
+              <tr>
                 <td className="py-2 pr-4 font-mono">
                   Google (_ga, _gid, etc.)
                 </td>
