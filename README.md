@@ -185,7 +185,7 @@ npm run test -- --watch   # Watch mode
 npm run test -- --coverage  # With coverage report
 ```
 
-**Current:** 562/562 tests passing (161 email + 113 URL + 70 phone + 52 input-router + 45 text debunker + 46 image debunker + 27 image route + 17 share route + 16 qr-content + 15 smtp-cache)
+**Current:** 563/563 tests passing (161 email + 113 URL + 71 phone + 52 input-router + 45 text debunker + 46 image debunker + 27 image route + 17 share route + 16 qr-content + 15 smtp-cache)
 
 ### Production Build
 

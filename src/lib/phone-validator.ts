@@ -438,7 +438,7 @@ export function validatePhoneLocal(raw: string): PhoneValidationResult {
     location,
     checks: {
       parseable: true,
-      validLength: isValid,
+      validLength: isPossible,
       validPattern: isValid,
       possibleNumber: isPossible,
       countryDetected,
