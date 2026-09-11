@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 };
 
-const LAST_UPDATED = "August 19, 2026";
+const LAST_UPDATED = "September 11, 2026";
 const CONTACT_EMAIL = "privacy@isthisvalid.com";
 
 export default function PrivacyPage() {
@@ -261,6 +261,25 @@ export default function PrivacyPage() {
             className="text-orange-400 hover:underline"
           >
             SightEngine Privacy Policy
+          </a>
+          .
+        </p>
+        <p>
+          <strong className="text-white">NumVerify.</strong> If our AbstractAPI
+          integration is not configured, phone numbers you submit to the phone
+          checker may instead be forwarded to NumVerify (fallback provider)
+          solely to retrieve carrier and line-status data. NumVerify processes
+          this data as a data processor on our behalf. Note that
+          NumVerify&apos;s free tier only supports plain HTTP for the request it
+          receives from our server (not your browser connection to us, which
+          remains HTTPS). For details, see the{" "}
+          <a
+            href="https://numverify.com/privacy-policy"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-orange-400 hover:underline"
+          >
+            NumVerify Privacy Policy
           </a>
           .
         </p>

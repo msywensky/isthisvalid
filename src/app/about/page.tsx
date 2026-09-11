@@ -5,7 +5,7 @@ import PolicyLayout, { PolicySection } from "@/components/PolicyLayout";
 export const metadata: Metadata = {
   title: "About",
   description:
-    "Learn about IsThisValid.com — a free verification hub with tools to check emails, scan URLs for threats, and detect scam text messages using AI.",
+    "Learn about IsThisValid.com — a free verification hub with tools to check emails, scan URLs for threats, detect scam text messages and AI-generated images, validate phone numbers, and scan QR codes.",
   robots: { index: true, follow: true },
 };
 
@@ -15,17 +15,23 @@ const BUILDER_LINKEDIN = "https://www.linkedin.com/in/mikesywensky/";
 
 export default function AboutPage() {
   return (
-    <PolicyLayout title="About IsThisValid.com" lastUpdated="March 3, 2026">
+    <PolicyLayout
+      title="About IsThisValid.com"
+      lastUpdated="September 11, 2026"
+    >
       <PolicySection title="What is IsThisValid.com?">
         <p>
           IsThisValid.com is a free verification hub. Whether you&apos;ve
           received a suspicious text, want to check a sketchy link before
-          clicking it, or need to validate an email address, we have a tool for
-          it — no account, no sign-up, no personal data stored.
+          clicking it, need to validate an email address, or want to know if a
+          photo is AI-generated, we have a tool for it — no account, no sign-up,
+          no personal data stored.
         </p>
         <p>
-          All four tools are accessible directly in your browser; submitted data
-          is processed server-side and never permanently stored.
+          All six tools are accessible directly in your browser; submitted data
+          is processed server-side and never permanently stored. The QR code
+          scanner runs entirely client-side and never uploads images or camera
+          frames anywhere.
         </p>
       </PolicySection>
 
@@ -76,6 +82,28 @@ export default function AboutPage() {
             shorteners, and known malware/phishing lists via the Google Safe
             Browsing API.{" "}
             <Link href="/check/url" className="text-orange-400 hover:underline">
+              Try it →
+            </Link>
+          </li>
+          <li>
+            <strong className="text-white">Image Authenticity Checker</strong> —
+            upload a photo or screenshot and our AI vision model (via the
+            SightEngine API) estimates the likelihood it&apos;s AI-generated or
+            synthetic.{" "}
+            <Link
+              href="/check/image"
+              className="text-orange-400 hover:underline"
+            >
+              Try it →
+            </Link>
+          </li>
+          <li>
+            <strong className="text-white">QR Code Scanner</strong> — decode a
+            QR code from an uploaded image or your camera, entirely in your
+            browser. If it points to a URL, we run it through the URL Safety
+            Checker before you scan it; other content (Wi-Fi, phone numbers,
+            email addresses) is shown to you safely without auto-connecting.{" "}
+            <Link href="/check/qr" className="text-orange-400 hover:underline">
               Try it →
             </Link>
           </li>
@@ -135,15 +163,32 @@ export default function AboutPage() {
           </a>{" "}
           API against its threat database.
         </p>
+        <p>
+          <strong className="text-white">Image Authenticity Checker</strong> —
+          the image you upload is sent to our server and forwarded to the
+          SightEngine API, which returns a probability that the image is
+          AI-generated. We never store the image itself — only a SHA-256 hash of
+          the bytes is cached for up to 24 hours to avoid redundant calls for
+          identical images.
+        </p>
+        <p>
+          <strong className="text-white">QR Code Scanner</strong> — the image or
+          camera frame is decoded entirely in your browser using client-side
+          JavaScript; nothing is uploaded to our server. If the decoded content
+          is a URL, that URL text (not the image) is sent to our URL Safety
+          Checker as described above.
+        </p>
       </PolicySection>
 
       <PolicySection title="Privacy & data">
         <p>
           None of the content you submit — email addresses, URLs, text messages,
-          or phone numbers — is permanently stored on our servers. Text messages
-          submitted to the scam detector are forwarded to Anthropic for
-          analysis; a one-way cryptographic hash may be cached briefly to avoid
-          duplicate calls. For full details, see our{" "}
+          phone numbers, or images — is permanently stored on our servers. Text
+          messages submitted to the scam detector are forwarded to Anthropic for
+          analysis, and images are forwarded to SightEngine for analysis; a
+          one-way cryptographic hash may be cached briefly to avoid duplicate
+          calls. QR content is decoded entirely in your browser and never
+          uploaded. For full details, see our{" "}
           <Link href="/privacy" className="text-orange-400 hover:underline">
             Privacy Policy
           </Link>

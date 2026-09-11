@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 };
 
-const LAST_UPDATED = "August 19, 2026";
+const LAST_UPDATED = "September 11, 2026";
 const CONTACT_EMAIL = "privacy@isthisvalid.com";
 
 export default function TermsPage() {
@@ -263,6 +263,21 @@ export default function TermsPage() {
               className="text-orange-400 hover:underline"
             >
               AbstractAPI&apos;s Terms of Service
+            </a>
+            .
+          </li>
+          <li>
+            <strong className="text-white">NumVerify</strong> — fallback
+            provider for phone carrier and line-status lookups (used when
+            AbstractAPI is not configured). Phone numbers you submit may be
+            forwarded to NumVerify. See{" "}
+            <a
+              href="https://numverify.com/terms"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-orange-400 hover:underline"
+            >
+              NumVerify&apos;s Terms of Service
             </a>
             .
           </li>
