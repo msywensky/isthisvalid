@@ -162,6 +162,8 @@ Browser  →  POST /api/validate-phone { phone }
         ├── phoneE164, countryCode, countryName, nationalFormat, internationalFormat
         ├── lineType, location, carrier, lineActive, ported
         ├── checks: { parseable, validLength, validPattern, possibleNumber, countryDetected }
+        │     ├── validLength = isPossible() — digit count matches the numbering plan
+        │     └── validPattern = isValid() — full NANP/national pattern match (e.g. NANP exchange codes can't start with 0/1)
         └── source: "local" | "abstract" | "numverify"
 ```
 
@@ -543,7 +545,7 @@ __tests__/
     #   notHighEntropy, notExcessiveHyphens, IP edge cases, ccTLD coverage (113 tests)
 ```
 
-**Total: 562 tests** (161 email + 113 URL + 70 phone + 52 input-router + 45 text + 46 image-debunker + 27 image-route + 17 share-route + 16 qr-content + 15 smtp-cache)
+**Total: 563 tests** (161 email + 113 URL + 71 phone + 52 input-router + 45 text + 46 image-debunker + 27 image-route + 17 share-route + 16 qr-content + 15 smtp-cache)
 
 Jest runs with `testEnvironment: "node"` and no jsdom, so component tests are not possible —
 logic worth testing lives in pure libs (`input-router.ts`, `qr-content.ts`, the validators).

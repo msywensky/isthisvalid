@@ -144,6 +144,16 @@ describe("validity", () => {
     expect(r.internationalFormat).toBeNull();
   });
 
+  test("[Bug regression] possible-but-invalid NANP number: validLength true, validPattern false", () => {
+    // 900-123-4534: right length for NANP, but exchange code "123" starts
+    // with 1, which NANP forbids — isPossible() true, isValid() false.
+    const r = validatePhoneLocal("9001234534");
+    expect(r.valid).toBe(false);
+    expect(r.checks.possibleNumber).toBe(true);
+    expect(r.checks.validLength).toBe(true);
+    expect(r.checks.validPattern).toBe(false);
+  });
+
   test("source is local for local-only result", () => {
     const r = validatePhoneLocal("+14155552671");
     expect(r.source).toBe("local");

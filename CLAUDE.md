@@ -17,7 +17,7 @@ A free, no-signup verification hub for email validation, URL safety checking, SM
 ```bash
 npm run dev                    # Start dev server at http://localhost:3000
 npm run build                  # Production build (type-check + static generation)
-npm test                       # Run all Jest suites (562 tests)
+npm test                       # Run all Jest suites (563 tests)
 npx jest __tests__/email-validator.test.ts  # Single test file
 npx jest -t "typosquat"       # Tests matching a pattern
 npm run test:coverage         # Generate coverage report (→ coverage/)
@@ -75,6 +75,7 @@ The codebase implements a **progressive enrichment pattern**: cheap local checks
 - Caribbean NANP warning preserved through carrier enrichment (`applyCarrierResult`).
 - Line-type bonus/penalty swapped cleanly if API returns different type than local detection.
 - E.164 normalisation must match exactly in all calls (hash cache, duplicate detection).
+- `checks.validLength` reflects `isPossible()` (digit count) and `checks.validPattern` reflects `isValid()` (full pattern, e.g. NANP exchange codes can't start with 0/1)—don't alias both to `isValid()`, or a right-length-but-invalid-pattern number (e.g. `9001234534`) misreports its length as wrong.
 
 ### 4. Text/SMS Scam Detection (`src/app/api/debunk/text/route.ts` → `POST /api/debunk/text`)
 
@@ -239,7 +240,7 @@ Model and token cap overridable via `ANTHROPIC_MODEL` and `ANTHROPIC_MAX_TOKENS`
 
 All tests are pure unit tests—no network, no Redis, no filesystem. Jest mocks external dependencies.
 
-**Test coverage:** 562 tests (161 email + 113 URL + 70 phone + 52 input-router + 45 text + 46 image-debunker + 27 image-route + 17 share-route + 16 qr-content + 15 smtp-cache)
+**Test coverage:** 563 tests (161 email + 113 URL + 71 phone + 52 input-router + 45 text + 46 image-debunker + 27 image-route + 17 share-route + 16 qr-content + 15 smtp-cache)
 
 Jest runs with `testEnvironment: "node"` and **no jsdom**, so component tests are not possible. Keep logic worth testing in pure libs (`input-router.ts`, `qr-content.ts`, the validators) rather than in hooks or components.
 
@@ -305,22 +306,23 @@ Prettier config: 2-space indent, double quotes, trailing commas, 80-char line wi
 
 ## Common Gotchas
 
-| Symptom                                 | Likely Cause                                                                                                                                                   |
-| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Score is 100 for a `.con` typo address  | Typo cap escaped in `applyMxResult` or `mergeSmtpResult`                                                                                                       |
-| `valid: true` on garbage-TLD address    | `validTld` missing from `mergeSmtpResult`'s valid formula                                                                                                      |
-| Typosquat URL scores 84 instead of ≤79  | Score bonus applied AFTER cap—reorder so caps come last                                                                                                        |
-| Text tool returns 502                   | Claude returned malformed JSON—check `DebunkResponseSchema` matches actual response                                                                            |
-| Rate limit fires in local dev           | `UPSTASH_REDIS_*` env vars set—clear them or use a dev Redis DB                                                                                                |
-| SMTP cache never hits                   | Email normalisation mismatch, TTL expired, or `source === "local"` (cache excludes it)                                                                         |
-| Safe Browsing returns 401               | API key not enabled for "Safe Browsing API" in Google Cloud Console                                                                                            |
-| `disposable-email-domains` import fails | It's CJS/ESM hybrid—use `disposable-domains.ts` wrapper; don't import directly                                                                                 |
-| Claude model 404                        | Format is `claude-{variant}-{version}-{date}`, NOT `claude-{version}-{variant}-{date}`                                                                         |
-| Smart Check opens with an empty box     | The `itv_smart_input` handoff was consumed twice. `takeSmartInput()` is destructive and StrictMode double-invokes effects—cache the first read in a ref        |
-| QR camera fails in production           | `Permissions-Policy: camera=()` in `next.config.ts`—an empty allowlist blocks the top-level document too. Must be `camera=(self)`                              |
-| Prose extraction returns junk "links"   | A sentence with a missing space after a full stop matched the bare-domain regex—the TLD is missing from `EXTRACTABLE_TLDS`, or the allowlist check was skipped |
-| `192.168.1.1` detected as a phone       | The IPv4 rule was moved after the phone-shape rule in `detectInputKind`                                                                                        |
-| Several Ko-fi bars on one page          | A composite view passed `variant="standalone"` (or omitted it) on stacked cards                                                                                |
+| Symptom                                               | Likely Cause                                                                                                                                                     |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Score is 100 for a `.con` typo address                | Typo cap escaped in `applyMxResult` or `mergeSmtpResult`                                                                                                         |
+| `valid: true` on garbage-TLD address                  | `validTld` missing from `mergeSmtpResult`'s valid formula                                                                                                        |
+| Typosquat URL scores 84 instead of ≤79                | Score bonus applied AFTER cap—reorder so caps come last                                                                                                          |
+| Text tool returns 502                                 | Claude returned malformed JSON—check `DebunkResponseSchema` matches actual response                                                                              |
+| Rate limit fires in local dev                         | `UPSTASH_REDIS_*` env vars set—clear them or use a dev Redis DB                                                                                                  |
+| SMTP cache never hits                                 | Email normalisation mismatch, TTL expired, or `source === "local"` (cache excludes it)                                                                           |
+| Safe Browsing returns 401                             | API key not enabled for "Safe Browsing API" in Google Cloud Console                                                                                              |
+| `disposable-email-domains` import fails               | It's CJS/ESM hybrid—use `disposable-domains.ts` wrapper; don't import directly                                                                                   |
+| Claude model 404                                      | Format is `claude-{variant}-{version}-{date}`, NOT `claude-{version}-{variant}-{date}`                                                                           |
+| Smart Check opens with an empty box                   | The `itv_smart_input` handoff was consumed twice. `takeSmartInput()` is destructive and StrictMode double-invokes effects—cache the first read in a ref          |
+| QR camera fails in production                         | `Permissions-Policy: camera=()` in `next.config.ts`—an empty allowlist blocks the top-level document too. Must be `camera=(self)`                                |
+| Prose extraction returns junk "links"                 | A sentence with a missing space after a full stop matched the bare-domain regex—the TLD is missing from `EXTRACTABLE_TLDS`, or the allowlist check was skipped   |
+| `192.168.1.1` detected as a phone                     | The IPv4 rule was moved after the phone-shape rule in `detectInputKind`                                                                                          |
+| Phone "Valid length" shows X on a right-length number | `checks.validLength` was aliased to `isValid()` instead of `isPossible()`—a possible-but-invalid NANP number (e.g. bad exchange code) misreports as wrong length |
+| Several Ko-fi bars on one page                        | A composite view passed `variant="standalone"` (or omitted it) on stacked cards                                                                                  |
 
 ---
 
