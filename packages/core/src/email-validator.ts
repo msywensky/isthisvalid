@@ -315,12 +315,27 @@ export function validateEmailLocal(rawEmail: string): EmailValidationResult {
   };
 }
 
+/**
+ * Local checks alone (syntax/TLD/disposable/role) can add up to 90, but none
+ * of them confirm the domain can actually receive mail — only a real MX/SMTP
+ * check does that. Capping here keeps a not-yet-network-verified address from
+ * ever *looking* more confident than "syntax looks plausible."
+ */
+const MAX_LOCAL_ONLY_SCORE = 30;
+
 function computeScore(checks: ValidationChecks): number {
   let score = 0;
   if (checks.syntax) score += 40;
   if (checks.validTld) score += 15;
   if (checks.notDisposable) score += 25;
   if (checks.notRole) score += 10;
+  // No server check (MX or SMTP) has run yet — this is still just the local
+  // preview. (Checking both, not just hasMx: mergeSmtpResult can run without
+  // an MX check ever having happened — see mergeEmailableResult — and an
+  // SMTP-level deliverability confirmation is real server validation too.)
+  if (checks.hasMx === null && checks.apiDeliverable === null) {
+    score = Math.min(score, MAX_LOCAL_ONLY_SCORE);
+  }
   // hasMx: confirmed MX = small bonus; no MX = heavy penalty
   if (checks.hasMx === true) score = Math.min(score + 5, 100);
   if (checks.hasMx === false) score = Math.min(score, 15);

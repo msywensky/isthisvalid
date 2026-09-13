@@ -15,7 +15,8 @@ describe("validateEmailLocal", () => {
     expect(r.checks.syntax).toBe(true);
     expect(r.checks.validTld).toBe(true);
     expect(r.checks.notDisposable).toBe(true);
-    expect(r.score).toBeGreaterThanOrEqual(70);
+    // Local-only preview is capped at 30 — no server check has run yet.
+    expect(r.score).toBe(30);
   });
 
   it("passes subdomains", () => {
@@ -561,9 +562,11 @@ describe("validateEmailLocal — typo domain score cap", () => {
     expect(r.message).toContain("user@gmail.com");
   });
 
-  it("does not cap score for a correctly-spelled domain", () => {
+  it("does not apply the typo cap for a correctly-spelled domain", () => {
     const r = validateEmailLocal("user@example.com");
-    expect(r.score).toBe(90); // syntax(40)+tld(15)+notDisposable(25)+notRole(10)
+    // Already at the local-only cap (30) either way, but the real assertion
+    // here is that no typo was (mis)detected.
+    expect(r.score).toBe(30);
     expect(r.suggestion).toBeUndefined();
   });
 
@@ -597,34 +600,42 @@ describe("validateEmailLocal — typo domain score cap", () => {
 // Pinning the scoring weights catches accidental regressions if computeScore
 // is modified. Update these when intentionally changing point values.
 describe("computeScore — exact score values", () => {
-  it("clean valid email (no MX, no API) scores exactly 90", () => {
+  // Local-only (no server check has run) is capped at 30 regardless of how
+  // the underlying checks add up — see MAX_LOCAL_ONLY_SCORE. So the weight
+  // values below (25/10/etc.) can no longer be observed directly off
+  // validateEmailLocal(); they're pinned post-MX-check instead, same as the
+  // real pipeline would compute them once a server check actually ran.
+  it("clean valid email is capped at 30 before any server check", () => {
     const r = validateEmailLocal("user@example.com");
-    expect(r.score).toBe(90); // syntax(40)+tld(15)+notDisposable(25)+notRole(10)
+    expect(r.score).toBe(30); // capped: syntax(40)+tld(15)+notDisposable(25)+notRole(10) = 90, capped to 30
   });
 
-  it("role address scores exactly 80 (notRole penalty of 10)", () => {
-    const r = validateEmailLocal("admin@example.com");
-    expect(r.score).toBe(80); // syntax(40)+tld(15)+notDisposable(25)+notRole(0)
+  it("role address: syntax(40)+tld(15)+notDisposable(25)+notRole(0)+mx(5) = 85", () => {
+    const local = validateEmailLocal("admin@example.com");
+    const r = applyMxResult(local, true); // uncaps: a server check (MX) has now run
+    expect(r.score).toBe(85);
   });
 
-  it("disposable address scores exactly 65 (notDisposable penalty of 25)", () => {
-    const r = validateEmailLocal("user@mailinator.com");
-    expect(r.score).toBe(65); // syntax(40)+tld(15)+notDisposable(0)+notRole(10)
+  it("disposable address: syntax(40)+tld(15)+notDisposable(0)+notRole(10)+mx(5) = 70", () => {
+    const local = validateEmailLocal("user@mailinator.com");
+    const r = applyMxResult(local, true);
+    expect(r.score).toBe(70);
   });
 
-  it("invalid syntax scores 35 (no syntax/tld points)", () => {
-    const r = validateEmailLocal("notanemail");
-    expect(r.score).toBe(35); // syntax(0)+tld(0)+notDisposable(25)+notRole(10)
+  it("invalid syntax: syntax(0)+tld(0)+notDisposable(25)+notRole(10)+mx(5) = 40", () => {
+    const local = validateEmailLocal("notanemail");
+    const r = applyMxResult(local, true);
+    expect(r.score).toBe(40);
   });
 
   it("applyMxResult hasMx=true gives +5 bonus (capped at 100)", () => {
-    const local = validateEmailLocal("user@example.com"); // 90
+    const local = validateEmailLocal("user@example.com"); // 30 (local-only cap)
     const r = applyMxResult(local, true);
-    expect(r.score).toBe(95); // 90 + 5
+    expect(r.score).toBe(95); // recomputed from checks, not from local.score: 90 + 5
   });
 
   it("applyMxResult hasMx=false caps score at 15", () => {
-    const local = validateEmailLocal("user@example.com"); // 90
+    const local = validateEmailLocal("user@example.com"); // 30 (local-only cap)
     const r = applyMxResult(local, false);
     expect(r.score).toBe(15);
   });

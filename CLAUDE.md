@@ -45,7 +45,8 @@ The codebase implements a **progressive enrichment pattern**: cheap local checks
 - **MX check** (free, ~50ms DNS): Confirms domain has mail servers
 - **SMTP cache** (Redis, 7-day TTL): Checks for repeat verifications before calling provider
 - **Provider phase** (paid, ~500ms): ZeroBounce (preferred, 100 free/month) or Emailable fallback
-- **Score formula**: 40 (syntax) + 15 (TLD) + 25 (not disposable) + 10 (not role) + 5 (MX) + 5 (SMTP deliverable) = max 100
+- **Score formula**: 40 (syntax) + 15 (TLD) + 25 (not disposable) + 10 (not role) + 5 (MX) + 10 (SMTP deliverable) = max 100
+- **Local-only cap**: Until a server check (MX or SMTP) has actually run, the score is capped at `MAX_LOCAL_ONLY_SCORE` (30) regardless of how the local checks add up — a not-yet-network-verified address should never _look_ more confident than "syntax is plausible." The mobile client's "Instant preview" pill exists specifically because of this cap.
 - **Typo handling**: Domains matching `TYPO_MAP` cap score ≤65 unless `apiDeliverable === true`. Typo suggestions included in response.
 - **Role addresses** (admin@, noreply@, etc.): `valid: true` but penalised in score. Plus-addressed roles (+bounce@admin) correctly strip the tag before lookup.
 
@@ -53,6 +54,7 @@ The codebase implements a **progressive enrichment pattern**: cheap local checks
 
 - `mergeSmtpResult`'s `valid` formula must include `local.checks.validTld`—do not remove it.
 - Typo cap is ≤65, lifted only by SMTP `apiDeliverable`, not by `hasMx` alone.
+- The local-only cap (30) triggers on `hasMx === null && apiDeliverable === null`—checking both, not just `hasMx`, matters: `mergeSmtpResult`/`mergeEmailableResult` can run without an MX check ever happening (see their own unit tests), and an SMTP-level deliverability confirmation is real server validation on its own.
 
 ### 2. URL Safety Check (`src/lib/url-validator.ts` → `POST /api/validate-url`)
 
@@ -331,6 +333,7 @@ Prettier config: 2-space indent, double quotes, trailing commas, 80-char line wi
 | Symptom                                                             | Likely Cause                                                                                                                                                                          |
 | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Score is 100 for a `.con` typo address                              | Typo cap escaped in `applyMxResult` or `mergeSmtpResult`                                                                                                                              |
+| `validateEmailLocal` scores 90 for a clean address instead of ≤30   | `MAX_LOCAL_ONLY_SCORE` cap missing/bypassed in `computeScore`—should trigger whenever `hasMx` and `apiDeliverable` are both still `null`                                              |
 | `valid: true` on garbage-TLD address                                | `validTld` missing from `mergeSmtpResult`'s valid formula                                                                                                                             |
 | Typosquat URL scores 84 instead of ≤79                              | Score bonus applied AFTER cap—reorder so caps come last                                                                                                                               |
 | Text tool returns 502                                               | Claude returned malformed JSON—check `DebunkResponseSchema` matches actual response                                                                                                   |

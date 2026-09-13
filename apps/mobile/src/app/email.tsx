@@ -8,42 +8,70 @@ import {
   TextInput,
 } from "react-native";
 
-import {
-  validateEmailLocal,
-  type EmailValidationResult,
-} from "@isthisvalid/core/email-validator";
+import type { EmailValidationResult } from "@isthisvalid/core/email-validator";
+import { FAQ_DATA } from "@isthisvalid/core/faq-data";
 
 import { ApiError, postJson } from "@/lib/api-client";
 import { Colors } from "@/constants/colors";
-import { ResultCard, type Sentiment } from "@/components/ResultCard";
+import {
+  ResultCard,
+  type CheckItem,
+  type Sentiment,
+} from "@/components/ResultCard";
+import SectionHeader from "@/components/SectionHeader";
+import FAQ from "@/components/FAQ";
 
-// Email-specific: derives the shared card's Sentiment from an
-// EmailValidationResult. URL/Phone screens will define their own version of
-// this against their own result shape when they're wired up.
+// Email-specific: derives the shared card's props from an
+// EmailValidationResult. URL/Phone screens will define their own versions of
+// these against their own result shape when they're wired up.
 function getSentiment(result: EmailValidationResult): Sentiment {
   if (result.valid && result.score >= 70) return "valid";
   if (!result.checks.syntax || result.score < 30) return "invalid";
   return "warn";
 }
 
+function getCheckItems(result: EmailValidationResult): CheckItem[] {
+  const items: CheckItem[] = [
+    { label: "Syntax", pass: result.checks.syntax },
+    { label: "Valid TLD", pass: result.checks.validTld },
+    { label: "Not Disposable", pass: result.checks.notDisposable },
+    { label: "Not Role-based", pass: result.checks.notRole },
+  ];
+  if (result.checks.hasMx !== null) {
+    items.push({
+      label: "Mail server (MX)",
+      pass: result.checks.hasMx,
+      wide: true,
+    });
+  }
+  if (result.checks.apiDeliverable !== null) {
+    items.push({
+      label: "Mailbox reachable",
+      pass: result.checks.apiDeliverable,
+      wide: true,
+    });
+  }
+  return items;
+}
+
+function getSourceLabel(result: EmailValidationResult): string {
+  if (result.source === "zerobounce") return "ZeroBounce + local checks";
+  if (result.source === "emailable") return "Emailable API + local checks";
+  return "local checks";
+}
+
 export default function EmailScreen() {
   const [email, setEmail] = useState("");
-  const [localResult, setLocalResult] = useState<EmailValidationResult | null>(
-    null,
-  );
-  const [apiResult, setApiResult] = useState<EmailValidationResult | null>(
-    null,
-  );
+  const [result, setResult] = useState<EmailValidationResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   function onChangeText(text: string) {
     setEmail(text);
-    setApiResult(null);
+    // Editing after a result invalidates it — no stale card left showing
+    // while the user is mid-edit.
+    setResult(null);
     setError(null);
-    // Instant local-phase feedback — same progressive-enrichment pattern as
-    // the web app: cheap on-device checks first, network call second.
-    setLocalResult(text.trim() ? validateEmailLocal(text) : null);
   }
 
   async function onSubmit() {
@@ -51,10 +79,10 @@ export default function EmailScreen() {
     setLoading(true);
     setError(null);
     try {
-      const result = await postJson<EmailValidationResult>("/api/validate", {
+      const validated = await postJson<EmailValidationResult>("/api/validate", {
         email,
       });
-      setApiResult(result);
+      setResult(validated);
     } catch (e) {
       setError(
         e instanceof ApiError ? e.message : "Could not reach the server.",
@@ -66,9 +94,16 @@ export default function EmailScreen() {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <Text style={styles.intro}>
-        Enter an email address to check its syntax, domain, and deliverability.
-      </Text>
+      <SectionHeader
+        icon="📧"
+        smallTitle="Email Validator"
+        largeTitle={
+          <>
+            Is this <Text style={styles.headlineAccent}>valid</Text>?
+          </>
+        }
+        description="Paste any email address and we'll tell you if it's real, sketchy, or straight-up fake. No signup required."
+      />
 
       <TextInput
         value={email}
@@ -99,34 +134,20 @@ export default function EmailScreen() {
 
       {error && <Text style={styles.error}>{error}</Text>}
 
-      {localResult && (
+      {result && (
         <ResultCard
-          label="Instant local check"
-          score={localResult.score}
-          sentiment={getSentiment(localResult)}
-          message={localResult.message}
+          score={result.score}
+          sentiment={getSentiment(result)}
+          message={result.message}
           detail={
-            localResult.suggestion
-              ? `Did you mean ${localResult.suggestion}?`
-              : undefined
+            result.suggestion ? `Did you mean ${result.suggestion}?` : undefined
           }
-          source={localResult.source}
+          checks={getCheckItems(result)}
+          source={getSourceLabel(result)}
         />
       )}
-      {apiResult && (
-        <ResultCard
-          label="Full server result"
-          score={apiResult.score}
-          sentiment={getSentiment(apiResult)}
-          message={apiResult.message}
-          detail={
-            apiResult.suggestion
-              ? `Did you mean ${apiResult.suggestion}?`
-              : undefined
-          }
-          source={apiResult.source}
-        />
-      )}
+
+      <FAQ data={FAQ_DATA} />
     </ScrollView>
   );
 }
@@ -134,7 +155,7 @@ export default function EmailScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.zinc950 },
   content: { padding: 16, gap: 16 },
-  intro: { color: Colors.zinc400 },
+  headlineAccent: { color: Colors.amber400 },
   input: {
     borderRadius: 12,
     borderWidth: 1,

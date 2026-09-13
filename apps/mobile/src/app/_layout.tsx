@@ -17,7 +17,10 @@ export default function RootLayout() {
           contentStyle: { backgroundColor: Colors.zinc950 },
         }}
       >
-        <Stack.Screen name="index" options={{ title: "IsThisValid" }} />
+        <Stack.Screen
+          name="index"
+          options={{ title: "All Tools", headerShown: false }}
+        />
         <Stack.Screen name="email" options={{ title: "Email" }} />
         <Stack.Screen name="url" options={{ title: "URL" }} />
         <Stack.Screen name="phone" options={{ title: "Phone" }} />
