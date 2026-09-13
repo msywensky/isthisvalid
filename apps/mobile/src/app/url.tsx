@@ -1,4 +1,4 @@
-import { ComingSoon } from "@/components/coming-soon";
+import { ComingSoon } from "@/components/ComingSoon";
 
 export default function UrlScreen() {
   return (
