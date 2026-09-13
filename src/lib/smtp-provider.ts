@@ -7,18 +7,10 @@
  *   2. Emailable   (EMAILABLE_API_KEY)   — 250 one-time free, then paid
  */
 
-// ── Normalised result ────────────────────────────────────────────────────────
-
-export interface SmtpVerifyResult {
-  /** Provider confirmed the mailbox exists */
-  deliverable: boolean | null;
-  /** Provider confirmed the mailbox does NOT exist */
-  undeliverable: boolean;
-  /** Provider flagged address as disposable / temporary */
-  disposable: boolean;
-  /** Which provider performed the check */
-  source: "emailable" | "zerobounce";
-}
+// SmtpVerifyResult lives in @isthisvalid/core/email-validator (not here) so
+// the shared package never depends on this server-only file.
+import type { SmtpVerifyResult } from "@isthisvalid/core/email-validator";
+export type { SmtpVerifyResult };
 
 // ── Provider interface ────────────────────────────────────────────────────────
 

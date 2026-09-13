@@ -1,0 +1,31 @@
+{
+  "name": "@isthisvalid/core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./email-validator": "./src/email-validator.ts",
+    "./url-validator": "./src/url-validator.ts",
+    "./phone-validator": "./src/phone-validator.ts",
+    "./input-router": "./src/input-router.ts",
+    "./qr-content": "./src/qr-content.ts",
+    "./result-card-variant": "./src/result-card-variant.ts",
+    "./affiliate-links": "./src/affiliate-links.ts",
+    "./faq-data": "./src/faq-data.ts",
+    "./image-faq-data": "./src/image-faq-data.ts",
+    "./phone-faq-data": "./src/phone-faq-data.ts",
+    "./qr-faq-data": "./src/qr-faq-data.ts",
+    "./text-faq-data": "./src/text-faq-data.ts",
+    "./url-faq-data": "./src/url-faq-data.ts",
+    "./us-area-codes": "./src/us-area-codes.ts",
+    "./disposable-domains": "./src/disposable-domains.ts",
+    "./text-debunker": "./src/text-debunker.ts",
+    "./image-debunker": "./src/image-debunker.ts"
+  },
+  "dependencies": {
+    "disposable-email-domains": "^1.0.62",
+    "libphonenumber-js": "^1.12.38",
+    "mailchecker": "^6.0.19",
+    "zod": "^4.3.6"
+  }
+}

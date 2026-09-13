@@ -33,6 +33,10 @@ yarn-error.log*
 # env files — ignore all local secrets but keep the example template
 .env*
 !.env.example
+# apps/mobile's EXPO_PUBLIC_* files hold no secrets (build-time public
+# constants only, per Expo convention) — commit them like .env.example.
+!apps/mobile/.env.development
+!apps/mobile/.env.production
 
 # vercel
 .vercel
