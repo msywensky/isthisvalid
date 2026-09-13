@@ -14,6 +14,7 @@ export const Colors = {
   zinc500: "#71717a",
   zinc400: "#a1a1aa",
   zinc300: "#d4d4d8",
+  zinc200: "#e4e4e7",
   white: "#ffffff",
 
   // Brand orange — CheckShell's icon+label row on every tool screen (not a
@@ -24,6 +25,13 @@ export const Colors = {
   // orange"): 400 for text accents (e.g. the headline span), 500 for the CTA.
   amber400: "#fbbf24",
   amber500: "#f59e0b",
+
+  // Per-tool home-screen card accents — match web's page.tsx tool list
+  // (Phone: teal, Text: violet, Email: amber above, URL: sky, Image: emerald).
+  teal400: "#2dd4bf",
+  violet400: "#a78bfa",
+  sky400: "#38bdf8",
+  emerald400: "#34d399",
 
   lime300: "#bef264",
   lime600: "#65a30d",
@@ -44,3 +52,11 @@ export const Colors = {
   // Matches web's CheckRow: bg-rose-900/30 (fail state)
   roseCheckBg: "rgba(136, 19, 55, 0.3)",
 } as const;
+
+/** Turns a "#rrggbb" token into an "rgba(r, g, b, alpha)" string. */
+export function withAlpha(hex: string, alpha: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
