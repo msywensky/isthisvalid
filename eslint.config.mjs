@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // apps/mobile has its own Expo/React-Native-aware lint command
+    // ("expo lint") — the Next-tuned rules here (e.g. no-require-imports,
+    // which a Metro config legitimately violates) don't apply to it.
+    "apps/mobile/**",
   ]),
 ]);
 

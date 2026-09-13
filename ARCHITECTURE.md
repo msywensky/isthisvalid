@@ -1,6 +1,6 @@
 # IsThisValid.com — Architecture Guide
 
-**Last updated: July 22, 2026**
+**Last updated: September 13, 2026**
 
 ## High-Level Flow
 
@@ -563,6 +563,39 @@ scripts/
 ├── generate-og.mjs                  # SVG → sharp → PNG
 └── generate-icons.mjs               # SVG → sharp → PNG; re-run if SiteLogo.tsx changes
 ```
+
+## Monorepo Structure & React Native Client (`apps/mobile`)
+
+The repo is an **npm workspace root** (`"workspaces": ["packages/*", "apps/*"]` in the root `package.json`). The Next.js web app deliberately **stays at the repo root** — the root `package.json` is still the web app's own manifest — so Vercel's project settings, CI paths, and every existing script are untouched by this. `packages/core` and `apps/mobile` are new sibling directories, resolved into `node_modules/@isthisvalid/*` as symlinks by `npm install`, no publishing involved.
+
+```
+isthisvalid/
+├── package.json          # web app + "workspaces": ["packages/*", "apps/*"]
+├── src/, __tests__/       # web app — unchanged
+├── packages/
+│   └── core/              # @isthisvalid/core — shared pure validation logic
+│       ├── package.json   # exports map, one subpath per module (mirrors src/lib/* names)
+│       ├── tsconfig.json   # standalone: no DOM lib, no jsx — pure TS only
+│       └── src/            # email-validator, url-validator, phone-validator, input-router,
+│                            #   qr-content, result-card-variant, affiliate-links, *-faq-data,
+│                            #   us-area-codes (+ data/us-area-codes.json), disposable-domains,
+│                            #   text-debunker, image-debunker
+└── apps/
+    └── mobile/             # @isthisvalid/mobile — Expo + Expo Router client
+```
+
+**`packages/core`** holds every pure-TypeScript file that used to live in `src/lib/` — no DOM, no Node-only APIs, no server-only imports (verified file-by-file before the move). It's consumed two ways:
+
+- **`apps/web`** (this Next.js app): `src/lib/<name>.ts` is now a one-line re-export shim — `export * from "@isthisvalid/core/<name>";` — so every existing import (`@/lib/email-validator`, all 563 Jest tests, every API route) is untouched. `next.config.ts` sets `transpilePackages: ["@isthisvalid/core"]` so Next transpiles it from source; `jest.config.ts` maps `@isthisvalid/core/*` straight to `packages/core/src/*.ts`, bypassing the workspace symlink for the test runner.
+- **`apps/mobile`**: imports `@isthisvalid/core/*` directly (e.g. `@isthisvalid/core/email-validator`) for both types (parsing `/api/*` JSON responses) and the local/instant-feedback phase (e.g. `validateEmailLocal` runs on-device before the network call, mirroring the web app's progressive-enrichment pattern).
+
+The one cross-file fix this required: `email-validator.ts` used to import `SmtpVerifyResult` from the server-only `smtp-provider.ts`. That's backwards for a shared package (it would make `packages/core` depend on app-only code), so `SmtpVerifyResult` is now defined in `packages/core/src/email-validator.ts`, and `src/lib/smtp-provider.ts` imports it from there instead.
+
+**`apps/mobile`** is an Expo (Expo Router, `src/app/*` file-based routes) app that calls the **existing** `/api/validate`, `/api/validate-url`, `/api/validate-phone`, `/api/debunk/text`, `/api/debunk/image` routes over HTTP — no new backend, no duplicated scoring logic. `EXPO_PUBLIC_API_BASE_URL` (`.env.development` → `localhost:3000`, `.env.production` → `https://isthisvalid.com`) points it at the right origin; on a physical device (not a simulator) this needs the dev machine's LAN IP instead of `localhost`. `metro.config.js` sets explicit `watchFolders`/`nodeModulesPaths` so Metro picks up edits to `packages/core/src/*` without a restart. Styling is plain React Native `StyleSheet` with a small `src/constants/colors.ts` token file mirroring the web app's Tailwind hex values (zinc-950 background, amber-500 email accent, lime/yellow/rose result sentiment) — **not** NativeWind: NativeWind v4 only supports Tailwind CSS v3, and hoists to the workspace root `node_modules`, where its `tailwindcss` peer resolves to this repo's Tailwind v4 (used by the web app) instead of a pinned v3 — `npm overrides` cannot force a nested copy for an already-satisfied peer range. Revisit if NativeWind v5 (Tailwind v4 support) stabilizes.
+
+Only the **Email** screen (`src/app/email.tsx`) is wired to its real API route in this first pass — URL/Phone/Text/Image are routed placeholder screens. QR scanning and the Smart-Paste/share-target flow are out of scope for the mobile client: QR needs `expo-camera` + native barcode decoding (no shared code with the browser-`getUserMedia`-based `useQrScanner.ts`), and native apps use `Share`/deep-linking, a different mechanism than the web's `/share` cookie-handoff flow.
+
+Root ESLint (`eslint.config.mjs`) ignores `apps/mobile/**` — its Next-tuned rules (e.g. `no-require-imports`, which Metro's CJS config legitimately violates) don't apply there; `apps/mobile` has its own `expo lint` command and `eslint.config.js` (`eslint-config-expo`). Root `tsconfig.json` excludes `apps/mobile` from `npx tsc --noEmit` for the same reason (incompatible `lib`/`jsx` settings) — `packages/core` stays included and is typechecked transitively through the `src/lib/*` shims; `apps/mobile` needs its own `tsc --noEmit`, run separately (via Expo's own tooling), not yet wired into CI.
 
 ## Environment Variables
 

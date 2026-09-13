@@ -66,6 +66,9 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Transpile the shared validation-logic package from TS source — it has no
+  // build step of its own, and is also consumed directly by apps/mobile.
+  transpilePackages: ["@isthisvalid/core"],
   async headers() {
     return [
       {

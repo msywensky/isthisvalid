@@ -25,7 +25,13 @@ npm run lint                  # ESLint
 npm run test:watch            # Jest watch mode
 ```
 
-**Important:** `npm run build` is the source of truth for TypeScript errors. Always run before declaring production-ready.
+```bash
+cd apps/mobile && npm start     # Expo dev server (apps/mobile — React Native client)
+cd apps/mobile && npx tsc --noEmit   # Mobile app's own type-check (not covered by the root command above)
+cd apps/mobile && npx expo lint      # Mobile app's own ESLint (Expo/RN-aware config, separate from root)
+```
+
+**Important:** `npm run build` is the source of truth for TypeScript errors. Always run before declaring production-ready. This covers the web app and `packages/core` only — `apps/mobile` is excluded from the root `tsconfig.json`/`eslint.config.mjs` and needs the commands above run separately (see "Monorepo & React Native Client" below).
 
 ---
 
@@ -158,6 +164,22 @@ The "paste anything" entry point. **Adds no API route, no provider, and no env v
 - The 303 (not 200) is what stops the share POST becoming a re-submittable history entry; `/share/handoff` uses `router.replace`, not `push`.
 - The share payload is never written to a query string, and the cookie is expired on first read.
 - `next.config.ts` must keep `camera=(self)`, not `camera=()` — an **empty** allowlist disables the feature in the top-level document too, which blocks the QR scanner's own `getUserMedia`. Verify with `document.featurePolicy.allowsFeature("camera")`.
+
+### 9. Monorepo & React Native Client (`packages/core`, `apps/mobile`)
+
+The repo is an npm workspace root (`"workspaces": ["packages/*", "apps/*"]`). The web app **stays at the repo root** (root `package.json` is still its manifest) — zero Vercel/CI changes from adding workspaces. `packages/core` and `apps/mobile` are new siblings.
+
+- **`packages/core`** (`@isthisvalid/core`) holds every pure-TS file that used to live in `src/lib/`: `email-validator`, `url-validator`, `phone-validator`, `input-router`, `qr-content`, `result-card-variant`, `affiliate-links`, the `*-faq-data` files, `us-area-codes` (+ its JSON data), `disposable-domains`, `text-debunker`, `image-debunker`. No DOM, no Node-only APIs, no server-only imports.
+- **`src/lib/<name>.ts` is now a one-line shim** — `export * from "@isthisvalid/core/<name>";` — so every existing import site (API routes, components, all 563 Jest tests) is untouched. Don't add real logic to these shim files; edit `packages/core/src/<name>.ts` instead.
+- **`apps/mobile`** (`@isthisvalid/mobile`) is an Expo Router app that calls the **existing** `/api/*` routes over HTTP — no duplicated scoring logic, no new backend. It imports `@isthisvalid/core/*` directly (e.g. `validateEmailLocal` for instant on-device feedback before the network call — the same progressive-enrichment pattern as the web app). Only the Email screen is wired to its real API route so far; URL/Phone/Text/Image are placeholders. QR and Smart-Paste/share-target are not planned for the mobile client as of this writing — no shared code exists for either (`useQrScanner.ts` is browser-`getUserMedia`-specific; the web's `/share` flow is a cookie handoff with no native equivalent).
+
+**Critical invariants:**
+
+- `email-validator.ts`'s `SmtpVerifyResult` type is defined in `packages/core` (not in the server-only `src/lib/smtp-provider.ts`) specifically so the shared package never depends on app-only code — don't move it back.
+- `apps/mobile` is deliberately excluded from the root `tsconfig.json` (`exclude`) and `eslint.config.mjs` (`globalIgnores`) — it has its own type-check and `expo lint`/`eslint-config-expo` setup, incompatible with the web app's DOM/Next-tuned config. Don't remove these excludes to "simplify" — see Quick Commands above for the separate mobile commands.
+- Mobile styling is plain React Native `StyleSheet` + `src/constants/colors.ts` (hex values matching the web app's Tailwind tokens), **not** NativeWind — NativeWind v4 only supports Tailwind CSS v3, and hoists to the workspace root where its `tailwindcss` peer resolves to this repo's v4 (used by the web app); `npm overrides` can't force a nested v3 copy for an already-satisfied peer range. Don't re-add NativeWind v4 without solving that; v5 (Tailwind v4 support) may resolve it once stable.
+- `apps/mobile/metro.config.js` must keep its explicit `watchFolders`/`nodeModulesPaths` — without them Metro won't notice edits to `packages/core/src/*` and silently serves stale bundles.
+- `EXPO_PUBLIC_API_BASE_URL` (`apps/mobile/.env.development` / `.env.production`) points the app at the Next.js API. On a physical device (not a simulator), `localhost` doesn't reach the dev machine — use its LAN IP instead.
 
 ---
 
@@ -306,23 +328,26 @@ Prettier config: 2-space indent, double quotes, trailing commas, 80-char line wi
 
 ## Common Gotchas
 
-| Symptom                                               | Likely Cause                                                                                                                                                     |
-| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Score is 100 for a `.con` typo address                | Typo cap escaped in `applyMxResult` or `mergeSmtpResult`                                                                                                         |
-| `valid: true` on garbage-TLD address                  | `validTld` missing from `mergeSmtpResult`'s valid formula                                                                                                        |
-| Typosquat URL scores 84 instead of ≤79                | Score bonus applied AFTER cap—reorder so caps come last                                                                                                          |
-| Text tool returns 502                                 | Claude returned malformed JSON—check `DebunkResponseSchema` matches actual response                                                                              |
-| Rate limit fires in local dev                         | `UPSTASH_REDIS_*` env vars set—clear them or use a dev Redis DB                                                                                                  |
-| SMTP cache never hits                                 | Email normalisation mismatch, TTL expired, or `source === "local"` (cache excludes it)                                                                           |
-| Safe Browsing returns 401                             | API key not enabled for "Safe Browsing API" in Google Cloud Console                                                                                              |
-| `disposable-email-domains` import fails               | It's CJS/ESM hybrid—use `disposable-domains.ts` wrapper; don't import directly                                                                                   |
-| Claude model 404                                      | Format is `claude-{variant}-{version}-{date}`, NOT `claude-{version}-{variant}-{date}`                                                                           |
-| Smart Check opens with an empty box                   | The `itv_smart_input` handoff was consumed twice. `takeSmartInput()` is destructive and StrictMode double-invokes effects—cache the first read in a ref          |
-| QR camera fails in production                         | `Permissions-Policy: camera=()` in `next.config.ts`—an empty allowlist blocks the top-level document too. Must be `camera=(self)`                                |
-| Prose extraction returns junk "links"                 | A sentence with a missing space after a full stop matched the bare-domain regex—the TLD is missing from `EXTRACTABLE_TLDS`, or the allowlist check was skipped   |
-| `192.168.1.1` detected as a phone                     | The IPv4 rule was moved after the phone-shape rule in `detectInputKind`                                                                                          |
-| Phone "Valid length" shows X on a right-length number | `checks.validLength` was aliased to `isValid()` instead of `isPossible()`—a possible-but-invalid NANP number (e.g. bad exchange code) misreports as wrong length |
-| Several Ko-fi bars on one page                        | A composite view passed `variant="standalone"` (or omitted it) on stacked cards                                                                                  |
+| Symptom                                                             | Likely Cause                                                                                                                                                                          |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Score is 100 for a `.con` typo address                              | Typo cap escaped in `applyMxResult` or `mergeSmtpResult`                                                                                                                              |
+| `valid: true` on garbage-TLD address                                | `validTld` missing from `mergeSmtpResult`'s valid formula                                                                                                                             |
+| Typosquat URL scores 84 instead of ≤79                              | Score bonus applied AFTER cap—reorder so caps come last                                                                                                                               |
+| Text tool returns 502                                               | Claude returned malformed JSON—check `DebunkResponseSchema` matches actual response                                                                                                   |
+| Rate limit fires in local dev                                       | `UPSTASH_REDIS_*` env vars set—clear them or use a dev Redis DB                                                                                                                       |
+| SMTP cache never hits                                               | Email normalisation mismatch, TTL expired, or `source === "local"` (cache excludes it)                                                                                                |
+| Safe Browsing returns 401                                           | API key not enabled for "Safe Browsing API" in Google Cloud Console                                                                                                                   |
+| `disposable-email-domains` import fails                             | It's CJS/ESM hybrid—use `disposable-domains.ts` wrapper; don't import directly                                                                                                        |
+| Claude model 404                                                    | Format is `claude-{variant}-{version}-{date}`, NOT `claude-{version}-{variant}-{date}`                                                                                                |
+| Smart Check opens with an empty box                                 | The `itv_smart_input` handoff was consumed twice. `takeSmartInput()` is destructive and StrictMode double-invokes effects—cache the first read in a ref                               |
+| QR camera fails in production                                       | `Permissions-Policy: camera=()` in `next.config.ts`—an empty allowlist blocks the top-level document too. Must be `camera=(self)`                                                     |
+| Prose extraction returns junk "links"                               | A sentence with a missing space after a full stop matched the bare-domain regex—the TLD is missing from `EXTRACTABLE_TLDS`, or the allowlist check was skipped                        |
+| `192.168.1.1` detected as a phone                                   | The IPv4 rule was moved after the phone-shape rule in `detectInputKind`                                                                                                               |
+| Phone "Valid length" shows X on a right-length number               | `checks.validLength` was aliased to `isValid()` instead of `isPossible()`—a possible-but-invalid NANP number (e.g. bad exchange code) misreports as wrong length                      |
+| Several Ko-fi bars on one page                                      | A composite view passed `variant="standalone"` (or omitted it) on stacked cards                                                                                                       |
+| `root tsc`/`eslint` fails on `apps/mobile` files                    | It's excluded from both on purpose (incompatible RN/DOM config)—use `cd apps/mobile && npx tsc --noEmit` / `npx expo lint` instead, don't remove the excludes                         |
+| `apps/mobile` Metro serves stale code after editing `packages/core` | `metro.config.js` is missing its `watchFolders`/`nodeModulesPaths` monorepo config                                                                                                    |
+| "NativeWind only supports Tailwind CSS v3" in `apps/mobile`         | Something re-added NativeWind v4—it hoists to root `node_modules` and its `tailwindcss` peer resolves to the web app's v4 there; use `StyleSheet` + `src/constants/colors.ts` instead |
 
 ---
 
