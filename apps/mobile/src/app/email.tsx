@@ -93,7 +93,11 @@ export default function EmailScreen() {
   }
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={styles.content}
+      alwaysBounceVertical={false}
+    >
       <SectionHeader
         icon="📧"
         smallTitle="Email Validator"
