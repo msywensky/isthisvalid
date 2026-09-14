@@ -6,6 +6,8 @@ Not sure which of those you need? Paste it into **Smart Check** and it works tha
 
 **Live:** https://isthisvalid.com
 
+**Mobile app:** A React Native (Expo) client lives in `apps/mobile/`, sharing its validation logic with the web app via the `packages/core` workspace package. It's in active development and **not yet published** to the App Store or Google Play.
+
 ---
 
 ## Features
@@ -134,7 +136,7 @@ Not sure which of those you need? Paste it into **Smart Check** and it works tha
 
 ### Prerequisites
 
-- Node.js 18+ and npm
+- Node.js 24+ and npm
 
 ### Installation
 
@@ -198,7 +200,20 @@ npm start
 
 ## Project Structure
 
+This repo is an npm workspace root: the Next.js web app stays at the root (unchanged, zero deploy impact), with two workspace siblings — `packages/core` (pure validation logic shared by both clients) and `apps/mobile` (the React Native/Expo app). See [ARCHITECTURE.md](./ARCHITECTURE.md#9-monorepo--react-native-client) for the full breakdown.
+
 ```
+packages/core/
+└── src/                    # Pure TS: email/url/phone-validator, input-router, qr-content,
+                             #   text/image-debunker, *-faq-data — no DOM, no Node-only APIs
+
+apps/mobile/                # Expo Router app (@isthisvalid/mobile) — calls the same /api/*
+│                            #   routes over HTTP; imports @isthisvalid/core/* directly.
+│                            #   Has its own tsc/lint commands — see CLAUDE.md.
+└── src/
+    ├── app/                # Screens: index, email, url, phone, text, image, settings
+    └── components/         # RN result cards, shared ScoreRing/FAQ components
+
 src/
 ├── app/                    # Next.js App Router pages
 │   ├── check/              # Tool pages (any/email/url/text/phone/image/qr)
@@ -216,25 +231,22 @@ src/
 │   ├── QrContentCard.tsx   # Non-URL QR content display (tel/email/wifi/text)
 │   ├── SmartInput.tsx      # Homepage "paste anything" box
 │   └── ...
-├── lib/                    # Utility functions & constants
-│   ├── email-validator.ts  # Core email validation logic
+├── lib/                    # Server-only logic + one-line re-export shims for the pure
+│   │                       #   validators/debunkers (real implementation now lives in
+│   │                       #   packages/core/ — see above; shims keep every existing
+│   │                       #   import site working unchanged)
 │   ├── smtp-provider.ts    # Pluggable SMTP provider (ZeroBounce / Emailable)
-│   ├── url-validator.ts    # Core URL validation logic
-│   ├── text-debunker.ts    # Text analysis types
-│   ├── phone-validator.ts  # Core phone validation logic + carrier merge
 │   ├── carrier-provider.ts # Pluggable carrier API (AbstractAPI / NumVerify)
 │   ├── phone-cache.ts      # Redis carrier result cache (30-day TTL)
-│   ├── image-debunker.ts   # Image analysis types, Zod schema, normalisation, coercion
 │   ├── sightengine-client.ts # SightEngine API client with retry/backoff
-│   ├── qr-content.ts       # Pure QR content classifier (url/tel/email/wifi/text)
-│   ├── input-router.ts     # Pure input router: detect kind + extract links/numbers from prose
 │   ├── smart-input-handoff.ts # Read-once sessionStorage handoff (never a query string)
-│   ├── result-card-variant.ts # standalone / primary / nested card display modes
 │   ├── llm-client.ts       # Anthropic API wrapper
 │   ├── rate-limit.ts       # Upstash rate limiting
-│   └── affiliate-links.ts  # Affiliate partner URLs
+│   ├── affiliate-links.ts  # Affiliate partner URLs (shim)
+│   └── email-validator.ts, url-validator.ts, phone-validator.ts, text-debunker.ts,
+│       image-debunker.ts, input-router.ts, qr-content.ts, result-card-variant.ts # shims
 ├── hooks/                  # useQrScanner, useSmartCheck
-└── __tests__/              # Jest unit tests (562)
+└── __tests__/              # Jest unit tests (563)
 
 public/
 ├── manifest.json           # PWA manifest (text-only share target)
