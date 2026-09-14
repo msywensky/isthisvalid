@@ -32,6 +32,14 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "IsThisValid needs access to your photos so you can pick an image to check for AI generation or manipulation.",
+          "cameraPermission": "IsThisValid needs access to your camera so you can take a photo to check for AI generation or manipulation.",
+          "microphonePermission": false
+        }
       ]
     ],
     "experiments": {
