@@ -35,7 +35,7 @@ interface Tool {
   description: string;
   accent: string;
   cta: string;
-  /** "email" and "text" are wired to their real APIs; url/phone/image are still placeholders. */
+  /** "email", "text", "phone", and "url" are wired to their real APIs; "image" is still a placeholder. */
   ready: boolean;
 }
 
@@ -51,7 +51,7 @@ const TOOLS: Tool[] = [
       "Identify country, line type, and flag premium-rate or VoIP numbers used in callback scams.",
     accent: Colors.teal400,
     cta: "Check number",
-    ready: false,
+    ready: true,
   },
   {
     href: "/text",
@@ -84,7 +84,7 @@ const TOOLS: Tool[] = [
       "Spot phishing links, malware domains, and suspicious redirects before you click.",
     accent: Colors.sky400,
     cta: "Check URL",
-    ready: false,
+    ready: true,
   },
   {
     href: "/image",

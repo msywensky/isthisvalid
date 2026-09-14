@@ -1,15 +1,14 @@
 import { StyleSheet, Text, View } from "react-native";
+import Svg, { Circle } from "react-native-svg";
 
 import { Colors } from "@/constants/colors";
 
 /**
- * Shared result card for every /check/* tool screen (score-based tools:
- * email, URL, phone). Mirrors the web app's ResultCard.tsx — sentiment
- * badge, score, message, suggestion, and a pass/fail check breakdown — so
- * mobile shows the same full result, not a stripped-down version of it.
- *
- * Each screen owns its own domain logic for deriving Sentiment and the
- * CheckItem list from its own result shape; this component only renders.
+ * Result card for the Email screen. Mirrors the web app's ResultCard.tsx
+ * (used by web's email tool only) — sentiment badge, score ring, message,
+ * suggestion, and a pass/fail check breakdown. Phone and URL have their own
+ * dedicated cards (PhoneResultCard/UrlResultCard) on both platforms, since
+ * their result shapes and sentiment thresholds differ.
  */
 export type Sentiment = "valid" | "warn" | "invalid";
 
@@ -33,7 +32,14 @@ export interface ResultCardProps {
 
 const sentimentMeta: Record<
   Sentiment,
-  { border: string; bg: string; badge: string; icon: string; label: string }
+  {
+    border: string;
+    bg: string;
+    badge: string;
+    icon: string;
+    label: string;
+    ring: string;
+  }
 > = {
   valid: {
     border: Colors.limeBorder,
@@ -41,6 +47,7 @@ const sentimentMeta: Record<
     badge: Colors.lime600,
     icon: "✅",
     label: "Valid",
+    ring: Colors.lime500,
   },
   warn: {
     border: Colors.yellowBorder,
@@ -48,6 +55,7 @@ const sentimentMeta: Record<
     badge: Colors.yellow600,
     icon: "⚠️",
     label: "Risky",
+    ring: Colors.yellow500,
   },
   invalid: {
     border: Colors.roseBorder,
@@ -55,8 +63,42 @@ const sentimentMeta: Record<
     badge: Colors.rose600,
     icon: "❌",
     label: "Invalid",
+    ring: Colors.rose400,
   },
 };
+
+const RING_RADIUS = 20;
+const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+
+function ScoreRing({ score, ringColor }: { score: number; ringColor: string }) {
+  const offset = RING_CIRCUMFERENCE - (score / 100) * RING_CIRCUMFERENCE;
+  return (
+    <View style={styles.ringWrap}>
+      <Svg width={56} height={56} viewBox="0 0 56 56" style={styles.ringSvg}>
+        <Circle
+          cx={28}
+          cy={28}
+          r={RING_RADIUS}
+          fill="none"
+          stroke={Colors.zinc800}
+          strokeWidth={6}
+        />
+        <Circle
+          cx={28}
+          cy={28}
+          r={RING_RADIUS}
+          fill="none"
+          stroke={ringColor}
+          strokeWidth={6}
+          strokeDasharray={`${RING_CIRCUMFERENCE.toFixed(2)} ${RING_CIRCUMFERENCE.toFixed(2)}`}
+          strokeDashoffset={offset.toFixed(2)}
+          strokeLinecap="round"
+        />
+      </Svg>
+      <Text style={styles.ringScore}>{score}</Text>
+    </View>
+  );
+}
 
 export function ResultCard({
   score,
@@ -78,7 +120,7 @@ export function ResultCard({
             <Text style={styles.sentimentBadgeText}>{s.label}</Text>
           </View>
         </View>
-        <Text style={styles.score}>{score}/100</Text>
+        <ScoreRing score={score} ringColor={s.ring} />
       </View>
 
       <Text style={styles.message}>{message}</Text>
@@ -144,7 +186,19 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     textTransform: "uppercase",
   },
-  score: { color: Colors.white, fontSize: 18, fontWeight: "800" },
+  ringWrap: {
+    width: 56,
+    height: 56,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  ringSvg: { transform: [{ rotate: "-90deg" }] },
+  ringScore: {
+    position: "absolute",
+    color: Colors.white,
+    fontSize: 12,
+    fontWeight: "800",
+  },
   message: { color: Colors.white, fontSize: 16, fontWeight: "500" },
   detail: { color: Colors.amber400, fontSize: 13 },
   checksGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
