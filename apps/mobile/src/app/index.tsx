@@ -1,9 +1,31 @@
+import { useState } from "react";
 import { useRouter } from "expo-router";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+
+import {
+  detectInputKind,
+  type DetectedKind,
+} from "@isthisvalid/core/input-router";
 
 import { Colors, withAlpha } from "@/constants/colors";
 import SiteLogo from "@/components/SiteLogo";
 import SectionHeader from "@/components/SectionHeader";
+
+// Mirrors web's SmartInput.tsx — detection runs locally purely to show a
+// hint as the user types.
+const HINT: Record<DetectedKind, string> = {
+  email: "Looks like an email address",
+  url: "Looks like a link",
+  phone: "Looks like a phone number",
+  text: "Looks like a message",
+};
 
 interface Tool {
   href: "/email" | "/url" | "/phone" | "/text" | "/image";
@@ -13,7 +35,7 @@ interface Tool {
   description: string;
   accent: string;
   cta: string;
-  /** Only "email" is wired to the real API in this scaffolding pass. */
+  /** "email" and "text" are wired to their real APIs; url/phone/image are still placeholders. */
   ready: boolean;
 }
 
@@ -40,7 +62,7 @@ const TOOLS: Tool[] = [
       "Paste a suspicious message — AI flags smishing, impersonation, and urgency tricks.",
     accent: Colors.violet400,
     cta: "Analyse text",
-    ready: false,
+    ready: true,
   },
   {
     href: "/email",
@@ -79,6 +101,20 @@ const TOOLS: Tool[] = [
 
 export default function HomeScreen() {
   const router = useRouter();
+  const [quickValue, setQuickValue] = useState("");
+
+  const trimmed = quickValue.trim();
+  const hint = trimmed === "" ? null : HINT[detectInputKind(trimmed).kind];
+
+  function onQuickCheck() {
+    if (trimmed === "") return;
+    const detected = detectInputKind(trimmed);
+    router.push({
+      pathname: `/${detected.kind}`,
+      params: { value: detected.value },
+    });
+    setQuickValue("");
+  }
 
   return (
     <ScrollView
@@ -98,6 +134,35 @@ export default function HomeScreen() {
           }
           description="Pick something suspicious. We'll tell you if it's genuine, sketchy, or straight-up fake. No signup. No nonsense."
         />
+      </View>
+      <View style={styles.quickCheck}>
+        <TextInput
+          value={quickValue}
+          onChangeText={setQuickValue}
+          placeholder="Paste a link, email, phone number, or the whole text message…"
+          placeholderTextColor={Colors.zinc500}
+          autoCapitalize="none"
+          autoCorrect={false}
+          multiline
+          numberOfLines={3}
+          style={styles.quickCheckInput}
+        />
+        <View style={styles.quickCheckRow}>
+          <Pressable
+            onPress={onQuickCheck}
+            disabled={trimmed === ""}
+            style={({ pressed }) => [
+              styles.quickCheckButton,
+              trimmed === "" && styles.quickCheckButtonDisabled,
+              pressed && trimmed !== "" && styles.quickCheckButtonPressed,
+            ]}
+          >
+            <Text style={styles.quickCheckButtonText}>Check it →</Text>
+          </Pressable>
+          <Text style={styles.quickCheckHint}>
+            {hint ?? "Not sure which tool you need? Start here."}
+          </Text>
+        </View>
       </View>
 
       <Text style={styles.pickToolLabel}>…or pick a specific tool:</Text>
@@ -147,6 +212,34 @@ const styles = StyleSheet.create({
   content: { padding: 16, gap: 12 },
   hero: { alignItems: "center", paddingTop: 24, paddingBottom: 4, gap: 4 },
   headlineAccent: { color: Colors.orange400 },
+  quickCheck: { gap: 12, marginTop: 4 },
+  quickCheckInput: {
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: Colors.zinc700,
+    backgroundColor: Colors.zinc900,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    color: Colors.white,
+    fontSize: 16,
+    minHeight: 88,
+    textAlignVertical: "top",
+  },
+  quickCheckRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  quickCheckButton: {
+    borderRadius: 12,
+    backgroundColor: Colors.orange500,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  quickCheckButtonDisabled: { opacity: 0.5 },
+  quickCheckButtonPressed: { backgroundColor: Colors.orange600 },
+  quickCheckButtonText: {
+    color: Colors.white,
+    fontWeight: "600",
+    fontSize: 15,
+  },
+  quickCheckHint: { flex: 1, fontSize: 13, color: Colors.zinc400 },
   pickToolLabel: { fontSize: 13, color: Colors.zinc400, marginTop: 4 },
   card: {
     borderRadius: 16,
