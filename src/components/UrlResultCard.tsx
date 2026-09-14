@@ -3,6 +3,7 @@
 import { UrlValidationResult } from "@/lib/url-validator";
 import AffiliateNudge from "@/components/AffiliateNudge";
 import KofiDonation from "@/components/KofiDonation";
+import ScoreRing from "@/components/ScoreRing";
 import { AFFILIATE_LINKS } from "@/lib/affiliate-links";
 import {
   showsAffiliate,
@@ -79,11 +80,6 @@ export function UrlResultCard({ result, variant = "standalone" }: Props) {
   // container owns the spacing, so it would double up.
   const ownSpacing = variant === "standalone" ? "mt-8" : "";
 
-  // SVG score ring
-  const radius = 40;
-  const circumference = 2 * Math.PI * radius;
-  const strokeDashoffset = circumference - (result.score / 100) * circumference;
-
   const hasFlags = result.flags.length > 0;
   const hasSafeBrowsing = checks.safeBrowsing !== null;
   const hasResolves = checks.resolves !== null;
@@ -101,51 +97,28 @@ export function UrlResultCard({ result, variant = "standalone" }: Props) {
     <div
       className={`${ownSpacing} w-full rounded-2xl border-2 p-6 backdrop-blur transition-all duration-300 ${s.card}`}
     >
-      {/* Header row — score ring + sentiment */}
-      <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-start">
-        {/* Score ring */}
-        <div className="relative shrink-0">
-          <svg width="100" height="100" className="-rotate-90">
-            <circle
-              cx="50"
-              cy="50"
-              r={radius}
-              fill="none"
-              stroke="#3f3f46"
-              strokeWidth="10"
-            />
-            <circle
-              cx="50"
-              cy="50"
-              r={radius}
-              fill="none"
-              stroke={s.ring}
-              strokeWidth="10"
-              strokeDasharray={circumference}
-              strokeDashoffset={strokeDashoffset}
-              strokeLinecap="round"
-              style={{ transition: "stroke-dashoffset 0.6s ease" }}
-            />
-          </svg>
-          <span className="absolute inset-0 flex items-center justify-center rotate-0 text-2xl font-bold text-white">
-            {result.score}
-          </span>
-        </div>
+      {/* Header row — sentiment badge + score ring */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <span
+          className={`inline-flex w-fit items-center rounded-full px-3 py-1 text-sm font-semibold ${s.bg} ${s.text}`}
+        >
+          {s.label}
+        </span>
+        <ScoreRing
+          score={result.score}
+          ringColor={s.ring}
+          trackColor="#3f3f46"
+        />
+      </div>
 
-        {/* Verdict block */}
-        <div className="flex flex-col gap-2">
-          <span
-            className={`inline-flex w-fit items-center rounded-full px-3 py-1 text-sm font-semibold ${s.bg} ${s.text}`}
-          >
-            {s.label}
-          </span>
-          <p className="text-sm text-zinc-300 leading-relaxed max-w-md">
-            {result.message}
-          </p>
-          <p className="text-xs text-zinc-500">
-            Checked via <span className="italic">{sourceText}</span>
-          </p>
-        </div>
+      {/* Verdict message */}
+      <div className="mt-4 space-y-1">
+        <p className="text-sm text-zinc-300 leading-relaxed">
+          {result.message}
+        </p>
+        <p className="text-xs text-zinc-500">
+          Checked via <span className="italic">{sourceText}</span>
+        </p>
       </div>
 
       {/* Safe Browsing degraded warning */}

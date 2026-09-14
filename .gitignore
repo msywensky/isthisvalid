@@ -41,6 +41,10 @@ yarn-error.log*
 # vercel
 .vercel
 
+# expo (apps/mobile has its own .gitignore too, but `npx expo lint` run
+# from the repo root — instead of apps/mobile — creates this at the root)
+.expo/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
