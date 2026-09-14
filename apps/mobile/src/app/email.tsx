@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useLocalSearchParams } from "expo-router";
 import {
   ActivityIndicator,
   Pressable,
@@ -6,6 +7,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  View,
 } from "react-native";
 
 import type { EmailValidationResult } from "@isthisvalid/core/email-validator";
@@ -60,8 +62,25 @@ function getSourceLabel(result: EmailValidationResult): string {
   return "local checks";
 }
 
+// Mirrors web's check/email/page.tsx "How it works" <ol>.
+const HOW_IT_WORKS: [string, string][] = [
+  ["Syntax check", "RFC 5322 regex validates structure."],
+  ["TLD check", "ensures the domain has a real top-level extension."],
+  ["Disposable-domain check", "flags 57,000+ known throwaway providers."],
+  [
+    "MX record check",
+    "looks up the domain's DNS mail records to confirm it can actually receive email.",
+  ],
+  [
+    "Mailbox verification (optional)",
+    "ZeroBounce or Emailable confirms whether the specific mailbox exists and accepts mail.",
+  ],
+];
+
 export default function EmailScreen() {
-  const [email, setEmail] = useState("");
+  // Prefilled when navigated here from the home screen's quick-check input.
+  const { value: prefill } = useLocalSearchParams<{ value?: string }>();
+  const [email, setEmail] = useState(prefill ?? "");
   const [result, setResult] = useState<EmailValidationResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -91,6 +110,19 @@ export default function EmailScreen() {
       setLoading(false);
     }
   }
+
+  // Arriving here from the home screen's quick-check input should validate
+  // immediately, not leave the user to press the button on a prefilled form.
+  // The ref guards against StrictMode's double-invoked mount effect firing
+  // two requests.
+  const autoSubmitted = useRef(false);
+  useEffect(() => {
+    if (prefill && !autoSubmitted.current) {
+      autoSubmitted.current = true;
+      void onSubmit();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefill]);
 
   return (
     <ScrollView
@@ -130,9 +162,9 @@ export default function EmailScreen() {
         ]}
       >
         {loading ? (
-          <ActivityIndicator color={Colors.zinc950} />
+          <ActivityIndicator color={Colors.white} />
         ) : (
-          <Text style={styles.buttonText}>Validate email</Text>
+          <Text style={styles.buttonText}>Is it valid? →</Text>
         )}
       </Pressable>
 
@@ -150,6 +182,18 @@ export default function EmailScreen() {
           source={getSourceLabel(result)}
         />
       )}
+
+      <View style={styles.howItWorks}>
+        <Text style={styles.howItWorksHeading}>How it works</Text>
+        {HOW_IT_WORKS.map(([title, detail], i) => (
+          <View key={title} style={styles.howItWorksRow}>
+            <Text style={styles.howItWorksNumber}>{i + 1}.</Text>
+            <Text style={styles.howItWorksText}>
+              <Text style={styles.howItWorksTitle}>{title}</Text> — {detail}
+            </Text>
+          </View>
+        ))}
+      </View>
 
       <FAQ data={FAQ_DATA} />
     </ScrollView>
@@ -177,6 +221,17 @@ const styles = StyleSheet.create({
   },
   buttonPressed: { opacity: 0.8 },
   buttonDisabled: { opacity: 0.4 },
-  buttonText: { color: Colors.zinc950, fontWeight: "600" },
+  buttonText: { color: Colors.white, fontWeight: "600" },
   error: { color: Colors.rose400 },
+  howItWorks: { gap: 10 },
+  howItWorksHeading: { color: Colors.zinc300, fontWeight: "600", fontSize: 15 },
+  howItWorksRow: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
+  howItWorksNumber: { color: Colors.zinc500, fontSize: 13, lineHeight: 19 },
+  howItWorksText: {
+    flex: 1,
+    color: Colors.zinc400,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  howItWorksTitle: { color: Colors.zinc200, fontWeight: "700" },
 });

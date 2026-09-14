@@ -18,8 +18,12 @@ export const Colors = {
   white: "#ffffff",
 
   // Brand orange — CheckShell's icon+label row on every tool screen (not a
-  // per-tool accent).
+  // per-tool accent). 500/600 are the quick-check CTA's solid/pressed fill,
+  // matching web's bg-orange-500 active:bg-orange-600.
   orange400: "#fb923c",
+  orange500: "#f97316",
+  orange600: "#ea580c",
+  zinc700: "#3f3f46",
 
   // Email tool accent (CLAUDE.md: "amber-400/500, distinct from brand
   // orange"): 400 for text accents (e.g. the headline span), 500 for the CTA.
@@ -30,6 +34,9 @@ export const Colors = {
   // (Phone: teal, Text: violet, Email: amber above, URL: sky, Image: emerald).
   teal400: "#2dd4bf",
   violet400: "#a78bfa",
+  // Text tool CTA (bg-violet-500 active:bg-violet-600 on web's TextCheckPage).
+  violet500: "#8b5cf6",
+  violet600: "#7c3aed",
   sky400: "#38bdf8",
   emerald400: "#34d399",
 
@@ -40,9 +47,12 @@ export const Colors = {
   // Matches web's CheckRow: bg-lime-900/30 (pass state)
   limeCheckBg: "rgba(54, 83, 20, 0.3)",
 
+  yellow400: "#facc15",
   yellow600: "#ca8a04",
   yellow950: "#422006",
   yellowBorder: "rgba(234, 179, 8, 0.5)",
+  // Matches web's TextResultCard: bg-yellow-950/40 (spam/suspicious badge)
+  yellowCheckBg: "rgba(133, 77, 14, 0.3)",
 
   rose300: "#fda4af",
   rose400: "#fb7185",
