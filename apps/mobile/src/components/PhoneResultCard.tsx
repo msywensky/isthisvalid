@@ -1,9 +1,9 @@
 import { StyleSheet, Text, View } from "react-native";
-import Svg, { Circle } from "react-native-svg";
 
 import type { PhoneValidationResult } from "@isthisvalid/core/phone-validator";
 
 import { Colors } from "@/constants/colors";
+import ScoreRing from "@/components/ScoreRing";
 
 /**
  * Result card for the Phone checker — ported 1:1 from the web app's
@@ -256,39 +256,6 @@ function CheckRow({
   );
 }
 
-const RING_RADIUS = 20;
-const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
-
-function ScoreRing({ score, ringColor }: { score: number; ringColor: string }) {
-  const offset = RING_CIRCUMFERENCE - (score / 100) * RING_CIRCUMFERENCE;
-  return (
-    <View style={styles.ringWrap}>
-      <Svg width={56} height={56} viewBox="0 0 56 56" style={styles.ringSvg}>
-        <Circle
-          cx={28}
-          cy={28}
-          r={RING_RADIUS}
-          fill="none"
-          stroke={Colors.zinc800}
-          strokeWidth={6}
-        />
-        <Circle
-          cx={28}
-          cy={28}
-          r={RING_RADIUS}
-          fill="none"
-          stroke={ringColor}
-          strokeWidth={6}
-          strokeDasharray={`${RING_CIRCUMFERENCE.toFixed(2)} ${RING_CIRCUMFERENCE.toFixed(2)}`}
-          strokeDashoffset={offset.toFixed(2)}
-          strokeLinecap="round"
-        />
-      </Svg>
-      <Text style={styles.ringScore}>{score}</Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   card: { borderRadius: 16, borderWidth: 2, padding: 20, gap: 14 },
   header: {
@@ -326,19 +293,6 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
   },
   lineTypeBadgeText: { fontSize: 11, fontWeight: "600", color: Colors.zinc400 },
-  ringWrap: {
-    width: 56,
-    height: 56,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  ringSvg: { transform: [{ rotate: "-90deg" }] },
-  ringScore: {
-    position: "absolute",
-    color: Colors.white,
-    fontSize: 12,
-    fontWeight: "800",
-  },
   inputEcho: { color: Colors.zinc300, fontSize: 13, fontFamily: "monospace" },
   labelBlock: { gap: 2 },
   label: { color: Colors.white, fontSize: 16, fontWeight: "600" },

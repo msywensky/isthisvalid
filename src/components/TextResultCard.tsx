@@ -3,6 +3,7 @@
 import type { TextDebunkResult, TextClassification } from "@/lib/text-debunker";
 import AffiliateNudge from "@/components/AffiliateNudge";
 import KofiDonation from "@/components/KofiDonation";
+import ScoreRing from "@/components/ScoreRing";
 import { AFFILIATE_LINKS } from "@/lib/affiliate-links";
 import {
   showsAffiliate,
@@ -80,93 +81,52 @@ export default function TextResultCard({
   // Display score: higher = safer (inverse of riskScore)
   const displayScore = 100 - result.riskScore;
 
-  // SVG ring geometry
-  const R = 52;
-  const CIRC = 2 * Math.PI * R;
-  const fill = (displayScore / 100) * CIRC;
-  const OFFSET = CIRC * 0.25; // start at 12 o'clock
-
   return (
     <div
       className={`w-full max-w-xl rounded-2xl border-2 p-6 space-y-5 transition-all duration-300 ${cfg.cardClass}`}
     >
-      {/* Classification header */}
+      {/* Classification header + score ring */}
       <div
-        className={`flex items-start gap-3 rounded-xl border px-4 py-3 ${cfg.badgeBg}`}
+        className={`flex items-start justify-between gap-3 rounded-xl border px-4 py-3 ${cfg.badgeBg}`}
       >
-        <span className="text-2xl mt-0.5 shrink-0" aria-hidden="true">
-          {cfg.emoji}
-        </span>
-        <div className="min-w-0">
-          <p className={`font-bold text-lg leading-tight ${cfg.badgeColor}`}>
-            {cfg.label}
-          </p>
-          <p className="text-zinc-300 text-sm mt-0.5 leading-snug">
-            {result.summary}
-          </p>
+        <div className="flex items-start gap-3 min-w-0">
+          <span className="text-2xl mt-0.5 shrink-0" aria-hidden="true">
+            {cfg.emoji}
+          </span>
+          <div className="min-w-0">
+            <p className={`font-bold text-lg leading-tight ${cfg.badgeColor}`}>
+              {cfg.label}
+            </p>
+            <p className="text-zinc-300 text-sm mt-0.5 leading-snug">
+              {result.summary}
+            </p>
+          </div>
         </div>
+        <ScoreRing score={displayScore} ringColor={cfg.ringColor} />
       </div>
 
-      {/* Score ring + AI confidence */}
-      <div className="flex items-center gap-6">
-        {/* Ring */}
-        <div className="relative shrink-0" aria-hidden="true">
-          <svg width="120" height="120" viewBox="0 0 120 120">
-            {/* Track */}
-            <circle
-              cx="60"
-              cy="60"
-              r={R}
-              fill="none"
-              stroke="#27272a"
-              strokeWidth="9"
-            />
-            {/* Fill arc */}
-            <circle
-              cx="60"
-              cy="60"
-              r={R}
-              fill="none"
-              stroke={cfg.ringColor}
-              strokeWidth="9"
-              strokeLinecap="round"
-              strokeDasharray={`${fill.toFixed(2)} ${CIRC.toFixed(2)}`}
-              strokeDashoffset={OFFSET.toFixed(2)}
-            />
-          </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-2xl font-extrabold text-white">
-              {displayScore}
-            </span>
-            <span className="text-[11px] text-zinc-500">/ 100</span>
-          </div>
-        </div>
-
-        {/* Confidence bar */}
-        <div className="flex-1 space-y-2">
-          <p className="text-xs text-zinc-500 uppercase tracking-wider">
-            AI Confidence
-          </p>
+      {/* AI confidence */}
+      <div className="space-y-2">
+        <p className="text-xs text-zinc-500 uppercase tracking-wider">
+          AI Confidence
+        </p>
+        <div
+          className="w-full bg-zinc-800 rounded-full h-2"
+          role="meter"
+          aria-valuenow={result.confidence}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label={`AI confidence: ${result.confidence}%`}
+        >
           <div
-            className="w-full bg-zinc-800 rounded-full h-2"
-            role="meter"
-            aria-valuenow={result.confidence}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-label={`AI confidence: ${result.confidence}%`}
-          >
-            <div
-              className="h-2 rounded-full bg-violet-500 transition-all duration-500"
-              style={{ width: `${result.confidence}%` }}
-            />
-          </div>
-          <p className="text-sm text-zinc-300">
-            <span className="font-semibold text-white">
-              {result.confidence}%
-            </span>{" "}
-            confident
-          </p>
+            className="h-2 rounded-full bg-violet-500 transition-all duration-500"
+            style={{ width: `${result.confidence}%` }}
+          />
         </div>
+        <p className="text-sm text-zinc-300">
+          <span className="font-semibold text-white">{result.confidence}%</span>{" "}
+          confident
+        </p>
       </div>
 
       {/* Red flags */}

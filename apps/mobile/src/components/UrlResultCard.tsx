@@ -1,17 +1,18 @@
 import { StyleSheet, Text, View } from "react-native";
-import Svg, { Circle } from "react-native-svg";
 
 import type { UrlValidationResult } from "@isthisvalid/core/url-validator";
 
 import { Colors, withAlpha } from "@/constants/colors";
+import ScoreRing from "@/components/ScoreRing";
 
 /**
  * Result card for the URL checker — ported 1:1 from the web app's
- * UrlResultCard.tsx: a big score ring + verdict block, a Safe-Browisng
- * degraded warning, a 14-row (max) check grid, a redirect notice, and a
+ * UrlResultCard.tsx: sentiment badge + score ring, a Safe-Browsing degraded
+ * warning, a 14-row (max) check grid, a redirect notice, and a
  * flags-detected pill list. Sentiment thresholds are stricter than the
- * other tools' (URL ≥80 = Safe, ≥50 = Suspicious), and the check rows use a
- * neutral bg (only the ✓/✗ glyph is colored) — both match web exactly.
+ * other tools' (URL ≥80 = Safe, ≥50 = Suspicious), the check rows use a
+ * neutral bg (only the ✓/✗ glyph is colored), and the ring's track color is
+ * zinc-700 (not the other tools' zinc-800) — all match web exactly.
  */
 export interface UrlResultCardProps {
   result: UrlValidationResult;
@@ -77,9 +78,6 @@ function CheckRow({
   );
 }
 
-const RING_RADIUS = 40;
-const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
-
 export default function UrlResultCard({ result }: UrlResultCardProps) {
   const s = getSentiment(result.score);
   const checks = result.checks;
@@ -96,8 +94,6 @@ export default function UrlResultCard({ result }: UrlResultCardProps) {
       ? "RDAP + local checks"
       : "local checks";
 
-  const offset = RING_CIRCUMFERENCE - (result.score / 100) * RING_CIRCUMFERENCE;
-
   return (
     <View
       style={[
@@ -106,48 +102,23 @@ export default function UrlResultCard({ result }: UrlResultCardProps) {
       ]}
     >
       <View style={styles.headerRow}>
-        <View style={styles.ringWrap}>
-          <Svg
-            width={100}
-            height={100}
-            viewBox="0 0 100 100"
-            style={styles.ringSvg}
-          >
-            <Circle
-              cx={50}
-              cy={50}
-              r={RING_RADIUS}
-              fill="none"
-              stroke={Colors.zinc700}
-              strokeWidth={10}
-            />
-            <Circle
-              cx={50}
-              cy={50}
-              r={RING_RADIUS}
-              fill="none"
-              stroke={s.ring}
-              strokeWidth={10}
-              strokeDasharray={`${RING_CIRCUMFERENCE.toFixed(2)} ${RING_CIRCUMFERENCE.toFixed(2)}`}
-              strokeDashoffset={offset.toFixed(2)}
-              strokeLinecap="round"
-            />
-          </Svg>
-          <Text style={styles.ringScore}>{result.score}</Text>
-        </View>
-
-        <View style={styles.verdictBlock}>
-          <View style={[styles.badge, { backgroundColor: s.badgeBg }]}>
-            <Text style={[styles.badgeText, { color: s.badgeText }]}>
-              {s.label}
-            </Text>
-          </View>
-          <Text style={styles.message}>{result.message}</Text>
-          <Text style={styles.sourceText}>
-            Checked via{" "}
-            <Text style={styles.sourceTextItalic}>{sourceText}</Text>
+        <View style={[styles.badge, { backgroundColor: s.badgeBg }]}>
+          <Text style={[styles.badgeText, { color: s.badgeText }]}>
+            {s.label}
           </Text>
         </View>
+        <ScoreRing
+          score={result.score}
+          ringColor={s.ring}
+          trackColor={Colors.zinc700}
+        />
+      </View>
+
+      <View style={styles.verdictBlock}>
+        <Text style={styles.message}>{result.message}</Text>
+        <Text style={styles.sourceText}>
+          Checked via <Text style={styles.sourceTextItalic}>{sourceText}</Text>
+        </Text>
       </View>
 
       {safeBrowsingFailed && (
@@ -238,23 +209,11 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 20,
+    justifyContent: "space-between",
     flexWrap: "wrap",
+    gap: 12,
   },
-  ringWrap: {
-    width: 100,
-    height: 100,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  ringSvg: { transform: [{ rotate: "-90deg" }] },
-  ringScore: {
-    position: "absolute",
-    color: Colors.white,
-    fontSize: 24,
-    fontWeight: "800",
-  },
-  verdictBlock: { flex: 1, minWidth: 160, gap: 6 },
+  verdictBlock: { gap: 6 },
   badge: {
     alignSelf: "flex-start",
     borderRadius: 999,

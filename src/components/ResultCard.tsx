@@ -1,6 +1,7 @@
 import type { EmailValidationResult } from "@/lib/email-validator";
 import AffiliateNudge from "@/components/AffiliateNudge";
 import KofiDonation from "@/components/KofiDonation";
+import ScoreRing from "@/components/ScoreRing";
 import { AFFILIATE_LINKS } from "@/lib/affiliate-links";
 import {
   showsAffiliate,
@@ -24,22 +25,25 @@ function getSentiment(result: EmailValidationResult): Sentiment {
 
 const sentimentStyles: Record<
   Sentiment,
-  { card: string; badge: string; icon: string }
+  { card: string; badge: string; icon: string; ring: string }
 > = {
   valid: {
     card: "border-lime-500/50 bg-lime-950/40",
     badge: "bg-lime-600 text-white",
     icon: "✅",
+    ring: "#84cc16",
   },
   warn: {
     card: "border-yellow-500/50 bg-yellow-950/40",
     badge: "bg-yellow-600 text-black",
     icon: "⚠️",
+    ring: "#eab308",
   },
   invalid: {
     card: "border-rose-500/50 bg-rose-950/40",
     badge: "bg-rose-600 text-white",
     icon: "❌",
+    ring: "#fb7185",
   },
 };
 
@@ -73,7 +77,7 @@ export default function ResultCard({ result, variant = "standalone" }: Props) {
             {sentimentLabels[sentiment]}
           </span>
         </div>
-        <ScoreRing score={result.score} sentiment={sentiment} />
+        <ScoreRing score={result.score} ringColor={styles.ring} />
       </div>
 
       {/* Email */}
@@ -159,55 +163,6 @@ function CheckRow({
     >
       <span aria-hidden="true">{pass ? "✓" : "✗"}</span>
       <span>{label}</span>
-    </div>
-  );
-}
-
-function ScoreRing({
-  score,
-  sentiment,
-}: {
-  score: number;
-  sentiment: Sentiment;
-}) {
-  const radius = 20;
-  const circ = 2 * Math.PI * radius;
-  const offset = circ - (score / 100) * circ;
-  const colors: Record<Sentiment, string> = {
-    valid: "#84cc16", // lime-400
-    warn: "#eab308", // yellow-400
-    invalid: "#fb7185", // rose-400
-  };
-
-  return (
-    <div
-      className="relative flex items-center justify-center"
-      aria-label={`Score: ${score} out of 100`}
-      title={`Confidence score: ${score}/100`}
-    >
-      <svg width="56" height="56" viewBox="0 0 56 56" className="-rotate-90">
-        <circle
-          cx="28"
-          cy="28"
-          r={radius}
-          fill="none"
-          stroke="#27272a"
-          strokeWidth="6"
-        />
-        <circle
-          cx="28"
-          cy="28"
-          r={radius}
-          fill="none"
-          stroke={colors[sentiment]}
-          strokeWidth="6"
-          strokeDasharray={circ}
-          strokeDashoffset={offset}
-          strokeLinecap="round"
-          style={{ transition: "stroke-dashoffset 0.6s ease" }}
-        />
-      </svg>
-      <span className="absolute text-xs font-bold text-white">{score}</span>
     </div>
   );
 }

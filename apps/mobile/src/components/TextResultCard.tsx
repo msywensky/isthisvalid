@@ -1,5 +1,4 @@
 import { StyleSheet, Text, View } from "react-native";
-import Svg, { Circle } from "react-native-svg";
 
 import type {
   TextClassification,
@@ -7,13 +6,13 @@ import type {
 } from "@isthisvalid/core/text-debunker";
 
 import { Colors } from "@/constants/colors";
+import ScoreRing from "@/components/ScoreRing";
 
 /**
  * Result card for the Text/SMS scam checker. Distinct from the shared
  * ResultCard (email/URL/phone's pass-fail check breakdown) because the web
  * app's TextResultCard.tsx has its own shape: a classification badge, a
- * circular score ring, an AI-confidence bar, and a red-flags list — ported
- * 1:1 here, including the ring's exact SVG geometry.
+ * score ring, an AI-confidence bar, and a red-flags list — ported 1:1 here.
  */
 export interface TextResultCardProps {
   result: TextDebunkResult;
@@ -78,14 +77,9 @@ const CLASS_CONFIG: Record<
   },
 };
 
-const RING_RADIUS = 52;
-const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
-const RING_OFFSET = RING_CIRCUMFERENCE * 0.25; // start at 12 o'clock
-
 export default function TextResultCard({ result }: TextResultCardProps) {
   const cfg = CLASS_CONFIG[result.classification];
   const displayScore = 100 - result.riskScore;
-  const fill = (displayScore / 100) * RING_CIRCUMFERENCE;
 
   return (
     <View
@@ -95,61 +89,29 @@ export default function TextResultCard({ result }: TextResultCardProps) {
       ]}
     >
       <View style={[styles.badgeRow, { backgroundColor: cfg.badgeBg }]}>
-        <Text style={styles.badgeEmoji}>{cfg.emoji}</Text>
-        <View style={styles.badgeTextCol}>
-          <Text style={[styles.badgeLabel, { color: cfg.badgeText }]}>
-            {cfg.label}
-          </Text>
-          <Text style={styles.summary}>{result.summary}</Text>
+        <View style={styles.badgeRowLeft}>
+          <Text style={styles.badgeEmoji}>{cfg.emoji}</Text>
+          <View style={styles.badgeTextCol}>
+            <Text style={[styles.badgeLabel, { color: cfg.badgeText }]}>
+              {cfg.label}
+            </Text>
+            <Text style={styles.summary}>{result.summary}</Text>
+          </View>
         </View>
+        <ScoreRing score={displayScore} ringColor={cfg.ring} />
       </View>
 
-      <View style={styles.scoreRow}>
-        <View style={styles.ringWrap}>
-          <Svg width={120} height={120} viewBox="0 0 120 120">
-            <Circle
-              cx={60}
-              cy={60}
-              r={RING_RADIUS}
-              fill="none"
-              stroke={Colors.zinc800}
-              strokeWidth={9}
-            />
-            <Circle
-              cx={60}
-              cy={60}
-              r={RING_RADIUS}
-              fill="none"
-              stroke={cfg.ring}
-              strokeWidth={9}
-              strokeLinecap="round"
-              strokeDasharray={`${fill.toFixed(2)} ${RING_CIRCUMFERENCE.toFixed(2)}`}
-              strokeDashoffset={RING_OFFSET.toFixed(2)}
-            />
-          </Svg>
-          <View style={styles.ringCenter}>
-            <Text style={styles.ringScore}>{displayScore}</Text>
-            <Text style={styles.ringMax}>/ 100</Text>
-          </View>
+      <View style={styles.confidenceCol}>
+        <Text style={styles.confidenceLabel}>AI Confidence</Text>
+        <View style={styles.confidenceTrack}>
+          <View
+            style={[styles.confidenceFill, { width: `${result.confidence}%` }]}
+          />
         </View>
-
-        <View style={styles.confidenceCol}>
-          <Text style={styles.confidenceLabel}>AI Confidence</Text>
-          <View style={styles.confidenceTrack}>
-            <View
-              style={[
-                styles.confidenceFill,
-                { width: `${result.confidence}%` },
-              ]}
-            />
-          </View>
-          <Text style={styles.confidenceValue}>
-            <Text style={styles.confidenceValueStrong}>
-              {result.confidence}%
-            </Text>{" "}
-            confident
-          </Text>
-        </View>
+        <Text style={styles.confidenceValue}>
+          <Text style={styles.confidenceValueStrong}>{result.confidence}%</Text>{" "}
+          confident
+        </Text>
       </View>
 
       {result.flags.length > 0 && (
@@ -193,25 +155,23 @@ const styles = StyleSheet.create({
   badgeRow: {
     flexDirection: "row",
     alignItems: "flex-start",
+    justifyContent: "space-between",
     gap: 12,
     borderRadius: 12,
     padding: 12,
+  },
+  badgeRowLeft: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    minWidth: 0,
   },
   badgeEmoji: { fontSize: 22 },
   badgeTextCol: { flex: 1, gap: 2 },
   badgeLabel: { fontSize: 17, fontWeight: "700" },
   summary: { color: Colors.zinc300, fontSize: 13, lineHeight: 18 },
-  scoreRow: { flexDirection: "row", alignItems: "center", gap: 20 },
-  ringWrap: {
-    width: 120,
-    height: 120,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  ringCenter: { position: "absolute", alignItems: "center" },
-  ringScore: { color: Colors.white, fontSize: 24, fontWeight: "800" },
-  ringMax: { color: Colors.zinc500, fontSize: 11 },
-  confidenceCol: { flex: 1, gap: 6 },
+  confidenceCol: { gap: 6 },
   confidenceLabel: {
     fontSize: 11,
     fontWeight: "600",

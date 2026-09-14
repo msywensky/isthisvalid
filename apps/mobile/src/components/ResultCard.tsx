@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from "react-native";
-import Svg, { Circle } from "react-native-svg";
 
 import { Colors } from "@/constants/colors";
+import ScoreRing from "@/components/ScoreRing";
 
 /**
  * Result card for the Email screen. Mirrors the web app's ResultCard.tsx
@@ -66,39 +66,6 @@ const sentimentMeta: Record<
     ring: Colors.rose400,
   },
 };
-
-const RING_RADIUS = 20;
-const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
-
-function ScoreRing({ score, ringColor }: { score: number; ringColor: string }) {
-  const offset = RING_CIRCUMFERENCE - (score / 100) * RING_CIRCUMFERENCE;
-  return (
-    <View style={styles.ringWrap}>
-      <Svg width={56} height={56} viewBox="0 0 56 56" style={styles.ringSvg}>
-        <Circle
-          cx={28}
-          cy={28}
-          r={RING_RADIUS}
-          fill="none"
-          stroke={Colors.zinc800}
-          strokeWidth={6}
-        />
-        <Circle
-          cx={28}
-          cy={28}
-          r={RING_RADIUS}
-          fill="none"
-          stroke={ringColor}
-          strokeWidth={6}
-          strokeDasharray={`${RING_CIRCUMFERENCE.toFixed(2)} ${RING_CIRCUMFERENCE.toFixed(2)}`}
-          strokeDashoffset={offset.toFixed(2)}
-          strokeLinecap="round"
-        />
-      </Svg>
-      <Text style={styles.ringScore}>{score}</Text>
-    </View>
-  );
-}
 
 export function ResultCard({
   score,
@@ -185,19 +152,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 0.5,
     textTransform: "uppercase",
-  },
-  ringWrap: {
-    width: 56,
-    height: 56,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  ringSvg: { transform: [{ rotate: "-90deg" }] },
-  ringScore: {
-    position: "absolute",
-    color: Colors.white,
-    fontSize: 12,
-    fontWeight: "800",
   },
   message: { color: Colors.white, fontSize: 16, fontWeight: "500" },
   detail: { color: Colors.amber400, fontSize: 13 },
