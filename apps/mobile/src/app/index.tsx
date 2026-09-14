@@ -210,7 +210,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.zinc950 },
   content: { padding: 16, gap: 12 },
-  hero: { alignItems: "center", paddingTop: 24, paddingBottom: 4, gap: 4 },
+  hero: { alignItems: "center", paddingBottom: 4, gap: 4 },
   headlineAccent: { color: Colors.orange400 },
   quickCheck: { gap: 12, marginTop: 4 },
   quickCheckInput: {
