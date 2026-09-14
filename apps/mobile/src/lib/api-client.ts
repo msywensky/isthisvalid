@@ -19,13 +19,7 @@ export class ApiError extends Error {
   }
 }
 
-export async function postJson<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${API_BASE_URL}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-
+async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const payload = await res.json().catch(() => null);
     throw new ApiError(
@@ -37,4 +31,29 @@ export async function postJson<T>(path: string, body: unknown): Promise<T> {
   }
 
   return res.json() as Promise<T>;
+}
+
+export async function postJson<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return handleResponse<T>(res);
+}
+
+/**
+ * POSTs a multipart/form-data body — used by the image checker to upload a
+ * picked file. RN's fetch accepts `{ uri, name, type }` in place of a real
+ * File/Blob for a FormData entry (there's no File constructor on-device).
+ */
+export async function postFormData<T>(
+  path: string,
+  form: FormData,
+): Promise<T> {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    method: "POST",
+    body: form,
+  });
+  return handleResponse<T>(res);
 }

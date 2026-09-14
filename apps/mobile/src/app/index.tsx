@@ -35,7 +35,7 @@ interface Tool {
   description: string;
   accent: string;
   cta: string;
-  /** "email", "text", "phone", and "url" are wired to their real APIs; "image" is still a placeholder. */
+  /** All five tools are wired to their real APIs. */
   ready: boolean;
 }
 
@@ -95,7 +95,7 @@ const TOOLS: Tool[] = [
       "AI vision checks for deepfakes, manipulated screenshots, and out-of-context photos.",
     accent: Colors.emerald400,
     cta: "Check image",
-    ready: false,
+    ready: true,
   },
 ];
 

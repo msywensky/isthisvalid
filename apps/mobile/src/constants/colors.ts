@@ -50,6 +50,10 @@ export const Colors = {
   sky500: "#0ea5e9",
   sky600: "#0284c7",
   emerald400: "#34d399",
+  // Image tool's Detection Confidence bar (bg-emerald-500 on web's ImageResultCard)
+  // and CTA fill; emerald600 is the CTA's pressed fill (bg-emerald-600 on web).
+  emerald500: "#10b981",
+  emerald600: "#059669",
 
   lime300: "#bef264",
   // URL's ScoreRing safe color (#a3e635) — distinct from Phone's lime500.
