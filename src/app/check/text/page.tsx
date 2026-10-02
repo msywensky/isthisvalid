@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import CheckShell from "@/components/CheckShell";
 import AdSenseBanner from "@/components/AdSenseBanner";
 import TextResultCard from "@/components/TextResultCard";
+import ShareButton from "@/components/ShareButton";
 import TextFAQ from "@/components/TextFAQ";
 import type { TextDebunkResult } from "@/lib/text-debunker";
 
@@ -180,6 +181,7 @@ export default function TextCheckPage() {
           {phase === "result" && result && (
             <div className="space-y-4">
               <TextResultCard result={result} />
+              <ShareButton input={{ kind: "text", result, message: value }} />
               <button
                 onClick={handleReset}
                 className="cursor-pointer text-sm text-violet-400 hover:text-violet-300 underline underline-offset-2 transition-colors"

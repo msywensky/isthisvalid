@@ -3,6 +3,7 @@
 import { useState, type DragEvent } from "react";
 import CheckShell from "@/components/CheckShell";
 import { UrlResultCard } from "@/components/UrlResultCard";
+import ShareButton from "@/components/ShareButton";
 import QrContentCard from "@/components/QrContentCard";
 import QrFAQ from "@/components/QrFAQ";
 import { useQrScanner } from "@/hooks/useQrScanner";
@@ -217,6 +218,7 @@ export default function QrCheckPage() {
           {phase === "result-url" && urlResult && (
             <div className="space-y-4">
               <UrlResultCard result={urlResult} />
+              <ShareButton input={{ kind: "url", result: urlResult }} />
               <button
                 onClick={handleReset}
                 className="cursor-pointer text-sm text-cyan-400 hover:text-cyan-300 underline underline-offset-2 transition-colors"

@@ -8,9 +8,15 @@ import ResultCard from "@/components/ResultCard";
 import { UrlResultCard } from "@/components/UrlResultCard";
 import PhoneResultCard from "@/components/PhoneResultCard";
 import TextResultCard from "@/components/TextResultCard";
-import { useSmartCheck, type SubCheck } from "@/hooks/useSmartCheck";
+import ShareButton from "@/components/ShareButton";
+import {
+  useSmartCheck,
+  type PrimaryResult,
+  type SubCheck,
+} from "@/hooks/useSmartCheck";
 import { takeSmartInput } from "@/lib/smart-input-handoff";
-import type { DetectedKind } from "@/lib/input-router";
+import type { DetectedInput, DetectedKind } from "@/lib/input-router";
+import type { ShareInput } from "@/lib/share-text";
 
 const KIND_LABEL: Record<DetectedKind, string> = {
   email: "an email address",
@@ -25,6 +31,23 @@ const KIND_ICON: Record<DetectedKind, string> = {
   phone: "📞",
   text: "💬",
 };
+
+/** Only the primary verdict is shared — sub-checks stay on the page. */
+function toShareInput(
+  primary: PrimaryResult,
+  detected: DetectedInput,
+): ShareInput {
+  switch (primary.kind) {
+    case "text":
+      return { kind: "text", result: primary.data, message: detected.value };
+    case "email":
+      return { kind: "email", result: primary.data };
+    case "url":
+      return { kind: "url", result: primary.data };
+    case "phone":
+      return { kind: "phone", result: primary.data };
+  }
+}
 
 export default function SmartCheckPage() {
   const smart = useSmartCheck();
@@ -178,6 +201,9 @@ export default function SmartCheckPage() {
         )}
         {smart.primary?.kind === "text" && (
           <TextResultCard result={smart.primary.data} variant="primary" />
+        )}
+        {smart.primary && smart.detected && (
+          <ShareButton input={toShareInput(smart.primary, smart.detected)} />
         )}
 
         {/* Sub-checks found inside a pasted message */}

@@ -9,9 +9,12 @@ import {
 } from "react";
 import CheckShell from "@/components/CheckShell";
 import ImageResultCard from "@/components/ImageResultCard";
+import ShareButton from "@/components/ShareButton";
 import ImageFAQ from "@/components/ImageFAQ";
 import type { ImageDebunkResult } from "@/lib/image-debunker";
 import { isAcceptedMimeType, MAX_IMAGE_BYTES } from "@/lib/image-debunker";
+import { canShareFiles, composeShareImage } from "@/lib/share-image";
+import { buildImageStrip } from "@/lib/share-text";
 
 type Phase = "idle" | "preview" | "loading" | "result" | "error";
 
@@ -32,6 +35,10 @@ export default function ImageCheckPage() {
   const [result, setResult] = useState<ImageDebunkResult | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
   const [isDragging, setIsDragging] = useState(false);
+  // Share image is composed ahead of the tap: iOS only allows navigator.share
+  // synchronously inside the click, so there's no time to build it then.
+  const [shareFile, setShareFile] = useState<File | null>(null);
+  const [shareFailed, setShareFailed] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Revoke blob URL on change or unmount — NOT on result transition
@@ -41,6 +48,28 @@ export default function ImageCheckPage() {
       if (url) URL.revokeObjectURL(url);
     };
   }, [previewUrl]);
+
+  // Skipped entirely where files can't be shared (most desktop browsers) —
+  // the button just copies text there, so the canvas work would be wasted.
+  useEffect(() => {
+    if (!result || !file || !canShareFiles()) return;
+    let cancelled = false;
+    composeShareImage(file, buildImageStrip(result))
+      .then((f) => {
+        if (!cancelled) setShareFile(f);
+      })
+      .catch(() => {
+        if (!cancelled) setShareFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [result, file]);
+
+  function clearShareImage() {
+    setShareFile(null);
+    setShareFailed(false);
+  }
 
   function selectFile(selected: File) {
     if (!isAcceptedMimeType(selected.type)) {
@@ -89,6 +118,7 @@ export default function ImageCheckPage() {
     if (!file || phase === "loading") return;
     setPhase("loading");
     setResult(null);
+    clearShareImage();
 
     try {
       const form = new FormData();
@@ -116,6 +146,7 @@ export default function ImageCheckPage() {
     setPreviewUrl(null);
     setFile(null);
     setResult(null);
+    clearShareImage();
     setErrorMsg("");
     setPhase("idle");
   }
@@ -242,6 +273,11 @@ export default function ImageCheckPage() {
           {phase === "result" && result && (
             <div className="space-y-4">
               <ImageResultCard result={result} />
+              <ShareButton
+                input={{ kind: "image", result }}
+                file={shareFile}
+                preparing={canShareFiles() && !shareFile && !shareFailed}
+              />
               <button
                 onClick={handleReset}
                 className="cursor-pointer text-sm text-emerald-400 hover:text-emerald-300 underline underline-offset-2 transition-colors"

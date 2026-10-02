@@ -4,6 +4,7 @@ import { useState, useRef, type FormEvent } from "react";
 import type { UrlValidationResult } from "@/lib/url-validator";
 import CheckShell from "@/components/CheckShell";
 import { UrlResultCard } from "@/components/UrlResultCard";
+import ShareButton from "@/components/ShareButton";
 import AdSenseBanner from "@/components/AdSenseBanner";
 import UrlFAQ from "@/components/UrlFAQ";
 
@@ -129,7 +130,12 @@ export default function UrlCheckPage() {
           </div>
         )}
 
-        {state.phase === "result" && <UrlResultCard result={state.data} />}
+        {state.phase === "result" && (
+          <>
+            <UrlResultCard result={state.data} />
+            <ShareButton input={{ kind: "url", result: state.data }} />
+          </>
+        )}
 
         {(state.phase === "result" || state.phase === "error") && (
           <button
