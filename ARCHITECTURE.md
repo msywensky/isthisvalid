@@ -415,6 +415,48 @@ Android share sheet ("Share → IsThisValid")
   gets the full flow.
 - Icons are generated from the `SiteLogo` diamond by `npm run generate-icons`.
 
+### Sharing results ("Share result" button — web + mobile, no backend)
+
+```
+result card ──► ShareButton
+                 │
+                 ├─ text tools (email / url / phone / text)
+                 │    buildShareText(input)           packages/core/src/share-text.ts
+                 │      header + middle lines + "Check one yourself: https://isthisvalid.com/check/<tool>"
+                 │      verdict labels from result-verdict.ts (same as the card)
+                 │      checked URLs defanged: hxxps://evil[.]com  (our own link is not)
+                 │    web:    navigator.share({ text }) → clipboard fallback ("Copied ✓")
+                 │    mobile: RN Share.share({ message })
+                 │
+                 └─ image tool
+                      buildImageStrip(result) → { headline, detail, sentiment }
+                      web:    composeShareImage(file, strip)  src/lib/share-image.ts
+                                canvas re-encode (≤1600px edge, EXIF orientation applied),
+                                strip drawn BELOW the image, JPEG 0.9 — composed after the
+                                result arrives, only where navigator.canShare({files}) is true
+                              → navigator.share({ files: [jpg], text })
+                      mobile: ShareImageCard (off-screen, mounted only while sharing)
+                              → react-native-view-shot captureRef (~1080px wide JPEG)
+                              → expo-sharing shareAsync; text-only fallback on any failure
+```
+
+- **`ShareInput.kind` matches `DetectedKind`**, so `/check/any` shares its primary result
+  through a small `toShareInput()` helper. Sub-checks are not shared.
+- **Never share the original image file.** Both platforms share a fresh re-encode, which is
+  what strips EXIF (GPS location, device, timestamp).
+- **Image share wording is hedged and never says "Authentic"** ("No strong signs of AI
+  generation · AI risk score N/100" + "Automated estimate … not proof"). This deliberately
+  differs from the card's "Appears Authentic": a shared image travels without our UI around it.
+  Regression-tested in `share-text.test.ts`.
+- **iOS Safari only allows `navigator.share` synchronously inside the click handler.** That's
+  why the web share image is composed _before_ the tap and `ShareButton` awaits nothing first.
+- `navigator.share` needs HTTPS — test on real phones via the Vercel preview, not LAN `http://`.
+- `defangUrlsInText` reuses `extractUrls`, so a bare domain whose TLD isn't in
+  `EXTRACTABLE_TLDS` is left as typed; explicit `http(s)://` links are always defanged.
+- view-shot's `width` option is in points (multiplied by the pixel ratio), so mobile passes
+  `1080 / PixelRatio.get()`. `ShareImageCard` needs `collapsable={false}` (Android) and must be
+  positioned off-screen, not `opacity: 0` / `display: "none"` (those capture blank).
+
 ## File Structure
 
 ```
@@ -477,6 +519,8 @@ src/
 │   ├── ImageResultCard.tsx          # Classification badge, risk score, flags, explanation (image) — Ko-fi only, no affiliate nudge
 │   ├── QrFAQ.tsx                    # FAQ accordion for the QR tool (cyan accent)
 │   ├── QrContentCard.tsx            # Displays non-URL decoded QR content (tel/email/wifi/text) — never auto-acted on
+│   ├── ShareButton.tsx              # "Share result" for every /check/* page: Web Share API (text, or pre-composed
+│   │                                #   image file) → clipboard fallback; label via useSyncExternalStore (SSR-safe)
 │   └── ScoreRing.tsx                # Shared 0–100 ring (56×56, radius 20, -rotate-90) used by all 5 result cards —
 │                                     #   callers pass their own resolved `ringColor`; `trackColor` defaults to
 │                                     #   zinc-800, UrlResultCard overrides to zinc-700
@@ -523,6 +567,11 @@ src/
     ├── smart-input-handoff.ts       # SMART_INPUT_KEY / SHARE_COOKIE; stashSmartInput / takeSmartInput
     │                                #   (read-once sessionStorage, deleted on read — never a query string)
     ├── result-card-variant.ts       # ResultCardVariant ("standalone" | "primary" | "nested") + showsKofi/showsAffiliate
+    ├── result-verdict.ts            # Verdict = { sentiment: safe|warn|danger, label } per tool — the ONLY copy of the
+    │                                #   cards' score thresholds/badge labels (web + mobile cards + share text read it)
+    ├── share-text.ts                # buildShareText(ShareInput), buildImageStrip, defangUrl / defangUrlsInText, SITE_URL
+    ├── share-image.ts               # BROWSER ONLY (real file, not a shim): canShareFiles, composeShareImage — canvas
+    │                                #   re-encode + verdict strip; strips EXIF
     └── rate-limit.ts                # Upstash Redis: checkRateLimit (20/min), checkDailyTextLimit (20/day), checkDailyImageLimit (10/day);
                                      #   getRedis() shared client
 __tests__/
@@ -540,6 +589,11 @@ __tests__/
     #   prose false-positive rejection, fan-out cap constants (52 tests)
 ├── share-route.test.ts              # Jest unit tests: POST/GET /share — composeSharedText, 303 redirect,
     #   cookie flags, UTF-8 + delimiter round-trip, oversize shrink, no content in the URL (17 tests)
+├── result-verdict.test.ts           # Jest unit tests: email/phone 69/70 + 29/30 boundaries, syntax/parseable override,
+    #   URL 79/80 + 49/50 boundaries, every classification labelled (17 tests)
+├── share-text.test.ts               # Jest unit tests: defangUrl / defangUrlsInText (emails untouched, case-insensitive,
+    #   no partial-word matches), one exact string per tool, URL warning at 79 vs 80, phone fallback,
+    #   image strip wording + [Regression] never says "Authentic" (30 tests)
 ├── qr-content.test.ts               # Jest unit tests: classifyQrContent — url/tel/email/wifi/text classification,
     #   wifi password never surfaced, javascript:/data: regression guard (16 tests)
 ├── smtp-cache.test.ts               # Jest unit tests: getCachedSmtpResult, setCachedSmtpResult — Redis mocked (15 tests)
@@ -548,7 +602,7 @@ __tests__/
     #   notHighEntropy, notExcessiveHyphens, IP edge cases, ccTLD coverage (113 tests)
 ```
 
-**Total: 563 tests** (161 email + 113 URL + 71 phone + 52 input-router + 45 text + 46 image-debunker + 27 image-route + 17 share-route + 16 qr-content + 15 smtp-cache)
+**Total: 610 tests** (161 email + 113 URL + 71 phone + 52 input-router + 45 text + 46 image-debunker + 27 image-route + 30 share-text + 17 result-verdict + 17 share-route + 16 qr-content + 15 smtp-cache)
 
 Jest runs with `testEnvironment: "node"` and no jsdom, so component tests are not possible —
 logic worth testing lives in pure libs (`input-router.ts`, `qr-content.ts`, the validators).
@@ -582,14 +636,14 @@ isthisvalid/
 │       └── src/            # email-validator, url-validator, phone-validator, input-router,
 │                            #   qr-content, result-card-variant, affiliate-links, *-faq-data,
 │                            #   us-area-codes (+ data/us-area-codes.json), disposable-domains,
-│                            #   text-debunker, image-debunker
+│                            #   text-debunker, image-debunker, result-verdict, share-text
 └── apps/
     └── mobile/             # @isthisvalid/mobile — Expo + Expo Router client
 ```
 
 **`packages/core`** holds every pure-TypeScript file that used to live in `src/lib/` — no DOM, no Node-only APIs, no server-only imports (verified file-by-file before the move). It's consumed two ways:
 
-- **`apps/web`** (this Next.js app): `src/lib/<name>.ts` is now a one-line re-export shim — `export * from "@isthisvalid/core/<name>";` — so every existing import (`@/lib/email-validator`, all 563 Jest tests, every API route) is untouched. `next.config.ts` sets `transpilePackages: ["@isthisvalid/core"]` so Next transpiles it from source; `jest.config.ts` maps `@isthisvalid/core/*` straight to `packages/core/src/*.ts`, bypassing the workspace symlink for the test runner.
+- **`apps/web`** (this Next.js app): `src/lib/<name>.ts` is now a one-line re-export shim — `export * from "@isthisvalid/core/<name>";` — so every existing import (`@/lib/email-validator`, all 610 Jest tests, every API route) is untouched. `next.config.ts` sets `transpilePackages: ["@isthisvalid/core"]` so Next transpiles it from source; `jest.config.ts` maps `@isthisvalid/core/*` straight to `packages/core/src/*.ts`, bypassing the workspace symlink for the test runner.
 - **`apps/mobile`**: imports `@isthisvalid/core/*` directly (e.g. `@isthisvalid/core/email-validator`) for both types (parsing `/api/*` JSON responses) and the local/instant-feedback phase (e.g. `validateEmailLocal` runs on-device before the network call, mirroring the web app's progressive-enrichment pattern).
 
 The one cross-file fix this required: `email-validator.ts` used to import `SmtpVerifyResult` from the server-only `smtp-provider.ts`. That's backwards for a shared package (it would make `packages/core` depend on app-only code), so `SmtpVerifyResult` is now defined in `packages/core/src/email-validator.ts`, and `src/lib/smtp-provider.ts` imports it from there instead.
@@ -597,6 +651,8 @@ The one cross-file fix this required: `email-validator.ts` used to import `SmtpV
 **`apps/mobile`** is an Expo (Expo Router, `src/app/*` file-based routes) app that calls the **existing** `/api/validate`, `/api/validate-url`, `/api/validate-phone`, `/api/debunk/text`, `/api/debunk/image` routes over HTTP — no new backend, no duplicated scoring logic. `EXPO_PUBLIC_API_BASE_URL` (`.env.development` → `localhost:3000`, `.env.production` → `https://isthisvalid.com`) points it at the right origin; on a physical device (not a simulator) this needs the dev machine's LAN IP instead of `localhost`. `metro.config.js` sets explicit `watchFolders`/`nodeModulesPaths` so Metro picks up edits to `packages/core/src/*` without a restart. Styling is plain React Native `StyleSheet` with a small `src/constants/colors.ts` token file mirroring the web app's Tailwind hex values (zinc-950 background, amber-500 email accent, lime/yellow/rose result sentiment) — **not** NativeWind: NativeWind v4 only supports Tailwind CSS v3, and hoists to the workspace root `node_modules`, where its `tailwindcss` peer resolves to this repo's Tailwind v4 (used by the web app) instead of a pinned v3 — `npm overrides` cannot force a nested copy for an already-satisfied peer range. Revisit if NativeWind v5 (Tailwind v4 support) stabilizes.
 
 All five tool screens are wired to their real API routes. `text.tsx` ports web's `TextCheckPage`/`TextResultCard`/`TextFAQ` closely, including the score ring (`react-native-svg`), the "What AI will detect" list, and the "Try an example" pre-baked result that never calls the API. `phone.tsx` ports web's `PhoneCheckPage`/`PhoneResultCard`/`PhoneFAQ`, including the rotated SVG score ring, the formatted-number detail grid (E.164/international/national/country/location/carrier), and the prominent Caribbean/NANP one-ring-scam callout pulled out of the generic flags list. `url.tsx` ports web's `UrlCheckPage`/`UrlResultCard`/`UrlFAQ`, including the stricter ≥80/≥50 sentiment thresholds than the other tools, the up-to-14-row check grid (neutral-bg rows — only the ✓/✗ glyph is colored, unlike the other tools' tinted rows), the Safe-Browsing-degraded warning, the redirect notice, and the flags-detected pill list. `image.tsx` ports web's `ImageCheckPage`/`ImageResultCard`/`ImageFAQ`/"What AI will detect" list, but swaps web's drag-and-drop `<input type="file">` for `expo-image-picker` (library-or-camera buttons, permission strings via its `app.json` config plugin) and POSTs `multipart/form-data` through a new `postFormData()` helper in `api-client.ts` (RN's `fetch` accepts a `{ uri, name, type }` object in place of a real `File`/`Blob`) — it's the only mobile tool screen whose input mechanism genuinely differs from web's. All five wired screens' result cards share one score-ring convention — a small 56×56px ring (radius 20, `-rotate-90`) in the header row, upper-right, next to the sentiment/classification badge, via the shared `ScoreRing.tsx` component. `ImageResultCard.tsx` and `TextResultCard.tsx` are thin per-tool config wrappers (classification labels, colors, copy) around one shared `ClassificationResultCard.tsx` — on web these are two separate near-duplicate files, so mobile collapsed them into one component from the start rather than porting the duplication. The home screen's quick-check input (`src/app/index.tsx`, mirrors web's `SmartInput`) runs `detectInputKind` from `@isthisvalid/core/input-router` locally and routes to the matching tool screen with the detected value passed as a route param, read back via `useLocalSearchParams` to prefill that screen's input — it does not reproduce web's `/check/any` fan-out (multi-entity extraction from prose, inline sub-results), which stays out of scope for mobile; Image is unreachable from it regardless, since `detectInputKind` only classifies pasted text. QR scanning and the Smart-Paste/share-target flow are out of scope for the mobile client: QR needs `expo-camera` + native barcode decoding (no shared code with the browser-`getUserMedia`-based `useQrScanner.ts`), and native apps use `Share`/deep-linking, a different mechanism than the web's `/share` cookie-handoff flow. `settings.tsx` links out to the existing web `/about`, `/privacy`, `/terms` pages via `expo-web-browser`'s in-app browser rather than porting their ~300–500 lines of static copy each to native screens — those pages carry legal weight and must stay a single source of truth, not two copies that can drift. It's reached from a ⚙️ icon in `_layout.tsx`'s `headerRight` on `index`, which otherwise keeps `headerTitle: ""` (header background matches the screen, so the bar is invisible and the home screen's hero still reads edge-to-edge).
+
+Every result card (web and mobile) gets its sentiment and badge label from `@isthisvalid/core/result-verdict` and keeps only its own colours — don't reintroduce local `getSentiment` thresholds. Every tool screen renders one `src/components/ShareButton.tsx` below its result card (see "Sharing results" above): text tools use RN's built-in `Share`; the image screen mounts `ShareImageCard.tsx` off-screen only while sharing, screenshots it with `react-native-view-shot`, and shares the JPEG via `expo-sharing` (both included in Expo Go; `expo-sharing`'s config plugin is only for _receiving_ shares and is deliberately not added to `app.json`).
 
 Root ESLint (`eslint.config.mjs`) ignores `apps/mobile/**` — its Next-tuned rules (e.g. `no-require-imports`, which Metro's CJS config legitimately violates) don't apply there; `apps/mobile` has its own `expo lint` command and `eslint.config.js` (`eslint-config-expo`). Root `tsconfig.json` excludes `apps/mobile` from `npx tsc --noEmit` for the same reason (incompatible `lib`/`jsx` settings) — `packages/core` stays included and is typechecked transitively through the `src/lib/*` shims; `apps/mobile` needs its own `tsc --noEmit`, run separately (via Expo's own tooling), not yet wired into CI.
 
