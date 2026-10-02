@@ -7,7 +7,7 @@ import ShareButton from "@/components/ShareButton";
 import QrContentCard from "@/components/QrContentCard";
 import QrFAQ from "@/components/QrFAQ";
 import { useQrScanner } from "@/hooks/useQrScanner";
-import type { QrContent } from "@/lib/qr-content";
+import type { NonUrlQrContent } from "@/lib/qr-content";
 
 const HOW_IT_WORKS = [
   [
@@ -65,9 +65,7 @@ export default function QrCheckPage() {
 
   const isChoosing = mode === "choose" && phase === "idle";
   const nonUrlContent =
-    content && content.kind !== "url"
-      ? (content as Exclude<QrContent, { kind: "url" }>)
-      : null;
+    content && content.kind !== "url" ? (content as NonUrlQrContent) : null;
 
   return (
     <CheckShell
@@ -231,6 +229,7 @@ export default function QrCheckPage() {
           {phase === "result-other" && nonUrlContent && (
             <div className="space-y-4">
               <QrContentCard content={nonUrlContent} />
+              <ShareButton input={{ kind: "qr", content: nonUrlContent }} />
               <button
                 onClick={handleReset}
                 className="cursor-pointer text-sm text-cyan-400 hover:text-cyan-300 underline underline-offset-2 transition-colors"

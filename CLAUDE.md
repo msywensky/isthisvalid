@@ -17,7 +17,7 @@ A free, no-signup verification hub for email validation, URL safety checking, SM
 ```bash
 npm run dev                    # Start dev server at http://localhost:3000
 npm run build                  # Production build (type-check + static generation)
-npm test                       # Run all Jest suites (610 tests)
+npm test                       # Run all Jest suites (615 tests)
 npx jest __tests__/email-validator.test.ts  # Single test file
 npx jest -t "typosquat"       # Tests matching a pattern
 npm run test:coverage         # Generate coverage report (→ coverage/)
@@ -193,6 +193,7 @@ The repo is an npm workspace root (`"workspaces": ["packages/*", "apps/*"]`). Th
 - **Text tools** (email/url/phone/text): `buildShareText(input)` → "I checked this … on IsThisValid:" + what was checked (in full) + verdict + `Check one yourself: https://isthisvalid.com/check/<tool>`. Web: `navigator.share({ text })`, falling back to the clipboard ("Copied ✓"). Mobile: RN `Share.share({ message })`. Only `text`/`message`, never also `url` (iOS shows it twice; Android ignores it).
 - **Image**: web `src/lib/share-image.ts` (browser-only, a real file — not a shim) re-encodes the image on a canvas with the `buildImageStrip()` verdict strip drawn below it; composed after the result arrives, and **only where `canShareFiles()`** (elsewhere the button just copies text). Mobile screenshots an off-screen `ShareImageCard` with `react-native-view-shot` and shares it via `expo-sharing`.
 - `/check/any` shares its primary result only (`toShareInput()` in that page); `ShareInput.kind` deliberately matches `DetectedKind`.
+- **QR**: a QR link is shared as `url` (its URL check). Non-link QR content (tel/email/wifi/text) is shared as `kind: "qr"` — no verdict, just `Contains: <label>`, the value and a caution line. The labels (`QR_CONTENT_LABELS`) and the Wi-Fi warning (`QR_WIFI_WARNING`) live in `qr-content.ts` and are shared with `QrContentCard`. The Wi-Fi password is never in the share text (it is never parsed out of the QR in the first place; regression-tested).
 
 **Critical invariants:**
 
@@ -285,7 +286,7 @@ Model and token cap overridable via `ANTHROPIC_MODEL` and `ANTHROPIC_MAX_TOKENS`
 
 All tests are pure unit tests—no network, no Redis, no filesystem. Jest mocks external dependencies.
 
-**Test coverage:** 610 tests (161 email + 113 URL + 71 phone + 52 input-router + 45 text + 46 image-debunker + 27 image-route + 30 share-text + 17 result-verdict + 17 share-route + 16 qr-content + 15 smtp-cache)
+**Test coverage:** 615 tests (161 email + 113 URL + 71 phone + 52 input-router + 45 text + 46 image-debunker + 27 image-route + 35 share-text + 17 result-verdict + 17 share-route + 16 qr-content + 15 smtp-cache)
 
 Jest runs with `testEnvironment: "node"` and **no jsdom**, so component tests are not possible. Keep logic worth testing in pure libs (`input-router.ts`, `qr-content.ts`, the validators) rather than in hooks or components.
 

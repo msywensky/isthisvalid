@@ -13,6 +13,11 @@ import type {
   ImageClassification,
   ImageDebunkResult,
 } from "../src/lib/image-debunker";
+import {
+  classifyQrContent,
+  QR_WIFI_WARNING,
+  type NonUrlQrContent,
+} from "../src/lib/qr-content";
 
 // Fixtures carry only the fields share-text reads.
 function urlResult(
@@ -236,6 +241,72 @@ describe("buildShareText", () => {
         "Automated estimate, not proof.\n\n" +
         `Check one yourself: ${SITE_URL}/check/image`,
     );
+  });
+});
+
+describe("buildShareText — non-link QR content", () => {
+  function qr(raw: string) {
+    return classifyQrContent(raw) as NonUrlQrContent;
+  }
+
+  test("tel", () => {
+    expect(
+      buildShareText({ kind: "qr", content: qr("tel:+14155552671") }),
+    ).toBe(
+      "I checked this QR code on IsThisValid:\n" +
+        "Contains: Phone Number\n" +
+        "+14155552671\n" +
+        "⚠️ Check a number from an unexpected QR code before you call it.\n\n" +
+        `Check one yourself: ${SITE_URL}/check/qr`,
+    );
+  });
+
+  test("email — mailto query string not included", () => {
+    const text = buildShareText({
+      kind: "qr",
+      content: qr("mailto:billing@example.com?subject=Pay"),
+    });
+    expect(text.split("\n").slice(1, 4)).toEqual([
+      "Contains: Email Address",
+      "billing@example.com",
+      "⚠️ Check an address from an unexpected QR code before you email it.",
+    ]);
+    expect(text).not.toContain("subject");
+  });
+
+  test("wifi — network details and the card's warning", () => {
+    const text = buildShareText({
+      kind: "qr",
+      content: qr("WIFI:T:WPA;S:CoffeeShop;P:hunter2;H:true;;"),
+    });
+    expect(text.split("\n").slice(1, 4)).toEqual([
+      "Contains: Wi-Fi Network",
+      "Network: CoffeeShop (WPA, hidden)",
+      `⚠️ ${QR_WIFI_WARNING}`,
+    ]);
+  });
+
+  test("[Regression] wifi password never appears in share text", () => {
+    const text = buildShareText({
+      kind: "qr",
+      content: qr("WIFI:T:WPA;S:Home;P:s3cretPass!;;"),
+    });
+    expect(text).not.toContain("s3cretPass!");
+  });
+
+  test("text — quoted with links defanged; empty text shown as (empty)", () => {
+    const text = buildShareText({
+      kind: "qr",
+      content: { kind: "text", text: "Pay at https://evil.com/x now", raw: "" },
+    });
+    expect(text).toContain("Contains: Plain Text");
+    expect(text).toContain('"Pay at hxxps://evil[.]com/x now"');
+    expect(
+      buildShareText({
+        kind: "qr",
+        content: { kind: "text", text: "", raw: "" },
+      }),
+    ).toContain("\n(empty)\n");
   });
 });
 

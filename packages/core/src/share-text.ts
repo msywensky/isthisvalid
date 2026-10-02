@@ -14,6 +14,11 @@ import type { TextDebunkResult } from "./text-debunker";
 import type { ImageClassification, ImageDebunkResult } from "./image-debunker";
 import { extractUrls } from "./input-router";
 import {
+  QR_CONTENT_LABELS,
+  QR_WIFI_WARNING,
+  type NonUrlQrContent,
+} from "./qr-content";
+import {
   getEmailVerdict,
   getPhoneVerdict,
   getUrlVerdict,
@@ -23,13 +28,18 @@ import {
 
 export const SITE_URL = "https://isthisvalid.com";
 
-/** `kind` matches input-router's DetectedKind, so /check/any maps in one line. */
+/**
+ * `kind` matches input-router's DetectedKind for the four text tools, so
+ * /check/any maps in one line. A QR code that holds a link is shared as
+ * `url`; `qr` is only for non-link QR content (no verdict to share).
+ */
 export type ShareInput =
   | { kind: "email"; result: EmailValidationResult }
   | { kind: "url"; result: UrlValidationResult }
   | { kind: "phone"; result: PhoneValidationResult }
   | { kind: "text"; result: TextDebunkResult; message: string }
-  | { kind: "image"; result: ImageDebunkResult };
+  | { kind: "image"; result: ImageDebunkResult }
+  | { kind: "qr"; content: NonUrlQrContent };
 
 export interface ImageStrip {
   headline: string;
@@ -43,7 +53,35 @@ const TOOL_META: Record<ShareInput["kind"], { noun: string; path: string }> = {
   phone: { noun: "phone number", path: "/check/phone" },
   text: { noun: "message", path: "/check/text" },
   image: { noun: "image", path: "/check/image" },
+  qr: { noun: "QR code", path: "/check/qr" },
 };
+
+/** One caution line per non-link QR kind — Wi-Fi reuses the card's wording. */
+const QR_CAUTION: Record<NonUrlQrContent["kind"], string> = {
+  tel: "⚠️ Check a number from an unexpected QR code before you call it.",
+  email: "⚠️ Check an address from an unexpected QR code before you email it.",
+  wifi: `⚠️ ${QR_WIFI_WARNING}`,
+  text: "⚠️ Be wary of instructions from an unexpected QR code.",
+};
+
+function qrValueLine(c: NonUrlQrContent): string {
+  switch (c.kind) {
+    case "tel":
+      return c.phone;
+    case "email":
+      return c.email;
+    case "wifi": {
+      // The password is never parsed out of the QR (see qr-content.ts).
+      const details = [c.encryption, c.hidden ? "hidden" : null]
+        .filter(Boolean)
+        .join(", ");
+      const network = `Network: ${c.ssid || "(unknown)"}`;
+      return details ? `${network} (${details})` : network;
+    }
+    case "text":
+      return c.text ? `"${defangUrlsInText(c.text)}"` : "(empty)";
+  }
+}
 
 /**
  * Deliberately hedged — never "Authentic". A shared image carries our name on
@@ -118,6 +156,12 @@ export function buildShareText(input: ShareInput): string {
       return compose("image", [
         `Verdict: ${buildImageStrip(input.result).headline}`,
         "Automated estimate, not proof.",
+      ]);
+    case "qr":
+      return compose("qr", [
+        `Contains: ${QR_CONTENT_LABELS[input.content.kind]}`,
+        qrValueLine(input.content),
+        QR_CAUTION[input.content.kind],
       ]);
   }
 }

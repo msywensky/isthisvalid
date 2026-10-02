@@ -440,6 +440,10 @@ result card ──► ShareButton
                               → expo-sharing shareAsync; text-only fallback on any failure
 ```
 
+- **QR codes:** a link is shared as `url` (with its URL check). Non-link content (tel / email /
+  wifi / text) is shared as `kind: "qr"`: `Contains: <label>`, the value, and a caution line.
+  `QR_CONTENT_LABELS` and `QR_WIFI_WARNING` live in `qr-content.ts`, shared with `QrContentCard`.
+  The Wi-Fi password is never shared (it's never parsed out of the QR; regression-tested).
 - **`ShareInput.kind` matches `DetectedKind`**, so `/check/any` shares its primary result
   through a small `toShareInput()` helper. Sub-checks are not shared.
 - **Never share the original image file.** Both platforms share a fresh re-encode, which is
@@ -559,7 +563,8 @@ src/
     ├── sightengine-client.ts        # SightEngine API client: callSightengine, isSightengineConfigured, getSightengineModelLabel;
     │                                #   3 retries with exponential backoff on 429/5xx/network errors
     ├── qr-content.ts                # Pure classifier: classifyQrContent(raw) → QrContent discriminated union
-    │                                #   (url/tel/email/wifi/text); DOM-free, wifi password never extracted
+    │                                #   (url/tel/email/wifi/text); DOM-free, wifi password never extracted;
+    │                                #   NonUrlQrContent, QR_CONTENT_LABELS, QR_WIFI_WARNING (card + share text)
     ├── qr-faq-data.ts               # FAQ Q&A for QR tool — consumed by QrFAQ.tsx + FAQPage JSON-LD
     ├── input-router.ts              # Pure router: detectInputKind(raw) → DetectedInput (email/url/phone/text);
     │                                #   extractUrls / extractPhones for prose; MAX_AUTO_URL_CHECKS = 3;
@@ -593,7 +598,7 @@ __tests__/
     #   URL 79/80 + 49/50 boundaries, every classification labelled (17 tests)
 ├── share-text.test.ts               # Jest unit tests: defangUrl / defangUrlsInText (emails untouched, case-insensitive,
     #   no partial-word matches), one exact string per tool, URL warning at 79 vs 80, phone fallback,
-    #   image strip wording + [Regression] never says "Authentic" (30 tests)
+    #   image strip wording + [Regression] never says "Authentic", non-link QR content + [Regression] Wi-Fi password never shared (35 tests)
 ├── qr-content.test.ts               # Jest unit tests: classifyQrContent — url/tel/email/wifi/text classification,
     #   wifi password never surfaced, javascript:/data: regression guard (16 tests)
 ├── smtp-cache.test.ts               # Jest unit tests: getCachedSmtpResult, setCachedSmtpResult — Redis mocked (15 tests)
@@ -602,7 +607,7 @@ __tests__/
     #   notHighEntropy, notExcessiveHyphens, IP edge cases, ccTLD coverage (113 tests)
 ```
 
-**Total: 610 tests** (161 email + 113 URL + 71 phone + 52 input-router + 45 text + 46 image-debunker + 27 image-route + 30 share-text + 17 result-verdict + 17 share-route + 16 qr-content + 15 smtp-cache)
+**Total: 615 tests** (161 email + 113 URL + 71 phone + 52 input-router + 45 text + 46 image-debunker + 27 image-route + 35 share-text + 17 result-verdict + 17 share-route + 16 qr-content + 15 smtp-cache)
 
 Jest runs with `testEnvironment: "node"` and no jsdom, so component tests are not possible —
 logic worth testing lives in pure libs (`input-router.ts`, `qr-content.ts`, the validators).
@@ -643,7 +648,7 @@ isthisvalid/
 
 **`packages/core`** holds every pure-TypeScript file that used to live in `src/lib/` — no DOM, no Node-only APIs, no server-only imports (verified file-by-file before the move). It's consumed two ways:
 
-- **`apps/web`** (this Next.js app): `src/lib/<name>.ts` is now a one-line re-export shim — `export * from "@isthisvalid/core/<name>";` — so every existing import (`@/lib/email-validator`, all 610 Jest tests, every API route) is untouched. `next.config.ts` sets `transpilePackages: ["@isthisvalid/core"]` so Next transpiles it from source; `jest.config.ts` maps `@isthisvalid/core/*` straight to `packages/core/src/*.ts`, bypassing the workspace symlink for the test runner.
+- **`apps/web`** (this Next.js app): `src/lib/<name>.ts` is now a one-line re-export shim — `export * from "@isthisvalid/core/<name>";` — so every existing import (`@/lib/email-validator`, all 615 Jest tests, every API route) is untouched. `next.config.ts` sets `transpilePackages: ["@isthisvalid/core"]` so Next transpiles it from source; `jest.config.ts` maps `@isthisvalid/core/*` straight to `packages/core/src/*.ts`, bypassing the workspace symlink for the test runner.
 - **`apps/mobile`**: imports `@isthisvalid/core/*` directly (e.g. `@isthisvalid/core/email-validator`) for both types (parsing `/api/*` JSON responses) and the local/instant-feedback phase (e.g. `validateEmailLocal` runs on-device before the network call, mirroring the web app's progressive-enrichment pattern).
 
 The one cross-file fix this required: `email-validator.ts` used to import `SmtpVerifyResult` from the server-only `smtp-provider.ts`. That's backwards for a shared package (it would make `packages/core` depend on app-only code), so `SmtpVerifyResult` is now defined in `packages/core/src/email-validator.ts`, and `src/lib/smtp-provider.ts` imports it from there instead.

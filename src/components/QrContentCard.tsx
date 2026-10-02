@@ -1,37 +1,34 @@
 "use client";
 
 import Link from "next/link";
-import type { QrContent } from "@/lib/qr-content";
+import {
+  QR_CONTENT_LABELS,
+  QR_WIFI_WARNING,
+  type NonUrlQrContent,
+} from "@/lib/qr-content";
 import KofiDonation from "@/components/KofiDonation";
-
-type NonUrlQrContent = Exclude<QrContent, { kind: "url" }>;
 
 interface Props {
   content: NonUrlQrContent;
 }
 
-const KIND_CONFIG: Record<
-  NonUrlQrContent["kind"],
-  { label: string; emoji: string }
-> = {
-  tel: { label: "Phone Number", emoji: "📞" },
-  email: { label: "Email Address", emoji: "📧" },
-  wifi: { label: "Wi-Fi Network", emoji: "📶" },
-  text: { label: "Plain Text", emoji: "📄" },
+const KIND_EMOJI: Record<NonUrlQrContent["kind"], string> = {
+  tel: "📞",
+  email: "📧",
+  wifi: "📶",
+  text: "📄",
 };
 
 export default function QrContentCard({ content }: Props) {
-  const cfg = KIND_CONFIG[content.kind];
-
   return (
     <div className="w-full max-w-xl rounded-2xl border-2 border-cyan-500/50 bg-cyan-950/20 p-6 space-y-5">
       <div className="flex items-start gap-3 rounded-xl border border-cyan-800/50 bg-cyan-950/40 px-4 py-3">
         <span className="text-2xl mt-0.5 shrink-0" aria-hidden="true">
-          {cfg.emoji}
+          {KIND_EMOJI[content.kind]}
         </span>
         <div className="min-w-0">
           <p className="font-bold text-lg leading-tight text-cyan-400">
-            {cfg.label}
+            {QR_CONTENT_LABELS[content.kind]}
           </p>
           <p className="text-zinc-300 text-sm mt-0.5 leading-snug">
             This QR code does not link to a website — here&rsquo;s what it
@@ -98,10 +95,7 @@ export default function QrContentCard({ content }: Props) {
           </div>
           <div className="flex items-start gap-2 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-300">
             <span className="shrink-0 font-bold">⚠</span>
-            <span>
-              Connecting to a Wi-Fi network from an untrusted QR code can expose
-              your device — only join networks you recognize.
-            </span>
+            <span>{QR_WIFI_WARNING}</span>
           </div>
         </div>
       )}
