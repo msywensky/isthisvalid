@@ -19,6 +19,7 @@ import { Colors } from "@/constants/colors";
 import { ResultCard, type CheckItem } from "@/components/ResultCard";
 import SectionHeader from "@/components/SectionHeader";
 import FAQ from "@/components/FAQ";
+import ShareButton from "@/components/ShareButton";
 
 // Email-specific: derives the card's check rows from an EmailValidationResult.
 // The verdict (sentiment + badge label) comes from @isthisvalid/core.
@@ -161,16 +162,21 @@ export default function EmailScreen() {
       {error && <Text style={styles.error}>{error}</Text>}
 
       {result && (
-        <ResultCard
-          score={result.score}
-          verdict={getEmailVerdict(result)}
-          message={result.message}
-          detail={
-            result.suggestion ? `Did you mean ${result.suggestion}?` : undefined
-          }
-          checks={getCheckItems(result)}
-          source={getSourceLabel(result)}
-        />
+        <>
+          <ResultCard
+            score={result.score}
+            verdict={getEmailVerdict(result)}
+            message={result.message}
+            detail={
+              result.suggestion
+                ? `Did you mean ${result.suggestion}?`
+                : undefined
+            }
+            checks={getCheckItems(result)}
+            source={getSourceLabel(result)}
+          />
+          <ShareButton input={{ kind: "email", result }} />
+        </>
       )}
 
       <View style={styles.howItWorks}>

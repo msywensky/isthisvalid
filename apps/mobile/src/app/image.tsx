@@ -22,6 +22,7 @@ import { Colors } from "@/constants/colors";
 import SectionHeader from "@/components/SectionHeader";
 import FAQ from "@/components/FAQ";
 import ImageResultCard from "@/components/ImageResultCard";
+import ShareButton from "@/components/ShareButton";
 
 type Phase = "idle" | "preview" | "loading" | "result" | "error";
 
@@ -206,9 +207,14 @@ export default function ImageScreen() {
         </View>
       )}
 
-      {phase === "result" && result && (
+      {phase === "result" && result && asset && (
         <View style={styles.resultBlock}>
           <ImageResultCard result={result} />
+          <ShareButton
+            input={{ kind: "image", result }}
+            imageUri={asset.uri}
+            imageAspect={asset.width ? asset.height / asset.width : 1}
+          />
           <Pressable onPress={handleReset} hitSlop={8}>
             <Text style={styles.resetLink}>← Check another image</Text>
           </Pressable>

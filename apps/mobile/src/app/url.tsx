@@ -18,6 +18,7 @@ import { Colors } from "@/constants/colors";
 import SectionHeader from "@/components/SectionHeader";
 import FAQ from "@/components/FAQ";
 import UrlResultCard from "@/components/UrlResultCard";
+import ShareButton from "@/components/ShareButton";
 
 // Mirrors web's check/url/page.tsx "How it works" <ol>.
 const HOW_IT_WORKS: [string, string][] = [
@@ -129,7 +130,12 @@ export default function UrlScreen() {
 
       {error && <Text style={styles.error}>{error}</Text>}
 
-      {result && <UrlResultCard result={result} />}
+      {result && (
+        <>
+          <UrlResultCard result={result} />
+          <ShareButton input={{ kind: "url", result }} />
+        </>
+      )}
 
       <View style={styles.howItWorks}>
         <Text style={styles.howItWorksHeading}>How it works</Text>
