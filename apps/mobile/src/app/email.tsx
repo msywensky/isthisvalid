@@ -12,26 +12,16 @@ import {
 
 import type { EmailValidationResult } from "@isthisvalid/core/email-validator";
 import { FAQ_DATA } from "@isthisvalid/core/faq-data";
+import { getEmailVerdict } from "@isthisvalid/core/result-verdict";
 
 import { ApiError, postJson } from "@/lib/api-client";
 import { Colors } from "@/constants/colors";
-import {
-  ResultCard,
-  type CheckItem,
-  type Sentiment,
-} from "@/components/ResultCard";
+import { ResultCard, type CheckItem } from "@/components/ResultCard";
 import SectionHeader from "@/components/SectionHeader";
 import FAQ from "@/components/FAQ";
 
-// Email-specific: derives the shared card's props from an
-// EmailValidationResult. URL/Phone screens will define their own versions of
-// these against their own result shape when they're wired up.
-function getSentiment(result: EmailValidationResult): Sentiment {
-  if (result.valid && result.score >= 70) return "valid";
-  if (!result.checks.syntax || result.score < 30) return "invalid";
-  return "warn";
-}
-
+// Email-specific: derives the card's check rows from an EmailValidationResult.
+// The verdict (sentiment + badge label) comes from @isthisvalid/core.
 function getCheckItems(result: EmailValidationResult): CheckItem[] {
   const items: CheckItem[] = [
     { label: "Syntax", pass: result.checks.syntax },
@@ -173,7 +163,7 @@ export default function EmailScreen() {
       {result && (
         <ResultCard
           score={result.score}
-          sentiment={getSentiment(result)}
+          verdict={getEmailVerdict(result)}
           message={result.message}
           detail={
             result.suggestion ? `Did you mean ${result.suggestion}?` : undefined

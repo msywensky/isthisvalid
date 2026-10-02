@@ -6,13 +6,13 @@ import type {
 } from "@/lib/image-debunker";
 import KofiDonation from "@/components/KofiDonation";
 import ScoreRing from "@/components/ScoreRing";
+import { IMAGE_CLASSIFICATION_LABELS } from "@/lib/result-verdict";
 
 type Props = { result: ImageDebunkResult };
 
 const CLASS_CONFIG: Record<
   ImageClassification,
   {
-    label: string;
     emoji: string;
     ringColor: string;
     badgeColor: string;
@@ -21,7 +21,6 @@ const CLASS_CONFIG: Record<
   }
 > = {
   "ai-generated": {
-    label: "AI-Generated",
     emoji: "🤖",
     ringColor: "#f43f5e",
     badgeColor: "text-rose-400",
@@ -29,7 +28,6 @@ const CLASS_CONFIG: Record<
     cardClass: "border-rose-500/50 bg-rose-950/40",
   },
   uncertain: {
-    label: "Uncertain",
     emoji: "⚠️",
     ringColor: "#eab308",
     badgeColor: "text-yellow-400",
@@ -37,7 +35,6 @@ const CLASS_CONFIG: Record<
     cardClass: "border-yellow-500/50 bg-yellow-950/40",
   },
   authentic: {
-    label: "Appears Authentic",
     emoji: "✅",
     ringColor: "#4ade80",
     badgeColor: "text-lime-400",
@@ -64,7 +61,7 @@ export default function ImageResultCard({ result }: Props) {
           </span>
           <div className="min-w-0">
             <p className={`font-bold text-lg leading-tight ${cfg.badgeColor}`}>
-              {cfg.label}
+              {IMAGE_CLASSIFICATION_LABELS[result.classification]}
             </p>
             <p className="text-zinc-300 text-sm mt-0.5 leading-snug">
               {result.summary}

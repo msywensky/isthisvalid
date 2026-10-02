@@ -2,6 +2,7 @@ import type {
   ImageClassification,
   ImageDebunkResult,
 } from "@isthisvalid/core/image-debunker";
+import { IMAGE_CLASSIFICATION_LABELS } from "@isthisvalid/core/result-verdict";
 
 import { Colors } from "@/constants/colors";
 import ClassificationResultCard from "@/components/ClassificationResultCard";
@@ -18,7 +19,6 @@ export interface ImageResultCardProps {
 const CLASS_CONFIG: Record<
   ImageClassification,
   {
-    label: string;
     emoji: string;
     ring: string;
     badgeText: string;
@@ -28,7 +28,6 @@ const CLASS_CONFIG: Record<
   }
 > = {
   "ai-generated": {
-    label: "AI-Generated",
     emoji: "🤖",
     ring: Colors.rose500,
     badgeText: Colors.rose400,
@@ -37,7 +36,6 @@ const CLASS_CONFIG: Record<
     cardBg: Colors.rose950,
   },
   uncertain: {
-    label: "Uncertain",
     emoji: "⚠️",
     ring: Colors.yellow500,
     badgeText: Colors.yellow400,
@@ -46,7 +44,6 @@ const CLASS_CONFIG: Record<
     cardBg: Colors.yellow950,
   },
   authentic: {
-    label: "Appears Authentic",
     emoji: "✅",
     ring: "#4ade80",
     badgeText: Colors.lime400,
@@ -67,7 +64,7 @@ export default function ImageResultCard({ result }: ImageResultCardProps) {
       badgeBg={cfg.badgeBg}
       badgeTextColor={cfg.badgeText}
       emoji={cfg.emoji}
-      label={cfg.label}
+      label={IMAGE_CLASSIFICATION_LABELS[result.classification]}
       summary={result.summary}
       displayScore={displayScore}
       ringColor={cfg.ring}

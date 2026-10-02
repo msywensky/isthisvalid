@@ -1,6 +1,10 @@
 import { StyleSheet, Text, View } from "react-native";
 
 import type { UrlValidationResult } from "@isthisvalid/core/url-validator";
+import {
+  getUrlVerdict,
+  type Sentiment,
+} from "@isthisvalid/core/result-verdict";
 
 import { Colors, withAlpha } from "@/constants/colors";
 import ScoreRing from "@/components/ScoreRing";
@@ -19,7 +23,6 @@ export interface UrlResultCardProps {
 }
 
 interface SentimentMeta {
-  label: string;
   badgeText: string;
   badgeBg: string;
   ring: string;
@@ -27,36 +30,29 @@ interface SentimentMeta {
   cardBg: string;
 }
 
-function getSentiment(score: number): SentimentMeta {
-  if (score >= 80) {
-    return {
-      label: "Safe",
-      badgeText: Colors.lime400,
-      badgeBg: withAlpha(Colors.lime400, 0.15),
-      ring: Colors.lime400,
-      cardBorder: Colors.limeBorder,
-      cardBg: Colors.lime950,
-    };
-  }
-  if (score >= 50) {
-    return {
-      label: "Suspicious",
-      badgeText: Colors.yellow400,
-      badgeBg: withAlpha(Colors.yellow400, 0.15),
-      ring: Colors.yellow400,
-      cardBorder: Colors.yellowBorder,
-      cardBg: Colors.yellow950,
-    };
-  }
-  return {
-    label: "Dangerous",
+const SENTIMENT_META: Record<Sentiment, SentimentMeta> = {
+  safe: {
+    badgeText: Colors.lime400,
+    badgeBg: withAlpha(Colors.lime400, 0.15),
+    ring: Colors.lime400,
+    cardBorder: Colors.limeBorder,
+    cardBg: Colors.lime950,
+  },
+  warn: {
+    badgeText: Colors.yellow400,
+    badgeBg: withAlpha(Colors.yellow400, 0.15),
+    ring: Colors.yellow400,
+    cardBorder: Colors.yellowBorder,
+    cardBg: Colors.yellow950,
+  },
+  danger: {
     badgeText: Colors.rose400,
     badgeBg: withAlpha(Colors.rose500, 0.15),
     ring: Colors.rose500,
     cardBorder: Colors.roseBorder,
     cardBg: Colors.rose950,
-  };
-}
+  },
+};
 
 function CheckRow({
   label,
@@ -79,7 +75,8 @@ function CheckRow({
 }
 
 export default function UrlResultCard({ result }: UrlResultCardProps) {
-  const s = getSentiment(result.score);
+  const verdict = getUrlVerdict(result.score);
+  const s = SENTIMENT_META[verdict.sentiment];
   const checks = result.checks;
 
   const hasFlags = result.flags.length > 0;
@@ -104,7 +101,7 @@ export default function UrlResultCard({ result }: UrlResultCardProps) {
       <View style={styles.headerRow}>
         <View style={[styles.badge, { backgroundColor: s.badgeBg }]}>
           <Text style={[styles.badgeText, { color: s.badgeText }]}>
-            {s.label}
+            {verdict.label}
           </Text>
         </View>
         <ScoreRing

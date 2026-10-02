@@ -2,6 +2,7 @@ import type {
   TextClassification,
   TextDebunkResult,
 } from "@isthisvalid/core/text-debunker";
+import { TEXT_CLASSIFICATION_LABELS } from "@isthisvalid/core/result-verdict";
 
 import { Colors } from "@/constants/colors";
 import ClassificationResultCard from "@/components/ClassificationResultCard";
@@ -18,7 +19,6 @@ export interface TextResultCardProps {
 const CLASS_CONFIG: Record<
   TextClassification,
   {
-    label: string;
     emoji: string;
     ring: string;
     badgeText: string;
@@ -28,7 +28,6 @@ const CLASS_CONFIG: Record<
   }
 > = {
   scam: {
-    label: "Scam Detected",
     emoji: "🚨",
     ring: "#ef4444",
     badgeText: Colors.rose400,
@@ -37,7 +36,6 @@ const CLASS_CONFIG: Record<
     cardBg: Colors.rose950,
   },
   smishing: {
-    label: "Smishing Detected",
     emoji: "🎣",
     ring: "#ef4444",
     badgeText: Colors.rose400,
@@ -46,7 +44,6 @@ const CLASS_CONFIG: Record<
     cardBg: Colors.rose950,
   },
   spam: {
-    label: "Spam",
     emoji: "📢",
     ring: "#eab308",
     badgeText: Colors.yellow400,
@@ -55,7 +52,6 @@ const CLASS_CONFIG: Record<
     cardBg: Colors.yellow950,
   },
   suspicious: {
-    label: "Suspicious",
     emoji: "⚠️",
     ring: "#eab308",
     badgeText: Colors.yellow400,
@@ -64,7 +60,6 @@ const CLASS_CONFIG: Record<
     cardBg: Colors.yellow950,
   },
   legit: {
-    label: "Looks Legit",
     emoji: "✅",
     ring: "#4ade80",
     badgeText: Colors.lime300,
@@ -85,7 +80,7 @@ export default function TextResultCard({ result }: TextResultCardProps) {
       badgeBg={cfg.badgeBg}
       badgeTextColor={cfg.badgeText}
       emoji={cfg.emoji}
-      label={cfg.label}
+      label={TEXT_CLASSIFICATION_LABELS[result.classification]}
       summary={result.summary}
       displayScore={displayScore}
       ringColor={cfg.ring}

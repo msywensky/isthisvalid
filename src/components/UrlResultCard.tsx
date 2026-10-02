@@ -10,6 +10,7 @@ import {
   showsKofi,
   type ResultCardVariant,
 } from "@/lib/result-card-variant";
+import { getUrlVerdict, type Sentiment } from "@/lib/result-verdict";
 
 interface Props {
   result: UrlValidationResult;
@@ -17,32 +18,30 @@ interface Props {
   variant?: ResultCardVariant;
 }
 
-// Sentiment thresholds — stricter than email (URL ≥80 = Safe)
-function getSentiment(score: number) {
-  if (score >= 80)
-    return {
-      label: "Safe",
-      bg: "bg-lime-400/15",
-      text: "text-lime-400",
-      ring: "#a3e635",
-      card: "border-lime-500/50 bg-lime-950/40",
-    };
-  if (score >= 50)
-    return {
-      label: "Suspicious",
-      bg: "bg-yellow-400/15",
-      text: "text-yellow-400",
-      ring: "#facc15",
-      card: "border-yellow-500/50 bg-yellow-950/40",
-    };
-  return {
-    label: "Dangerous",
+// Thresholds live in getUrlVerdict (stricter than email: URL ≥80 = Safe).
+const SENTIMENT_STYLES: Record<
+  Sentiment,
+  { bg: string; text: string; ring: string; card: string }
+> = {
+  safe: {
+    bg: "bg-lime-400/15",
+    text: "text-lime-400",
+    ring: "#a3e635",
+    card: "border-lime-500/50 bg-lime-950/40",
+  },
+  warn: {
+    bg: "bg-yellow-400/15",
+    text: "text-yellow-400",
+    ring: "#facc15",
+    card: "border-yellow-500/50 bg-yellow-950/40",
+  },
+  danger: {
     bg: "bg-rose-500/15",
     text: "text-rose-400",
     ring: "#f43f5e",
     card: "border-rose-500/50 bg-rose-950/40",
-  };
-}
+  },
+};
 
 function CheckRow({
   label,
@@ -72,7 +71,8 @@ function CheckRow({
 }
 
 export function UrlResultCard({ result, variant = "standalone" }: Props) {
-  const s = getSentiment(result.score);
+  const verdict = getUrlVerdict(result.score);
+  const s = SENTIMENT_STYLES[verdict.sentiment];
   const checks = result.checks;
   const showKofi = showsKofi(variant);
   const showAffiliate = showsAffiliate(variant);
@@ -102,7 +102,7 @@ export function UrlResultCard({ result, variant = "standalone" }: Props) {
         <span
           className={`inline-flex w-fit items-center rounded-full px-3 py-1 text-sm font-semibold ${s.bg} ${s.text}`}
         >
-          {s.label}
+          {verdict.label}
         </span>
         <ScoreRing
           score={result.score}
@@ -211,7 +211,7 @@ export function UrlResultCard({ result, variant = "standalone" }: Props) {
       )}
 
       {/* Affiliate nudge — only shown for suspicious or dangerous URLs */}
-      {showAffiliate && result.score < 80 && (
+      {showAffiliate && verdict.sentiment !== "safe" && (
         <AffiliateNudge
           href={AFFILIATE_LINKS.nordvpn}
           eyebrow="Stay safer online"
