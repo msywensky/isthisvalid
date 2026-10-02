@@ -10,6 +10,7 @@ import {
   showsKofi,
   type ResultCardVariant,
 } from "@/lib/result-card-variant";
+import { TEXT_CLASSIFICATION_LABELS } from "@/lib/result-verdict";
 
 type Props = {
   result: TextDebunkResult;
@@ -20,7 +21,6 @@ type Props = {
 const CLASS_CONFIG: Record<
   TextClassification,
   {
-    label: string;
     emoji: string;
     ringColor: string;
     badgeColor: string;
@@ -29,7 +29,6 @@ const CLASS_CONFIG: Record<
   }
 > = {
   scam: {
-    label: "Scam Detected",
     emoji: "🚨",
     ringColor: "#ef4444",
     badgeColor: "text-red-400",
@@ -37,7 +36,6 @@ const CLASS_CONFIG: Record<
     cardClass: "border-rose-500/50 bg-rose-950/40",
   },
   smishing: {
-    label: "Smishing Detected",
     emoji: "🎣",
     ringColor: "#ef4444",
     badgeColor: "text-red-400",
@@ -45,7 +43,6 @@ const CLASS_CONFIG: Record<
     cardClass: "border-rose-500/50 bg-rose-950/40",
   },
   spam: {
-    label: "Spam",
     emoji: "📢",
     ringColor: "#eab308",
     badgeColor: "text-yellow-400",
@@ -53,7 +50,6 @@ const CLASS_CONFIG: Record<
     cardClass: "border-yellow-500/50 bg-yellow-950/40",
   },
   suspicious: {
-    label: "Suspicious",
     emoji: "⚠️",
     ringColor: "#eab308",
     badgeColor: "text-yellow-400",
@@ -61,7 +57,6 @@ const CLASS_CONFIG: Record<
     cardClass: "border-yellow-500/50 bg-yellow-950/40",
   },
   legit: {
-    label: "Looks Legit",
     emoji: "✅",
     ringColor: "#4ade80",
     badgeColor: "text-green-400",
@@ -95,7 +90,7 @@ export default function TextResultCard({
           </span>
           <div className="min-w-0">
             <p className={`font-bold text-lg leading-tight ${cfg.badgeColor}`}>
-              {cfg.label}
+              {TEXT_CLASSIFICATION_LABELS[result.classification]}
             </p>
             <p className="text-zinc-300 text-sm mt-0.5 leading-snug">
               {result.summary}

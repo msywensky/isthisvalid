@@ -5,6 +5,7 @@ import type { EmailValidationResult } from "@/lib/email-validator";
 import CheckShell from "@/components/CheckShell";
 import EmailForm from "@/components/EmailForm";
 import ResultCard from "@/components/ResultCard";
+import ShareButton from "@/components/ShareButton";
 import AdSenseBanner from "@/components/AdSenseBanner";
 import FAQ from "@/components/FAQ";
 
@@ -82,7 +83,12 @@ export default function EmailCheckPage() {
           </div>
         )}
 
-        {state.phase === "result" && <ResultCard result={state.data} />}
+        {state.phase === "result" && (
+          <>
+            <ResultCard result={state.data} />
+            <ShareButton input={{ kind: "email", result: state.data }} />
+          </>
+        )}
 
         {(state.phase === "result" || state.phase === "error") && (
           <button

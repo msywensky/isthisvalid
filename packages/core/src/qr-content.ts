@@ -11,6 +11,21 @@ export type QrContent =
     }
   | { kind: "text"; text: string; raw: string };
 
+/** Everything the QR tool shows in QrContentCard rather than a URL check. */
+export type NonUrlQrContent = Exclude<QrContent, { kind: "url" }>;
+
+/** Card heading and share-text label for each non-URL kind. */
+export const QR_CONTENT_LABELS: Record<NonUrlQrContent["kind"], string> = {
+  tel: "Phone Number",
+  email: "Email Address",
+  wifi: "Wi-Fi Network",
+  text: "Plain Text",
+};
+
+/** Shown on the Wi-Fi card and included when a Wi-Fi QR result is shared. */
+export const QR_WIFI_WARNING =
+  "Connecting to a Wi-Fi network from an untrusted QR code can expose your device — only join networks you recognize.";
+
 const BARE_DOMAIN_RE =
   /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9-]+)+(\/\S*)?$/i;
 

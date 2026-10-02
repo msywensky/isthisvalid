@@ -17,7 +17,7 @@ A free, no-signup verification hub for email validation, URL safety checking, SM
 ```bash
 npm run dev                    # Start dev server at http://localhost:3000
 npm run build                  # Production build (type-check + static generation)
-npm test                       # Run all Jest suites (563 tests)
+npm test                       # Run all Jest suites (615 tests)
 npx jest __tests__/email-validator.test.ts  # Single test file
 npx jest -t "typosquat"       # Tests matching a pattern
 npm run test:coverage         # Generate coverage report (→ coverage/)
@@ -171,19 +171,39 @@ The "paste anything" entry point. **Adds no API route, no provider, and no env v
 
 The repo is an npm workspace root (`"workspaces": ["packages/*", "apps/*"]`). The web app **stays at the repo root** (root `package.json` is still its manifest) — zero Vercel/CI changes from adding workspaces. `packages/core` and `apps/mobile` are new siblings.
 
-- **`packages/core`** (`@isthisvalid/core`) holds every pure-TS file that used to live in `src/lib/`: `email-validator`, `url-validator`, `phone-validator`, `input-router`, `qr-content`, `result-card-variant`, `affiliate-links`, the `*-faq-data` files, `us-area-codes` (+ its JSON data), `disposable-domains`, `text-debunker`, `image-debunker`. No DOM, no Node-only APIs, no server-only imports.
-- **`src/lib/<name>.ts` is now a one-line shim** — `export * from "@isthisvalid/core/<name>";` — so every existing import site (API routes, components, all 563 Jest tests) is untouched. Don't add real logic to these shim files; edit `packages/core/src/<name>.ts` instead.
+- **`packages/core`** (`@isthisvalid/core`) holds every pure-TS file that used to live in `src/lib/`: `email-validator`, `url-validator`, `phone-validator`, `input-router`, `qr-content`, `result-card-variant`, `affiliate-links`, the `*-faq-data` files, `us-area-codes` (+ its JSON data), `disposable-domains`, `text-debunker`, `image-debunker`, `result-verdict`, `share-text`. No DOM, no Node-only APIs, no server-only imports.
+- **`src/lib/<name>.ts` is now a one-line shim** — `export * from "@isthisvalid/core/<name>";` — so every existing import site (API routes, components, all Jest tests) is untouched. Don't add real logic to these shim files; edit `packages/core/src/<name>.ts` instead.
 - **`apps/mobile`** (`@isthisvalid/mobile`) is an Expo Router app that calls the **existing** `/api/*` routes over HTTP — no duplicated scoring logic, no new backend. It imports `@isthisvalid/core/*` directly (e.g. `validateEmailLocal` for instant on-device feedback before the network call — the same progressive-enrichment pattern as the web app). All five tools (Email, Text/SMS, Phone, URL, Image) are wired to their real API routes. The home screen's "quick check" input (mirrors web's `SmartInput`) runs `detectInputKind` locally and routes to the matching tool screen with the value passed as a route param — it does not reproduce web's full `/check/any` fan-out (multi-entity extraction, inline sub-results), which is out of scope for mobile; Image isn't reachable from it either way, since `detectInputKind` only classifies pasted text (email/url/phone/text), not an image pick. QR and Smart-Paste/share-target are not planned for the mobile client as of this writing — no shared code exists for either (`useQrScanner.ts` is browser-`getUserMedia`-specific; the web's `/share` flow is a cookie handoff with no native equivalent).
 - **About / Privacy / Terms** (`src/app/settings.tsx`) are not ported to native screens — they're long-form static copy that changes independently of app releases, so duplicating them into RN risks the copy drifting from the Privacy Policy/Terms actually in effect on the site (a real legal-accuracy concern, not just tech debt). Each row opens the existing web page (`https://isthisvalid.com/about` etc.) via `expo-web-browser`'s in-app browser instead. The settings screen is reached via a ⚙️ icon in `index`'s native header (`_layout.tsx`'s `headerRight`) — `index` keeps `headerTitle: ""` so no title text shows and the header bar (background matches the screen) stays visually invisible, preserving the home screen's edge-to-edge hero look while still giving the icon a native place to live.
 - The **Image** screen (`src/app/image.tsx`) uses `expo-image-picker` (library or camera, permission strings configured via its config plugin in `app.json`) instead of web's drag-and-drop `<input type="file">` — the only tool screen with a genuinely different input mechanism on mobile. It POSTs a `multipart/form-data` body via `postFormData()` (`src/lib/api-client.ts`), which RN's `fetch` accepts as a `{ uri, name, type }` object in place of a real `File`/`Blob`. `ImageResultCard.tsx` and `TextResultCard.tsx` are both thin per-tool config wrappers around a shared `ClassificationResultCard.tsx` — on web these two cards are separate near-duplicate files (classification badge + ring, confidence bar, flags list, explanation, source badge), so on mobile they were collapsed into one component from the start to avoid maintaining two copies of the same layout.
 
 **Critical invariants:**
 
+- **Result cards get their verdicts from core.** `result-verdict.ts` (`getEmailVerdict` / `getPhoneVerdict` / `getUrlVerdict`, `TEXT_`/`IMAGE_CLASSIFICATION_LABELS`) is the only copy of the score thresholds and badge labels; web cards, mobile cards and the share text all read it. Cards map `Sentiment` (`safe | warn | danger`) to their own colours. Don't add local `getSentiment` functions back.
 - `email-validator.ts`'s `SmtpVerifyResult` type is defined in `packages/core` (not in the server-only `src/lib/smtp-provider.ts`) specifically so the shared package never depends on app-only code — don't move it back.
 - `apps/mobile` is deliberately excluded from the root `tsconfig.json` (`exclude`) and `eslint.config.mjs` (`globalIgnores`) — it has its own type-check and `expo lint`/`eslint-config-expo` setup, incompatible with the web app's DOM/Next-tuned config. Don't remove these excludes to "simplify" — see Quick Commands above for the separate mobile commands.
 - Mobile styling is plain React Native `StyleSheet` + `src/constants/colors.ts` (hex values matching the web app's Tailwind tokens), **not** NativeWind — NativeWind v4 only supports Tailwind CSS v3, and hoists to the workspace root where its `tailwindcss` peer resolves to this repo's v4 (used by the web app); `npm overrides` can't force a nested v3 copy for an already-satisfied peer range. Don't re-add NativeWind v4 without solving that; v5 (Tailwind v4 support) may resolve it once stable.
 - `apps/mobile/metro.config.js` must keep its explicit `watchFolders`/`nodeModulesPaths` — without them Metro won't notice edits to `packages/core/src/*` and silently serves stale bundles.
 - `EXPO_PUBLIC_API_BASE_URL` (`apps/mobile/.env.development` / `.env.production`) points the app at the Next.js API. On a physical device (not a simulator), `localhost` doesn't reach the dev machine — use its LAN IP instead.
+
+### 10. Sharing Results (`packages/core/src/share-text.ts` + `ShareButton` on web and mobile)
+
+"Share result" button under every result card, on every web `/check/*` page and every mobile tool screen. **No API route, no env vars, no backend.**
+
+- **Text tools** (email/url/phone/text): `buildShareText(input)` → "I checked this … on IsThisValid:" + what was checked (in full) + verdict + `Check one yourself: https://isthisvalid.com/check/<tool>`. Web: `navigator.share({ text })`, falling back to the clipboard ("Copied ✓"). Mobile: RN `Share.share({ message })`. Only `text`/`message`, never also `url` (iOS shows it twice; Android ignores it).
+- **Image**: web `src/lib/share-image.ts` (browser-only, a real file — not a shim) re-encodes the image on a canvas with the `buildImageStrip()` verdict strip drawn below it; composed after the result arrives, and **only where `canShareFiles()`** (elsewhere the button just copies text). Mobile screenshots an off-screen `ShareImageCard` with `react-native-view-shot` and shares it via `expo-sharing`.
+- `/check/any` shares its primary result only (`toShareInput()` in that page); `ShareInput.kind` deliberately matches `DetectedKind`.
+- **QR**: a QR link is shared as `url` (its URL check). Non-link QR content (tel/email/wifi/text) is shared as `kind: "qr"` — no verdict, just `Contains: <label>`, the value and a caution line. The labels (`QR_CONTENT_LABELS`) and the Wi-Fi warning (`QR_WIFI_WARNING`) live in `qr-content.ts` and are shared with `QrContentCard`. The Wi-Fi password is never in the share text (it is never parsed out of the QR in the first place; regression-tested).
+
+**Critical invariants:**
+
+- **Never share the original image file.** The re-encode/screenshot is what strips EXIF (GPS, device, time).
+- **The image share wording never says "Authentic"** — "No strong signs of AI generation", plus "automated estimate, not proof". A deliberate difference from the card's "Appears Authentic"; regression-tested.
+- **Checked URLs are defanged** (`hxxps://evil[.]com`) — the checked URL, its redirect target, and links inside a shared message. Our own site link is not. `defangUrlsInText` reuses `extractUrls`, so bare domains outside `EXTRACTABLE_TLDS` stay as typed (explicit `http(s)://` links are always caught); domains inside email addresses are skipped.
+- **iOS Safari: `navigator.share` must be called synchronously in the click handler** — nothing awaited first, or it's rejected as not user-initiated. That's why the web share image is composed before the tap. `AbortError` (sheet dismissed) is not an error.
+- `ShareButton` (web) picks "Share" vs "Copy" via `useSyncExternalStore` (server snapshot `false`), not `setState` in an effect — that trips the `react-hooks` lint rule and risks a hydration mismatch.
+- Mobile `ShareImageCard`: `collapsable={false}` (Android), off-screen via `left: -10000` (not `opacity: 0`/`display: "none"` — those capture blank), capture only after the `Image`'s `onLoad`, laid out at 360pt with `captureRef` `width: 1080 / PixelRatio.get()` (view-shot's width is in points).
+- Web Share needs HTTPS — test on phones via the Vercel preview.
 
 ---
 
@@ -266,7 +286,7 @@ Model and token cap overridable via `ANTHROPIC_MODEL` and `ANTHROPIC_MAX_TOKENS`
 
 All tests are pure unit tests—no network, no Redis, no filesystem. Jest mocks external dependencies.
 
-**Test coverage:** 563 tests (161 email + 113 URL + 71 phone + 52 input-router + 45 text + 46 image-debunker + 27 image-route + 17 share-route + 16 qr-content + 15 smtp-cache)
+**Test coverage:** 615 tests (161 email + 113 URL + 71 phone + 52 input-router + 45 text + 46 image-debunker + 27 image-route + 35 share-text + 17 result-verdict + 17 share-route + 16 qr-content + 15 smtp-cache)
 
 Jest runs with `testEnvironment: "node"` and **no jsdom**, so component tests are not possible. Keep logic worth testing in pure libs (`input-router.ts`, `qr-content.ts`, the validators) rather than in hooks or components.
 

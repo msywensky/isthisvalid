@@ -1,5 +1,7 @@
 import { StyleSheet, Text, View } from "react-native";
 
+import type { Sentiment, Verdict } from "@isthisvalid/core/result-verdict";
+
 import { Colors } from "@/constants/colors";
 import ScoreRing from "@/components/ScoreRing";
 
@@ -10,8 +12,6 @@ import ScoreRing from "@/components/ScoreRing";
  * dedicated cards (PhoneResultCard/UrlResultCard) on both platforms, since
  * their result shapes and sentiment thresholds differ.
  */
-export type Sentiment = "valid" | "warn" | "invalid";
-
 export interface CheckItem {
   label: string;
   pass: boolean;
@@ -21,7 +21,8 @@ export interface CheckItem {
 
 export interface ResultCardProps {
   score: number;
-  sentiment: Sentiment;
+  /** From getEmailVerdict — sentiment picks the colours, label is the badge text. */
+  verdict: Verdict;
   message: string;
   /** Full sentence, e.g. "Did you mean gmail.com?" — a 💡 is prepended automatically. */
   detail?: string;
@@ -37,16 +38,14 @@ const sentimentMeta: Record<
     bg: string;
     badge: string;
     icon: string;
-    label: string;
     ring: string;
   }
 > = {
-  valid: {
+  safe: {
     border: Colors.limeBorder,
     bg: Colors.lime950,
     badge: Colors.lime600,
     icon: "✅",
-    label: "Valid",
     ring: Colors.lime500,
   },
   warn: {
@@ -54,28 +53,26 @@ const sentimentMeta: Record<
     bg: Colors.yellow950,
     badge: Colors.yellow600,
     icon: "⚠️",
-    label: "Risky",
     ring: Colors.yellow500,
   },
-  invalid: {
+  danger: {
     border: Colors.roseBorder,
     bg: Colors.rose950,
     badge: Colors.rose600,
     icon: "❌",
-    label: "Invalid",
     ring: Colors.rose400,
   },
 };
 
 export function ResultCard({
   score,
-  sentiment,
+  verdict,
   message,
   detail,
   checks,
   source,
 }: ResultCardProps) {
-  const s = sentimentMeta[sentiment];
+  const s = sentimentMeta[verdict.sentiment];
   return (
     <View
       style={[styles.card, { borderColor: s.border, backgroundColor: s.bg }]}
@@ -84,7 +81,7 @@ export function ResultCard({
         <View style={styles.badgeRow}>
           <Text style={styles.badgeIcon}>{s.icon}</Text>
           <View style={[styles.sentimentBadge, { backgroundColor: s.badge }]}>
-            <Text style={styles.sentimentBadgeText}>{s.label}</Text>
+            <Text style={styles.sentimentBadgeText}>{verdict.label}</Text>
           </View>
         </View>
         <ScoreRing score={score} ringColor={s.ring} />

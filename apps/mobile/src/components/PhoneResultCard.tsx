@@ -1,6 +1,10 @@
 import { StyleSheet, Text, View } from "react-native";
 
 import type { PhoneValidationResult } from "@isthisvalid/core/phone-validator";
+import {
+  getPhoneVerdict,
+  type Sentiment,
+} from "@isthisvalid/core/result-verdict";
 
 import { Colors } from "@/constants/colors";
 import ScoreRing from "@/components/ScoreRing";
@@ -14,14 +18,6 @@ import ScoreRing from "@/components/ScoreRing";
  */
 export interface PhoneResultCardProps {
   result: PhoneValidationResult;
-}
-
-type Sentiment = "valid" | "warn" | "invalid";
-
-function getSentiment(result: PhoneValidationResult): Sentiment {
-  if (result.valid && result.score >= 70) return "valid";
-  if (!result.checks.parseable || result.score < 30) return "invalid";
-  return "warn";
 }
 
 function lineTypeLabel(lineType: string): string {
@@ -60,16 +56,14 @@ const SENTIMENT_META: Record<
     bg: string;
     badge: string;
     icon: string;
-    label: string;
     ring: string;
   }
 > = {
-  valid: {
+  safe: {
     border: Colors.limeBorder,
     bg: Colors.lime950,
     badge: Colors.lime600,
     icon: "✅",
-    label: "Valid",
     ring: Colors.lime500,
   },
   warn: {
@@ -77,15 +71,13 @@ const SENTIMENT_META: Record<
     bg: Colors.yellow950,
     badge: Colors.yellow600,
     icon: "⚠️",
-    label: "Suspicious",
     ring: Colors.yellow500,
   },
-  invalid: {
+  danger: {
     border: Colors.roseBorder,
     bg: Colors.rose950,
     badge: Colors.rose600,
     icon: "❌",
-    label: "Invalid",
     ring: Colors.rose400,
   },
 };
@@ -97,8 +89,8 @@ function sourceLabel(source: PhoneValidationResult["source"]): string {
 }
 
 export default function PhoneResultCard({ result }: PhoneResultCardProps) {
-  const sentiment = getSentiment(result);
-  const s = SENTIMENT_META[sentiment];
+  const verdict = getPhoneVerdict(result);
+  const s = SENTIMENT_META[verdict.sentiment];
 
   const nanpFlag = result.flags.find((f) => f.includes("Caribbean"));
   const otherFlags = result.flags.filter((f) => !f.includes("Caribbean"));
@@ -111,7 +103,7 @@ export default function PhoneResultCard({ result }: PhoneResultCardProps) {
         <View style={styles.headerLeft}>
           <Text style={styles.headerIcon}>{s.icon}</Text>
           <View style={[styles.sentimentBadge, { backgroundColor: s.badge }]}>
-            <Text style={styles.sentimentBadgeText}>{s.label}</Text>
+            <Text style={styles.sentimentBadgeText}>{verdict.label}</Text>
           </View>
           {result.lineType && result.lineType !== "UNKNOWN" && (
             <View style={styles.lineTypeBadge}>

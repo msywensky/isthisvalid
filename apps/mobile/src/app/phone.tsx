@@ -18,6 +18,7 @@ import { Colors } from "@/constants/colors";
 import SectionHeader from "@/components/SectionHeader";
 import FAQ from "@/components/FAQ";
 import PhoneResultCard from "@/components/PhoneResultCard";
+import ShareButton from "@/components/ShareButton";
 
 // Mirrors web's check/phone/page.tsx "How it works" <ol>.
 const HOW_IT_WORKS: [string, string][] = [
@@ -137,7 +138,12 @@ export default function PhoneScreen() {
 
       {error && <Text style={styles.error}>{error}</Text>}
 
-      {result && <PhoneResultCard result={result} />}
+      {result && (
+        <>
+          <PhoneResultCard result={result} />
+          <ShareButton input={{ kind: "phone", result }} />
+        </>
+      )}
 
       <View style={styles.howItWorks}>
         <Text style={styles.howItWorksHeading}>How it works</Text>

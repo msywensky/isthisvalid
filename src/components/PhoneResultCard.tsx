@@ -2,19 +2,12 @@ import type { PhoneValidationResult } from "@/lib/phone-validator";
 import KofiDonation from "@/components/KofiDonation";
 import ScoreRing from "@/components/ScoreRing";
 import { showsKofi, type ResultCardVariant } from "@/lib/result-card-variant";
+import { getPhoneVerdict, type Sentiment } from "@/lib/result-verdict";
 
 interface Props {
   result: PhoneValidationResult;
   /** Defaults to "standalone" — see ResultCardVariant. */
   variant?: ResultCardVariant;
-}
-
-type Sentiment = "valid" | "warn" | "invalid";
-
-function getSentiment(result: PhoneValidationResult): Sentiment {
-  if (result.valid && result.score >= 70) return "valid";
-  if (!result.checks.parseable || result.score < 30) return "invalid";
-  return "warn";
 }
 
 function lineTypeLabel(lineType: string): string {
@@ -50,7 +43,7 @@ const sentimentStyles: Record<
   Sentiment,
   { card: string; badge: string; icon: string; ring: string }
 > = {
-  valid: {
+  safe: {
     card: "border-lime-500/50 bg-lime-950/40",
     badge: "bg-lime-600 text-white",
     icon: "✅",
@@ -62,7 +55,7 @@ const sentimentStyles: Record<
     icon: "⚠️",
     ring: "#eab308",
   },
-  invalid: {
+  danger: {
     card: "border-rose-500/50 bg-rose-950/40",
     badge: "bg-rose-600 text-white",
     icon: "❌",
@@ -70,18 +63,12 @@ const sentimentStyles: Record<
   },
 };
 
-const sentimentLabels: Record<Sentiment, string> = {
-  valid: "Valid",
-  warn: "Suspicious",
-  invalid: "Invalid",
-};
-
 export default function PhoneResultCard({
   result,
   variant = "standalone",
 }: Props) {
-  const sentiment = getSentiment(result);
-  const styles = sentimentStyles[sentiment];
+  const verdict = getPhoneVerdict(result);
+  const styles = sentimentStyles[verdict.sentiment];
   const showKofi = showsKofi(variant);
 
   // Pull the Caribbean/NANP warning out for prominent placement.
@@ -103,7 +90,7 @@ export default function PhoneResultCard({
           <span
             className={`text-sm font-bold uppercase tracking-wider px-3 py-1 rounded-full ${styles.badge}`}
           >
-            {sentimentLabels[sentiment]}
+            {verdict.label}
           </span>
           {result.lineType && result.lineType !== "UNKNOWN" && (
             <span className="text-xs font-medium px-2 py-1 rounded-full bg-zinc-800 text-zinc-400 border border-zinc-700">

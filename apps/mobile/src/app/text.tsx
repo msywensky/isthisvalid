@@ -18,6 +18,7 @@ import { Colors } from "@/constants/colors";
 import SectionHeader from "@/components/SectionHeader";
 import FAQ from "@/components/FAQ";
 import TextResultCard from "@/components/TextResultCard";
+import ShareButton from "@/components/ShareButton";
 
 type Phase = "idle" | "loading" | "result" | "error";
 
@@ -181,6 +182,7 @@ export default function TextScreen() {
       {phase === "result" && result && (
         <View style={styles.resultBlock}>
           <TextResultCard result={result} />
+          <ShareButton input={{ kind: "text", result, message: value }} />
           <Pressable onPress={handleReset} hitSlop={8}>
             <Text style={styles.resetLink}>← Check another message</Text>
           </Pressable>

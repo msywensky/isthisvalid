@@ -5,6 +5,7 @@ import type { PhoneValidationResult } from "@/lib/phone-validator";
 import CheckShell from "@/components/CheckShell";
 import PhoneForm from "@/components/PhoneForm";
 import PhoneResultCard from "@/components/PhoneResultCard";
+import ShareButton from "@/components/ShareButton";
 import PhoneFAQ from "@/components/PhoneFAQ";
 import AdSenseBanner from "@/components/AdSenseBanner";
 
@@ -82,7 +83,12 @@ export default function PhoneCheckPage() {
           </div>
         )}
 
-        {state.phase === "result" && <PhoneResultCard result={state.data} />}
+        {state.phase === "result" && (
+          <>
+            <PhoneResultCard result={state.data} />
+            <ShareButton input={{ kind: "phone", result: state.data }} />
+          </>
+        )}
 
         {(state.phase === "result" || state.phase === "error") && (
           <button

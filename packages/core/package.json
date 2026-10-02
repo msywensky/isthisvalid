@@ -20,7 +20,9 @@
     "./us-area-codes": "./src/us-area-codes.ts",
     "./disposable-domains": "./src/disposable-domains.ts",
     "./text-debunker": "./src/text-debunker.ts",
-    "./image-debunker": "./src/image-debunker.ts"
+    "./image-debunker": "./src/image-debunker.ts",
+    "./result-verdict": "./src/result-verdict.ts",
+    "./share-text": "./src/share-text.ts"
   },
   "dependencies": {
     "disposable-email-domains": "^1.0.62",

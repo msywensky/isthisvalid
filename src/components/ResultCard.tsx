@@ -8,6 +8,7 @@ import {
   showsKofi,
   type ResultCardVariant,
 } from "@/lib/result-card-variant";
+import { getEmailVerdict, type Sentiment } from "@/lib/result-verdict";
 
 interface Props {
   result: EmailValidationResult;
@@ -15,19 +16,11 @@ interface Props {
   variant?: ResultCardVariant;
 }
 
-type Sentiment = "valid" | "warn" | "invalid";
-
-function getSentiment(result: EmailValidationResult): Sentiment {
-  if (result.valid && result.score >= 70) return "valid";
-  if (!result.checks.syntax || result.score < 30) return "invalid";
-  return "warn";
-}
-
 const sentimentStyles: Record<
   Sentiment,
   { card: string; badge: string; icon: string; ring: string }
 > = {
-  valid: {
+  safe: {
     card: "border-lime-500/50 bg-lime-950/40",
     badge: "bg-lime-600 text-white",
     icon: "✅",
@@ -39,7 +32,7 @@ const sentimentStyles: Record<
     icon: "⚠️",
     ring: "#eab308",
   },
-  invalid: {
+  danger: {
     card: "border-rose-500/50 bg-rose-950/40",
     badge: "bg-rose-600 text-white",
     icon: "❌",
@@ -47,14 +40,9 @@ const sentimentStyles: Record<
   },
 };
 
-const sentimentLabels: Record<Sentiment, string> = {
-  valid: "Valid",
-  warn: "Risky",
-  invalid: "Invalid",
-};
-
 export default function ResultCard({ result, variant = "standalone" }: Props) {
-  const sentiment = getSentiment(result);
+  const verdict = getEmailVerdict(result);
+  const sentiment = verdict.sentiment;
   const styles = sentimentStyles[sentiment];
   const showKofi = showsKofi(variant);
   const showAffiliate = showsAffiliate(variant);
@@ -74,7 +62,7 @@ export default function ResultCard({ result, variant = "standalone" }: Props) {
           <span
             className={`text-sm font-bold uppercase tracking-wider px-3 py-1 rounded-full ${styles.badge}`}
           >
-            {sentimentLabels[sentiment]}
+            {verdict.label}
           </span>
         </div>
         <ScoreRing score={result.score} ringColor={styles.ring} />
@@ -130,7 +118,7 @@ export default function ResultCard({ result, variant = "standalone" }: Props) {
       </p>
 
       {/* Affiliate nudge — only shown for risky or invalid results */}
-      {showAffiliate && (sentiment === "warn" || sentiment === "invalid") && (
+      {showAffiliate && sentiment !== "safe" && (
         <AffiliateNudge
           href={AFFILIATE_LINKS.zerobounce}
           eyebrow="Got a whole list to check?"
